@@ -694,6 +694,27 @@
     </details>
   </section>
 
+  <section style="padding-bottom:0;">
+    <details class="manage" id="pastOrdersDetails">
+      <summary>Past orders</summary>
+      <div class="manage-body">
+        <p class="hint">Look up an order from an earlier day — view only. To change an order, edit it the same day it was taken.</p>
+        <div class="field-grid">
+          <div class="field">
+            <label for="historyDateInput">By date</label>
+            <input type="date" id="historyDateInput" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="historyDealerInput">By dealer name</label>
+            <input type="text" id="historyDealerInput" placeholder="Type dealer name" autocomplete="off">
+          </div>
+        </div>
+        <button type="button" class="btn btn-ghost" id="historySearchBtn" style="margin-top:8px;">Search</button>
+        <div id="historyResults"></div>
+      </div>
+    </details>
+  </section>
+
   <div class="editing-banner" id="editingBanner" hidden>
     <span>Editing a saved order for <b id="editingBannerDealer"></b></span>
     <button type="button" id="cancelEditBtn">Cancel</button>
@@ -1475,6 +1496,57 @@
       showToast("Couldn't delete — check connection and try again");
     });
   }
+
+  // ---- Past orders (view-only lookup by date or dealer name) ----
+  // Deliberately separate from Today's list/loadOrderForEdit - these results never get
+  // edit/delete buttons, and never touch qty/dealerInput/editingOrderId, so there is no
+  // way to accidentally end up "editing" a back-dated order.
+  function formatHistoryOrderRow(o) {
+    var timeLabel = "";
+    try { timeLabel = new Date(o.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }); } catch (e) { /* ignore */ }
+    var dateLabel = o.dateKey || "";
+    try { if (o.dateKey) dateLabel = formatDateDisplay(o.dateKey); } catch (e) { /* keep raw dateKey */ }
+    return '<div class="manage-row">' +
+      '<div class="manage-row-name"><b>' + escapeHtml(o.dealer || "—") + '</b><br><span class="hint" style="margin:2px 0 0;">' +
+      escapeHtml(dateLabel) + " • " + escapeHtml(timeLabel) + " • " + formatNum(o.totalLtr || 0) + " Ltr</span></div>" +
+      "</div>";
+  }
+
+  function searchPastOrders() {
+    var historyResultsEl = document.getElementById("historyResults");
+    var dateVal = document.getElementById("historyDateInput").value;
+    var dealerVal = document.getElementById("historyDealerInput").value.trim();
+    if (!dateVal && !dealerVal) {
+      showToast("Enter a date or dealer name to search");
+      return;
+    }
+    if (!apiConfigured()) {
+      showToast("Couldn't search — app isn't set up yet");
+      return;
+    }
+    historyResultsEl.innerHTML = '<p class="empty-note">Searching…</p>';
+    var dsrNameVal = document.getElementById("dsrName").value || "";
+    var url = ORDERS_API_URL + "?dsrName=" + encodeURIComponent(dsrNameVal) +
+      (dateVal ? "&historyDate=" + encodeURIComponent(dateVal) : "") +
+      (dealerVal ? "&dealerSearch=" + encodeURIComponent(dealerVal) : "") +
+      "&_ts=" + Date.now();
+    fetch(url, { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res || !res.ok) {
+        historyResultsEl.innerHTML = '<p class="empty-note">Couldn’t search — try again.</p>';
+        return;
+      }
+      var list = res.historyOrders || [];
+      if (!list.length) {
+        historyResultsEl.innerHTML = '<p class="empty-note">No orders found.</p>';
+        return;
+      }
+      historyResultsEl.innerHTML = list.map(formatHistoryOrderRow).join("");
+    }).catch(function () {
+      historyResultsEl.innerHTML = '<p class="empty-note">Couldn’t search — check your connection and try again.</p>';
+    });
+  }
+
+  document.getElementById("historySearchBtn").addEventListener("click", searchPastOrders);
 
   function buildReportText() {
     var dsr = document.getElementById("dsrName").value.trim() || "—";
