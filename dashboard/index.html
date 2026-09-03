@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DSR Sales Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap');
+
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --surface-2: #efebe2;
+    --ink: #1c1a16;
+    --ink-secondary: #5b554a;
+    --ink-muted: #8b8477;
+    --border: #e4dfd2;
+    --accent: #b8721c;
+    --accent-ink: #ffffff;
+    --accent-soft: #f2ddb4;
+    --good: #2f7d5a;
+    --good-soft: #d9ecdf;
+    --live: #2f6f8f;
+    --live-soft: #dbeaf1;
+    --warn: #a4432a;
+    --warn-soft: #f3ded6;
+    --shadow: 0 1px 2px rgba(28, 26, 22, 0.04), 0 8px 24px -12px rgba(28, 26, 22, 0.12);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14120e;
+      --surface: #1c1912;
+      --surface-2: #262019;
+      --ink: #f3efe6;
+      --ink-secondary: #c7bfae;
+      --ink-muted: #8f8777;
+      --border: #362c1e;
+      --accent: #e0a030;
+      --accent-ink: #1c1400;
+      --accent-soft: #3a2c13;
+      --good: #56b087;
+      --good-soft: #1c3226;
+      --live: #6fb6d6;
+      --live-soft: #1a2c33;
+      --warn: #d97a5c;
+      --warn-soft: #35201a;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    padding: 28px 16px 56px;
+  }
+
+  .page { max-width: 1180px; margin: 0 auto; }
+
+  .num {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  header.top {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+    margin-bottom: 14px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 6px;
+  }
+
+  h1 {
+    font-family: 'Archivo', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(24px, 5vw, 32px);
+    line-height: 1.1;
+    text-wrap: balance;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  .top-meta { text-align: right; color: var(--ink-secondary); font-size: 13px; line-height: 1.5; }
+  .top-meta strong { color: var(--ink); font-weight: 600; }
+
+  .refresh-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px 10px;
+    margin-bottom: 22px;
+    min-height: 32px;
+  }
+
+  .refresh-note { font-size: 12.5px; color: var(--ink-muted); }
+  .refresh-note.err { color: var(--warn); }
+
+  .refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent-ink);
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    padding: 9px 16px;
+    cursor: pointer;
+  }
+  .refresh-btn:disabled { opacity: 0.6; cursor: default; }
+  .refresh-btn .spin {
+    display: none; width: 12px; height: 12px;
+    border: 2px solid var(--accent-ink); border-top-color: transparent;
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
+  .refresh-btn.loading .spin { display: inline-block; }
+  .refresh-btn.loading .label::after { content: "Refreshing…"; }
+  .refresh-btn .label::after { content: "Refresh now"; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .refresh-btn .spin { animation: none; } }
+
+  .live-pill {
+    font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+    background: var(--live-soft); color: var(--live);
+  }
+
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 30px;
+    box-shadow: var(--shadow);
+  }
+  @media (max-width: 640px) { .summary { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 380px) { .summary { grid-template-columns: 1fr; } }
+
+  .stat { background: var(--surface); padding: 16px 18px; }
+  .stat-label {
+    font-size: 12px; font-weight: 500; color: var(--ink-muted);
+    text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 8px;
+  }
+  .stat-value { font-size: clamp(20px, 2.6vw, 26px); font-weight: 600; color: var(--ink); }
+  .stat-value .unit { font-size: 13px; font-weight: 500; color: var(--ink-muted); margin-left: 4px; }
+  .stat.balance .stat-value { color: var(--accent); }
+  .stat.balance.done .stat-value { color: var(--good); }
+
+  .section-label {
+    font-size: 13px; font-weight: 600; color: var(--ink-secondary);
+    text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 12px;
+  }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px 20px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 13px;
+  }
+
+  .card.stale { opacity: 0.55; }
+
+  .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .card-name { font-family: 'Archivo', system-ui, sans-serif; font-weight: 700; font-size: 18px; margin: 0; }
+  .card-territory { font-size: 12.5px; color: var(--ink-muted); margin: 2px 0 0; }
+
+  .pill { font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  .pill.on { background: var(--accent-soft); color: var(--accent); }
+  .pill.done { background: var(--good-soft); color: var(--good); }
+  .pill.err { background: var(--warn-soft); color: var(--warn); }
+
+  .today-row { display: flex; align-items: baseline; gap: 8px; }
+  .today-value { font-size: 28px; font-weight: 700; }
+  .today-caption { font-size: 12.5px; color: var(--ink-muted); }
+
+  .progress-track { position: relative; height: 10px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 999px; background: var(--accent); transition: width 0.4s ease; }
+  .progress-fill.done { background: var(--good); }
+
+  .progress-meta { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--ink-secondary); }
+  .progress-meta .pct { font-weight: 600; color: var(--ink); }
+
+  .balance-line { font-size: 13.5px; color: var(--ink-secondary); padding-top: 10px; border-top: 1px solid var(--border); }
+  .balance-line strong { color: var(--accent); font-weight: 600; }
+  .balance-line.done strong { color: var(--good); }
+
+  footer {
+    margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border);
+    font-size: 12.5px; color: var(--ink-muted); line-height: 1.6;
+  }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <div>
+      <p class="eyebrow">Petronas Lubricants · DSR Sales</p>
+      <h1>Today's Sales &amp; Monthly Target</h1>
+    </div>
+    <div class="top-meta">
+      <span id="sourceLabel">Loading current sales…</span><br>
+      <span>Pulled live from each DSR's order log</span>
+    </div>
+  </header>
+
+  <div class="refresh-row">
+    <span class="live-pill" id="livePill" style="display:none;">● Live</span>
+    <span class="refresh-note" id="refreshNote"></span>
+    <button type="button" class="refresh-btn" id="refreshBtn">
+      <span class="spin"></span><span class="label"></span>
+    </button>
+  </div>
+
+  <div class="summary" id="summary"></div>
+
+  <p class="section-label">By DSR</p>
+  <div class="cards" id="cards"></div>
+</div>
+
+<script>
+  var ORDERS_API_URL = "https://script.google.com/macros/s/AKfycbxppCHNsSlDGVY5gWKC-N2MKJ4wrLOd97FsKC19-SXjg9NPh4myip5Ht4h5R1dDlSl4GQ/exec";
+
+  var DSRS = [
+    { name: "Prabha",     dsrName: "PETRONAS THENI AREA (PRABHA)",         territory: "Theni Area",        todayLtr: 0, monthLtr: 0, target: 4200 },
+    { name: "Arun",       dsrName: "PETRONAS DINDIGUL AREA (ARUN)",        territory: "Dindigul Area",     todayLtr: 0, monthLtr: 0, target: 4100 },
+    { name: "Nagaraj",    dsrName: "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)", territory: "Virudhunagar Area", todayLtr: 0, monthLtr: 0, target: 5100 },
+    { name: "Chellamani", dsrName: "PETRONAS MDU AREA (CHELLAMANI)",       territory: "MDU Area",          todayLtr: 0, monthLtr: 0, target: 5330 },
+    { name: "Anandh",     dsrName: "PETRONAS TVL1 AREA (ANANDH)",          territory: "TVL1 Area",         todayLtr: 0, monthLtr: 0, target: 6100 },
+    { name: "Madhu",      dsrName: "PETRONAS NKL AREA (MADHU)",            territory: "NKL Area",          todayLtr: 0, monthLtr: 0, target: 2500 }
+  ];
+
+  function fmt(n) { return Math.round(n).toLocaleString('en-IN'); }
+
+  function todayISO() {
+    var d = new Date();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return d.getFullYear() + "-" + m + "-" + day;
+  }
+
+  function nowStamp() {
+    return new Date().toLocaleString('en-IN', {
+      day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true
+    });
+  }
+
+  function renderSummary() {
+    var todayTotal = DSRS.reduce(function (a, d) { return a + d.todayLtr; }, 0);
+    var monthTotal = DSRS.reduce(function (a, d) { return a + d.monthLtr; }, 0);
+    var targetTotal = DSRS.reduce(function (a, d) { return a + d.target; }, 0);
+    var balanceTotal = targetTotal - monthTotal;
+    var done = balanceTotal <= 0;
+
+    var stats = [
+      { label: "Today, all DSRs", value: fmt(todayTotal) },
+      { label: "This month, all DSRs", value: fmt(monthTotal) },
+      { label: "Combined monthly target", value: fmt(targetTotal) },
+      { label: done ? "Combined — target reached" : "Combined balance to go", value: fmt(Math.abs(balanceTotal)), balance: true, done: done }
+    ];
+
+    document.getElementById('summary').innerHTML = stats.map(function (s) {
+      var cls = "stat" + (s.balance ? " balance" : "") + (s.done ? " done" : "");
+      return '<div class="' + cls + '"><p class="stat-label">' + s.label + '</p>' +
+        '<div class="stat-value num">' + s.value + '<span class="unit">Ltr</span></div></div>';
+    }).join('');
+  }
+
+  function renderCards() {
+    document.getElementById('cards').innerHTML = DSRS.map(function (d) {
+      var pct = d.target > 0 ? (d.monthLtr / d.target) * 100 : 0;
+      var pctClamped = Math.min(100, Math.max(0, pct));
+      var balance = d.target - d.monthLtr;
+      var done = balance <= 0;
+
+      var pill = d.error
+        ? '<span class="pill err">Couldn\'t load</span>'
+        : (done ? '<span class="pill done">Target reached</span>' : '<span class="pill on">' + Math.round(pctClamped) + '% of target</span>');
+
+      var balanceLine = done
+        ? '<div class="balance-line done">Target reached — <strong class="num">+' + fmt(Math.abs(balance)) + ' Ltr</strong> over this month\'s target</div>'
+        : '<div class="balance-line"><strong class="num">' + fmt(balance) + ' Ltr</strong> to reach this month\'s target</div>';
+
+      return '<div class="card' + (d.error ? ' stale' : '') + '"><div class="card-head"><div><p class="card-name">' + d.name + '</p>' +
+        '<p class="card-territory">' + d.territory + '</p></div>' + pill + '</div>' +
+        '<div class="today-row"><span class="today-value num">' + fmt(d.todayLtr) + '</span>' +
+        '<span class="today-caption">Ltr sold today</span></div>' +
+        '<div class="progress-track"><div class="progress-fill' + (done ? ' done' : '') + '" style="width:' + pctClamped + '%"></div></div>' +
+        '<div class="progress-meta"><span class="num">' + fmt(d.monthLtr) + ' / ' + fmt(d.target) + ' Ltr this month</span>' +
+        '<span class="pct num">' + Math.round(pctClamped) + '%</span></div>' + balanceLine + '</div>';
+    }).join('');
+  }
+
+  function render() { renderSummary(); renderCards(); }
+  render();
+
+  function setNote(msg, isErr) {
+    var el = document.getElementById('refreshNote');
+    el.textContent = msg || '';
+    el.classList.toggle('err', !!isErr);
+  }
+
+  function fetchOne(d) {
+    var url = ORDERS_API_URL + "?dsrName=" + encodeURIComponent(d.dsrName) +
+      "&date=" + encodeURIComponent(todayISO()) +
+      "&month=" + encodeURIComponent(todayISO().slice(0, 7)) +
+      "&_ts=" + Date.now();
+    return fetch(url, { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res && res.ok) {
+          d.todayLtr = res.todayLtr || 0;
+          d.monthLtr = res.monthLtr || 0;
+          d.error = false;
+        } else {
+          d.error = true;
+        }
+      })
+      .catch(function () { d.error = true; });
+  }
+
+  function refreshAll() {
+    var btn = document.getElementById('refreshBtn');
+    btn.disabled = true;
+    btn.classList.add('loading');
+    setNote('');
+
+    Promise.all(DSRS.map(fetchOne)).then(function () {
+      render();
+      var failed = DSRS.filter(function (d) { return d.error; }).length;
+      document.getElementById('sourceLabel').textContent = 'Updated ' + nowStamp();
+      document.getElementById('livePill').style.display = failed < DSRS.length ? '' : 'none';
+      if (failed === 0) {
+        setNote('All 6 up to date.');
+      } else if (failed < DSRS.length) {
+        setNote(failed + ' of ' + DSRS.length + ' DSRs couldn\'t be reached — showing their last known numbers.', true);
+      } else {
+        setNote('Couldn\'t reach the order log — check your connection and try again.', true);
+      }
+    }).finally(function () {
+      btn.disabled = false;
+      btn.classList.remove('loading');
+    });
+  }
+
+  document.getElementById('refreshBtn').addEventListener('click', refreshAll);
+  refreshAll();
+</script>
+</body>
+</html>
