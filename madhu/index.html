@@ -709,7 +709,10 @@
             <input type="text" id="historyDealerInput" placeholder="Type dealer name" autocomplete="off">
           </div>
         </div>
-        <button type="button" class="btn btn-ghost" id="historySearchBtn" style="margin-top:8px;">Search</button>
+        <div style="margin-top:8px; display:flex; gap:8px;">
+          <button type="button" class="btn btn-ghost" id="historySearchBtn">Search</button>
+          <button type="button" class="btn btn-ghost" id="historyClearBtn">Clear</button>
+        </div>
         <div id="historyResults"></div>
       </div>
     </details>
@@ -1547,6 +1550,14 @@
   }
 
   document.getElementById("historySearchBtn").addEventListener("click", searchPastOrders);
+
+  function clearPastOrders() {
+    document.getElementById("historyDateInput").value = "";
+    document.getElementById("historyDealerInput").value = "";
+    document.getElementById("historyResults").innerHTML = "";
+  }
+
+  document.getElementById("historyClearBtn").addEventListener("click", clearPastOrders);
 
   function buildReportText() {
     var dsr = document.getElementById("dsrName").value.trim() || "—";
