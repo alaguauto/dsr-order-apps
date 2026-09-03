@@ -863,6 +863,12 @@
   // Title/dsrName/MONTHLY_TARGET_LTR.
   var ORDERS_API_URL = "https://script.google.com/macros/s/AKfycbxppCHNsSlDGVY5gWKC-N2MKJ4wrLOd97FsKC19-SXjg9NPh4myip5Ht4h5R1dDlSl4GQ/exec";
 
+  // GST rate applied only to compute the GST-inclusive figure shown in
+  // Manage Items ("Rate incl GST"). Display-only: the stored "rate" field on
+  // each item stays pre-GST, because that's what the office's Drive
+  // stock-sync writes into it. Update this if the billed GST rate changes.
+  var GST_RATE_PCT = 18;
+
   function loadDealers() {
     try {
       var raw = localStorage.getItem(DEALER_STORAGE_KEY);
@@ -1097,7 +1103,7 @@
       var fields = [];
       fields.push("Stock " + (hasNum(it.stock) ? formatNum(it.stock) : "—"));
       fields.push("MRP " + (hasNum(it.mrp) ? "₹" + formatNum(it.mrp) : "—"));
-      fields.push("Rate " + (hasNum(it.rate) ? "₹" + formatNum(it.rate) : "—"));
+      fields.push("Rate incl GST " + (hasNum(it.rate) ? "₹" + formatNum(it.rate * (1 + GST_RATE_PCT / 100)) : "—"));
       return (
         '<div class="manage-row">' +
           '<span class="manage-row-name">' + escapeHtml(it.name) + " &middot; " + escapeHtml(it.unit) + "</span>" +
