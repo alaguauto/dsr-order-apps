@@ -532,6 +532,35 @@
     text-decoration: underline;
     font-size: 12.5px;
   }
+  .report-block-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--danger-soft);
+    color: var(--danger);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    font-weight: 600;
+    margin: 0 18px 10px;
+  }
+  /* Author-origin display:flex above wins over the UA [hidden] rule regardless of
+     source order/specificity unless overridden explicitly — see the "editing banner
+     stuck" bug in the registry doc for why this exact override is required. */
+  .report-block-banner[hidden] { display: none; }
+  .report-block-banner button {
+    background: none;
+    border: 1px solid var(--danger);
+    color: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
 
   .scheme-badge {
     display: inline-block;
@@ -663,6 +692,7 @@
   }
   .preview-actions { padding: 12px 16px; }
   .preview-actions .btn { width: 100%; }
+  .sent-reminder-actions { padding: 12px 16px; display: flex; gap: 8px; }
 
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
@@ -721,6 +751,11 @@
   <div class="editing-banner" id="editingBanner" hidden>
     <span>Editing a saved order for <b id="editingBannerDealer"></b></span>
     <button type="button" id="cancelEditBtn">Cancel</button>
+  </div>
+
+  <div class="report-block-banner" id="reportBlockBanner" hidden>
+    <span id="reportBlockText"></span>
+    <button type="button" id="postMissedReportBtn">Post now</button>
   </div>
 
   <section>
@@ -805,6 +840,20 @@
       </div>
     </div>
   </div>
+
+  <div class="preview-overlay" id="sentReminderOverlay" hidden>
+    <div class="preview-sheet">
+      <div class="preview-head">
+        <span>Order saved — send it to the group?</span>
+        <button type="button" id="sentReminderCloseBtn" aria-label="Close">×</button>
+      </div>
+      <pre class="preview-text" id="sentReminderText"></pre>
+      <div class="sent-reminder-actions">
+        <button type="button" class="btn btn-whatsapp" id="sentReminderWaBtn">Send on WhatsApp</button>
+        <button type="button" class="btn btn-ghost" id="sentReminderCopyBtn">Copy</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -852,6 +901,19 @@
   var DATA_VERSION = "1";
   var VERSION_STORAGE_KEY = "orderslip_data_version_v1_" + STORAGE_NS;
   var EVER_CENTRAL_DEALERS_KEY = "orderslip_ever_central_dealers_v1_" + STORAGE_NS;
+  var LAST_REPORT_POSTED_KEY = "orderslip_last_report_posted_v1_" + STORAGE_NS;
+  // First-ever open on a device (no report-posted record yet) seeds today as already
+  // "posted" so a DSR isn't blocked before they've had a first chance to use the
+  // WhatsApp report button under this feature. The block only starts to matter from
+  // the day after a day that's genuinely skipped.
+  try {
+    if (!localStorage.getItem(LAST_REPORT_POSTED_KEY)) {
+      var seedD = new Date();
+      var seedM = String(seedD.getMonth() + 1).padStart(2, "0");
+      var seedDay = String(seedD.getDate()).padStart(2, "0");
+      localStorage.setItem(LAST_REPORT_POSTED_KEY, seedD.getFullYear() + "-" + seedM + "-" + seedDay);
+    }
+  } catch (e) { /* ignore */ }
 
   // This DSR's monthly liters target, set by the office when publishing this app.
   // 0 hides the Target/Balance chips in "Target - Balance" (only Today/This month still show).
@@ -868,6 +930,12 @@
   // each item stays pre-GST, because that's what the office's Drive
   // stock-sync writes into it. Update this if the billed GST rate changes.
   var GST_RATE_PCT = 18;
+
+  // Evening report gate: the WhatsApp "Share sales report" button only actually posts
+  // (and only counts as that day's report being sent) from this hour onward on the
+  // device's own clock — before it, tapping just shows a reminder instead of opening
+  // WhatsApp, since the DSR is probably still out on their rounds. 20 = 8 PM.
+  var REPORT_ALLOWED_HOUR = 20;
 
   function loadDealers() {
     try {
@@ -946,6 +1014,8 @@
   var ordersCountLabel = document.getElementById("ordersCountLabel");
   var editingBanner = document.getElementById("editingBanner");
   var editingBannerDealer = document.getElementById("editingBannerDealer");
+  var reportBlockBanner = document.getElementById("reportBlockBanner");
+  var reportBlockText = document.getElementById("reportBlockText");
 
   // Order-save (Google Sheet / Apps Script backend) state
   var ordersSummary = { todayLtr: 0, monthLtr: 0, todaysOrders: [] };
@@ -1217,7 +1287,7 @@
 
     var hasQty = lineCount > 0;
     var hasDealer = dealerInput.value.trim().length > 0;
-    confirmBtn.disabled = !hasQty || !hasDealer || dealerBlocked;
+    confirmBtn.disabled = !hasQty || !hasDealer || dealerBlocked || reportBlocked;
     previewBtn.disabled = dealerBlocked;
   }
 
@@ -1299,6 +1369,17 @@
       fallbackCopy();
       showToast("Order copied");
     }
+  }
+
+  // Post-save reminder: DSRs were saving orders in the app without separately sending
+  // them to the dealer/office WhatsApp group, since those are two different actions
+  // (this app only saves to the Sheet — it never sends anything itself). Shown right
+  // after every save (add or edit) with the exact order text and a one-tap way to
+  // actually send it, so the reminder doubles as the easiest way to comply with it.
+  function showSentReminder(orderText) {
+    if (!sentReminderOverlay) return;
+    sentReminderText.textContent = orderText;
+    sentReminderOverlay.hidden = false;
   }
 
   function setEditingState(order) {
@@ -1472,6 +1553,7 @@
     }
     applyOptimisticOrder(action, payload, prevEditId);
     finishOrderSave();
+    showSentReminder(orderText);
     postToApi(action, payload).then(function (res) {
       if (res && res.ok) {
         showToast(wasEditing ? "Order updated" : "Order saved");
@@ -1565,6 +1647,73 @@
 
   document.getElementById("historyClearBtn").addEventListener("click", clearPastOrders);
 
+  // "Post last day's report" gate: every business day the DSR must tap the WhatsApp
+  // report button (after REPORT_ALLOWED_HOUR) at least once, even on a 0 Ltr day —
+  // otherwise the NEXT day's order-saving is blocked until they catch up. This can only
+  // track that the button was tapped (which opens WhatsApp with the report pre-filled) —
+  // it has no way to confirm the DSR actually hit Send inside WhatsApp itself.
+  function yesterdayISO(iso) {
+    var p = (iso || todayISO()).split("-");
+    var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+    d.setDate(d.getDate() - 1);
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return d.getFullYear() + "-" + m + "-" + day;
+  }
+  function getLastReportPosted() {
+    try { return localStorage.getItem(LAST_REPORT_POSTED_KEY) || ""; } catch (e) { return ""; }
+  }
+  function setLastReportPosted(iso) {
+    try { localStorage.setItem(LAST_REPORT_POSTED_KEY, iso); } catch (e) { /* ignore */ }
+  }
+  // True once a report has been posted for iso or any later date.
+  function reportPostedFor(iso) {
+    var last = getLastReportPosted();
+    return !!last && last >= iso;
+  }
+
+  var reportBlocked = false;
+  function checkReportBlock() {
+    var y = yesterdayISO(todayISO());
+    // Never block on a device where the backend isn't even configured — the DSR has no
+    // way to post a report at all in that state, so blocking would just double-lock them.
+    reportBlocked = apiConfigured() && !reportPostedFor(y);
+    renderReportBlockBanner(y);
+    renderSummary();
+  }
+  function renderReportBlockBanner(yesterdayIso) {
+    if (!reportBlockBanner) return;
+    if (reportBlocked) {
+      reportBlockText.textContent = "⚠ You didn't post " + formatDateDisplay(yesterdayIso) + "'s sales report on WhatsApp — post it to take today's orders.";
+      reportBlockBanner.hidden = false;
+    } else {
+      reportBlockBanner.hidden = true;
+    }
+  }
+
+  // One-off fetch of a single past date's total (for the catch-up "post last day's
+  // report" flow) — separate from fetchOrdersSummary()/ordersSummary, which always
+  // track TODAY's live totals for the Target - Balance panel.
+  function fetchDayTotal(dateIso) {
+    if (!apiConfigured()) return Promise.resolve(null);
+    var dsrNameVal = document.getElementById("dsrName").value || "";
+    var url = ORDERS_API_URL + "?dsrName=" + encodeURIComponent(dsrNameVal) +
+      "&date=" + encodeURIComponent(dateIso) + "&month=" + encodeURIComponent(dateIso.slice(0, 7)) +
+      "&_ts=" + Date.now();
+    return fetch(url, { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (res) {
+      return (res && res.ok) ? (res.todayLtr || 0) : null;
+    }).catch(function () { return null; });
+  }
+
+  function buildCatchupReportText(dateIso, dayLtr) {
+    var dsr = document.getElementById("dsrName").value.trim() || "—";
+    return [
+      "SALES REPORT — " + dsr,
+      "Date: " + formatDateDisplay(dateIso),
+      dayLtr > 0 ? formatNum(dayLtr) + " Ltr" : "No orders that day"
+    ].join("\n");
+  }
+
   function buildReportText() {
     var dsr = document.getElementById("dsrName").value.trim() || "—";
     var todayTotal = ordersSummary.todayLtr || 0;
@@ -1647,7 +1796,24 @@
 
   reportBtn.addEventListener("click", function () {
     if (reportBtn.disabled) return;
+    if (new Date().getHours() < REPORT_ALLOWED_HOUR) {
+      showToast("Report opens after 8 PM — finished today's market?", 3200);
+      return;
+    }
     window.open("https://wa.me/?text=" + encodeURIComponent(buildReportText()), "_blank", "noopener");
+    setLastReportPosted(todayISO());
+    checkReportBlock();
+  });
+
+  document.getElementById("postMissedReportBtn").addEventListener("click", function () {
+    var y = yesterdayISO(todayISO());
+    fetchDayTotal(y).then(function (dayLtr) {
+      var ltr = dayLtr === null ? 0 : dayLtr;
+      window.open("https://wa.me/?text=" + encodeURIComponent(buildCatchupReportText(y, ltr)), "_blank", "noopener");
+      setLastReportPosted(y);
+      checkReportBlock();
+      showToast("Marked as posted");
+    });
   });
 
   // After a save, the very next GET can land on Apps Script/Sheets before the write
@@ -1727,11 +1893,11 @@
     setInterval(function () { flushPendingQueue(); fetchOrdersSummary(); }, 60000);
   }
 
-  function showToast(msg) {
+  function showToast(msg, ms) {
     toastEl.textContent = msg;
     toastEl.classList.add("show");
     clearTimeout(showToast._t);
-    showToast._t = setTimeout(function () { toastEl.classList.remove("show"); }, 1600);
+    showToast._t = setTimeout(function () { toastEl.classList.remove("show"); }, ms || 1600);
   }
 
   function setQty(id, value) {
@@ -1819,6 +1985,8 @@
   // Preview — shows exactly what will be copied/sent, before sending it. Blocked for an
   // overdue (90+ day) dealer, same as Confirm.
   var previewOverlay = document.getElementById("previewOverlay");
+  var sentReminderOverlay = document.getElementById("sentReminderOverlay");
+  var sentReminderText = document.getElementById("sentReminderText");
   previewBtn.addEventListener("click", function () {
     if (previewBtn.disabled) return;
     document.getElementById("previewText").textContent = buildOrderText();
@@ -1833,6 +2001,21 @@
   document.getElementById("previewCopyBtn").addEventListener("click", function () {
     copyTextToClipboard(buildOrderText());
     previewOverlay.hidden = true;
+  });
+
+  document.getElementById("sentReminderCloseBtn").addEventListener("click", function () {
+    sentReminderOverlay.hidden = true;
+  });
+  sentReminderOverlay.addEventListener("click", function (e) {
+    if (e.target === sentReminderOverlay) sentReminderOverlay.hidden = true;
+  });
+  document.getElementById("sentReminderWaBtn").addEventListener("click", function () {
+    window.open("https://wa.me/?text=" + encodeURIComponent(sentReminderText.textContent), "_blank", "noopener");
+    sentReminderOverlay.hidden = true;
+  });
+  document.getElementById("sentReminderCopyBtn").addEventListener("click", function () {
+    copyTextToClipboard(sentReminderText.textContent);
+    sentReminderOverlay.hidden = true;
   });
 
   // Clear the whole order: quantities, dealer name, delivery date, and any in-progress edit
@@ -1864,6 +2047,7 @@
   renderSummary();
   renderOrdersAndTarget();
   initOrders();
+  checkReportBlock();
 })();
 </script>
 </body>
