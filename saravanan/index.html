@@ -902,18 +902,10 @@
   var VERSION_STORAGE_KEY = "orderslip_data_version_v1_" + STORAGE_NS;
   var EVER_CENTRAL_DEALERS_KEY = "orderslip_ever_central_dealers_v1_" + STORAGE_NS;
   var LAST_REPORT_POSTED_KEY = "orderslip_last_report_posted_v1_" + STORAGE_NS;
-  // First-ever open on a device (no report-posted record yet) seeds today as already
-  // "posted" so a DSR isn't blocked before they've had a first chance to use the
-  // WhatsApp report button under this feature. The block only starts to matter from
-  // the day after a day that's genuinely skipped.
-  try {
-    if (!localStorage.getItem(LAST_REPORT_POSTED_KEY)) {
-      var seedD = new Date();
-      var seedM = String(seedD.getMonth() + 1).padStart(2, "0");
-      var seedDay = String(seedD.getDate()).padStart(2, "0");
-      localStorage.setItem(LAST_REPORT_POSTED_KEY, seedD.getFullYear() + "-" + seedM + "-" + seedDay);
-    }
-  } catch (e) { /* ignore */ }
+  // Deliberately no first-load seeding here: if a device has never recorded a
+  // report-posted date (a brand new install, or localStorage was cleared), that
+  // counts as "yesterday not posted" like any other skipped day - the gate is
+  // strict from the very first load, matching "always require posting."
 
   // This DSR's monthly liters target, set by the office when publishing this app.
   // 0 hides the Target/Balance chips in "Target - Balance" (only Today/This month still show).
