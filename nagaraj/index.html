@@ -226,8 +226,25 @@
     padding: 2px 6px;
     white-space: nowrap;
   }
+  /* Added 8 Sep 2026: a dealer under the 90-day block threshold still has
+     their outstanding date shown, but in a neutral (non-alarming) style -
+     only a dealer actually past OUTSTANDING_WARN_DAYS (still blocked from
+     ordering, see outstandingBadgeHtml()/renderDealerNote() below) gets the
+     red .outstanding-badge above. */
+  .outstanding-badge-info {
+    display: inline-block;
+    flex-shrink: 0;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: var(--surface-2);
+    border-radius: 5px;
+    padding: 2px 6px;
+    white-space: nowrap;
+  }
   .dealer-note { margin-top: 5px; }
   .dealer-note .outstanding-badge { font-size: 11.5px; padding: 3px 8px; }
+  .dealer-note .outstanding-badge-info { font-size: 11.5px; padding: 3px 8px; }
   .overdue-block {
     display: block;
     background: var(--danger-soft);
@@ -1367,9 +1384,16 @@
     return days >= 0 ? days : null;
   }
   function outstandingBadgeHtml(d) {
+    // Changed 8 Sep 2026: every dealer with an outstanding date now shows a
+    // badge (not just ones past the 90-day mark) - the office wants to see
+    // outstanding-since dates across the board. The 90-day ORDER-BLOCKING
+    // rule is unchanged and lives separately in renderDealerNote() below
+    // (dealerBlocked = days > OUTSTANDING_WARN_DAYS) - this function only
+    // controls what's displayed, never whether an order is allowed.
     var days = outstandingDays(d);
-    if (days === null || days <= OUTSTANDING_WARN_DAYS) return "";
-    return '<span class="outstanding-badge">Outstanding ' + days + "d</span>";
+    if (days === null) return "";
+    var cls = days > OUTSTANDING_WARN_DAYS ? "outstanding-badge" : "outstanding-badge-info";
+    return '<span class="' + cls + '">Outstanding ' + days + "d</span>";
   }
 
   function renderManageDealerList() {
@@ -1462,41 +1486,39 @@
   }
 
   function buildOrderText() {
+    // Rebuilt 8 Sep 2026 per the owner's spec: no "ORDER :"/"Items:" labels,
+    // no qty-total line at the bottom, MRP shown right next to each item
+    // before the qty. Example given: "1. CH4 15W40 3 LIT URANIA 1000(6)
+    // (MRP 1532)— 1 Case" - note no space between ")" and the dash, exactly
+    // as specified.
     var dealer = document.getElementById("dealerName").value.trim() || "—";
     var deliveryIso = deliveryDateInput.value || todayISO();
     // *bold* is WhatsApp's own bold syntax - so the date itself renders bold once pasted there.
     var deliveryLine = deliveryIso !== todayISO() ? "Delivery: *" + formatDateDisplay(deliveryIso) + "*\n" : "";
 
     var lines = [];
-    var totals = {};
     var n = 0;
-    var totalLtr = 0;
     items.forEach(function (it) {
       var q = qty[it.id] || 0;
       if (q > 0) {
         n++;
         var mode = rowMode(it);
         var unitLabel = rowUnitLabel(it, mode);
-        var lineText = n + ". " + it.name + " — " + q + " " + unitLabel;
+        var hasMrp = it.mrp !== null && it.mrp !== undefined && !isNaN(it.mrp);
+        // No comma grouping here per the owner's explicit "NO COMMA PLEASE" -
+        // plain digits only (still up to 2 decimal places if the MRP has them).
+        var mrpPart = hasMrp ? " (MRP " + Number(it.mrp).toLocaleString("en-IN", { useGrouping: false, maximumFractionDigits: 2 }) + ")" : "";
+        var lineText = n + ". " + it.name + mrpPart + "— " + q + " " + unitLabel;
         var scheme = mode === "unit" ? schemeText(it, q) : "";
         if (scheme) lineText += " *(Scheme: " + scheme + ")*";
         lines.push(lineText);
-        totals[unitLabel] = (totals[unitLabel] || 0) + q;
-        var perUnit = rowLtrPerUnit(it, mode);
-        if (perUnit !== null) totalLtr += perUnit * q;
       }
     });
 
-    var totalParts = Object.keys(totals).map(function (u) { return u + ": " + totals[u]; });
-    if (totalLtr > 0) totalParts.push("Ltr: " + formatNum(totalLtr));
-    var totalLine = totalParts.join(", ");
-
     return (
-      "ORDER : " + dealer + "\n" +
+      dealer + "\n" +
       deliveryLine +
-      "Items:\n" +
-      (lines.length ? lines.join("\n") : "(none)") + "\n" +
-      "Qty total: " + totalLine
+      (lines.length ? lines.join("\n") : "(none)")
     );
   }
 
