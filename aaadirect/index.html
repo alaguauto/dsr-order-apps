@@ -1599,6 +1599,79 @@
 
   function apiConfigured() { return typeof ORDERS_API_URL === "string" && ORDERS_API_URL.indexOf("http") === 0; }
 
+  // ===== Live Tally overlay (added 7 Sep 2026) =====
+  // Patches stock/rate/mrp and dealer outstandingSince on top of the catalog
+  // already loaded above, using data a local watcher script on the office
+  // Tally PC (tally_live_watcher.py) pushes into two small Sheet tabs
+  // (LiveStock/LiveOutstanding) via the backend, polled here every
+  // LIVE_OVERLAY_POLL_MS. Purely additive: if the backend hasn't been
+  // upgraded yet, ?type=live just comes back not-ok and this silently does
+  // nothing - no crash, nothing else changes. Deliberately never touches
+  // localStorage (see the "items always fresh from DEFAULT_ITEMS" comment
+  // above) - this only patches the in-memory items/dealers arrays for as
+  // long as this tab stays open, so a page reload always falls back to
+  // whatever the last full Drive-sync + this file's DEFAULT_ITEMS/
+  // DEFAULT_DEALERS baked in, same as before this existed.
+  //
+  // outstandingSince clearing: a dealer whose Tally balance is fully paid
+  // off reports back as outstanding[name] === null/""/falsy here, which
+  // DELETES d.outstandingSince entirely (not just leaves it stale) - this is
+  // what fixes the "dealer paid but badge still shows" gap the office
+  // flagged 7 Sep 2026 with the Challenger Motors example, as long as the
+  // watcher's own Tally read correctly reports that dealer as no longer
+  // having an open bill (see tally_live_watcher.py's fetch_outstanding()).
+  var LIVE_OVERLAY_POLL_MS = 10 * 60 * 1000; // 10 min - matches the watcher's own poll cadence
+
+  function applyLiveOverlay_(data) {
+    if (!data) return;
+    var stockChanged = false;
+    if (data.stock) {
+      for (var i = 0; i < items.length; i++) {
+        var upd = data.stock[items[i].name];
+        if (!upd) continue;
+        if (upd.stock !== null && upd.stock !== undefined && !isNaN(upd.stock) && items[i].stock !== upd.stock) { items[i].stock = upd.stock; stockChanged = true; }
+        if (upd.rate !== null && upd.rate !== undefined && !isNaN(upd.rate) && items[i].rate !== upd.rate) { items[i].rate = upd.rate; stockChanged = true; }
+        if (upd.mrp !== null && upd.mrp !== undefined && !isNaN(upd.mrp) && items[i].mrp !== upd.mrp) { items[i].mrp = upd.mrp; stockChanged = true; }
+      }
+    }
+    var dealersChanged = false;
+    if (data.outstanding) {
+      for (var j = 0; j < dealers.length; j++) {
+        var dname = dealers[j].name;
+        if (!Object.prototype.hasOwnProperty.call(data.outstanding, dname)) continue;
+        var since = data.outstanding[dname];
+        if (since) {
+          if (dealers[j].outstandingSince !== since) { dealers[j].outstandingSince = since; dealersChanged = true; }
+        } else if (dealers[j].outstandingSince) {
+          delete dealers[j].outstandingSince;
+          dealersChanged = true;
+        }
+      }
+    }
+    if (stockChanged && typeof renderItemList === "function") renderItemList();
+    if (dealersChanged) {
+      if (typeof renderDealerNote === "function") renderDealerNote();
+      if (typeof renderSummary === "function") renderSummary();
+      if (typeof renderManageDealerList === "function") renderManageDealerList();
+      if (typeof dealerDropdown !== "undefined" && dealerDropdown && !dealerDropdown.hidden &&
+          typeof renderDealerDropdown === "function" && typeof dealerInput !== "undefined") {
+        renderDealerDropdown(dealerInput.value);
+      }
+    }
+  }
+
+  function fetchLiveOverlay_() {
+    if (!apiConfigured()) return;
+    fetch(ORDERS_API_URL + "?type=live&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) { if (data && data.ok) applyLiveOverlay_(data); })
+      .catch(function () { /* best-effort - silently skip on any failure */ });
+  }
+
+  fetchLiveOverlay_();
+  setInterval(fetchLiveOverlay_, LIVE_OVERLAY_POLL_MS);
+
+
   // POST with a text/plain content-type (not application/json) so the browser sends this
   // as a "simple request" and skips a CORS preflight OPTIONS call — Apps Script Web Apps
   // don't handle OPTIONS. The server still parses the body as JSON regardless.
