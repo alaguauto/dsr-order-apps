@@ -1378,7 +1378,14 @@
   // the balance became due; days are counted against today on this device.
   var OUTSTANDING_WARN_DAYS = 90;
   function daysBetweenISO(fromIso, toIso) {
-    function toDate(iso) { var p = iso.split("-"); return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])); }
+    // Hardened 8 Sep 2026 (see the matching Code.gs fix, "8 Sep 2026" note in
+    // handleLiveGet_): only look at the first 10 chars ("yyyy-MM-dd") of
+    // whatever's passed in, so a stray time/timezone suffix that leaks
+    // through (e.g. from a live-sync value that arrived as a full ISO
+    // datetime instead of a plain date) can't silently produce NaN/Invalid
+    // Date here - which used to make outstandingDays() wrongly return null
+    // and the badge vanish, even though the underlying date was valid.
+    function toDate(iso) { var p = String(iso).slice(0, 10).split("-"); return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])); }
     return Math.round((toDate(toIso) - toDate(fromIso)) / 86400000);
   }
   function outstandingDays(d) {
