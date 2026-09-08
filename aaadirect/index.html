@@ -245,6 +245,37 @@
   .dealer-note { margin-top: 5px; }
   .dealer-note .outstanding-badge { font-size: 11.5px; padding: 3px 8px; }
   .dealer-note .outstanding-badge-info { font-size: 11.5px; padding: 3px 8px; }
+  /* Added 8 Sep 2026: current account balance shown in "Manage dealers"
+     (see balanceBadgeHtml()/renderManageDealerList() below) - a Dr balance
+     ("...due") uses the same neutral/muted style as outstanding-badge-info
+     (informational, not alarming on its own - the red outstanding-badge
+     above already covers the >90-day alarm), a Cr balance ("...credit")
+     uses the app's own accent color for a calmer, positive read. */
+  .balance-badge-due {
+    display: inline-block;
+    flex-shrink: 0;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: var(--surface-2);
+    border-radius: 5px;
+    padding: 2px 6px;
+    white-space: nowrap;
+    margin-left: 4px;
+  }
+  .balance-badge-credit {
+    display: inline-block;
+    flex-shrink: 0;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--accent-strong);
+    background: var(--accent-soft);
+    border-radius: 5px;
+    padding: 2px 6px;
+    white-space: nowrap;
+    margin-left: 4px;
+  }
+  .manage-row .balance-badge-due, .manage-row .balance-badge-credit { margin-left: 4px; }
   .overdue-block {
     display: block;
     background: var(--danger-soft);
@@ -1401,6 +1432,30 @@
     return '<span class="' + cls + '">Outstanding ' + days + "d</span>";
   }
 
+  // Added 8 Sep 2026: current ledger balance, live from Tally (see
+  // applyLiveOverlay_() below - d.balance is only ever set/updated from the
+  // live sync, there is no Drive-sync/DEFAULT_DEALERS source for it, so a
+  // dealer shows no balance badge at all until the live watcher has synced
+  // at least once). Independent of outstandingSince/the bill-based badge
+  // above - a dealer can have a balance here with no tracked "outstanding
+  // since" bill, or vice versa; both are shown side by side.
+  function formatBalance_(amount) {
+    return Math.round(Math.abs(amount)).toLocaleString("en-IN");
+  }
+  function balanceBadgeHtml(d) {
+    // Changed 8 Sep 2026 per the owner's request: no balance (never synced
+    // yet, or Tally genuinely reports zero) now shows "₹0" instead of no
+    // badge at all - every dealer in the list always shows a balance figure.
+    var bal = d.balance;
+    if (bal === null || bal === undefined || isNaN(bal) || Math.abs(bal) < 0.5) {
+      return '<span class="balance-badge-due">₹0</span>';
+    }
+    if (bal < 0) {
+      return '<span class="balance-badge-due">₹' + formatBalance_(bal) + " due</span>";
+    }
+    return '<span class="balance-badge-credit">₹' + formatBalance_(bal) + " credit</span>";
+  }
+
   function renderManageDealerList() {
     dealerCountLabel.textContent = "(" + dealers.length + ")";
     if (!dealers.length) {
@@ -1410,7 +1465,7 @@
     manageDealerListEl.innerHTML = dealers.map(function (d) {
       return (
         '<div class="manage-row"><span class="manage-row-name">' + escapeHtml(d.name) + "</span>" +
-        outstandingBadgeHtml(d) +
+        outstandingBadgeHtml(d) + balanceBadgeHtml(d) +
         "</div>"
       );
     }).join("");
@@ -1664,15 +1719,63 @@
       }
     }
     var dealersChanged = false;
+    // Added 8 Sep 2026: auto-add genuinely new, currently-active dealers
+    // straight into this DSR's own list, sourced from Tally via the watcher
+    // (see tally_live_watcher.py's compute_eligible_roster() - a ledger only
+    // qualifies if it resolves to this DSR's own Tally group AND has had a
+    // transaction since 1 Apr 2025 or currently carries a debit balance).
+    // Runs BEFORE the outstanding/balance block below so a freshly-added
+    // dealer picks up its own outstanding-since/balance in this same pass,
+    // not just on the next poll. Purely additive to the in-memory `dealers`
+    // array (same as everything else in this function) - never touches
+    // DEFAULT_DEALERS/localStorage, so a page reload always falls back to
+    // whatever the last real Drive-sync baked in, same as before this
+    // existed; the live watcher keeps re-adding it every poll in the
+    // meantime, so it doesn't actually disappear in practice.
+    if (data.dealerRoster) {
+      var myDsrName = document.getElementById("dsrName").value || "";
+      var rosterDsrNames = [myDsrName];
+      // Chellamani's app is a merged app covering both her own dealers and
+      // Saravanan's former territory (his role isn't currently staffed -
+      // see dsr-app-registry.md's "Merged app" note) - so it needs
+      // Saravanan's Tally group's roster too, not just her own.
+      if (myDsrName === "PETRONAS MDU AREA (CHELLAMANI)") {
+        rosterDsrNames.push("PETRONAS MDU AREA (SARAVANAN)");
+      }
+      var existingDealerNames = {};
+      for (var ex = 0; ex < dealers.length; ex++) existingDealerNames[dealers[ex].name] = true;
+      rosterDsrNames.forEach(function (rdn) {
+        var rosterNames = data.dealerRoster[rdn] || [];
+        rosterNames.forEach(function (nm) {
+          if (!nm || existingDealerNames[nm]) return;
+          var slug = nm.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+          dealers.push({ id: "live-" + slug, name: nm });
+          existingDealerNames[nm] = true;
+          dealersChanged = true;
+        });
+      });
+    }
     if (data.outstanding) {
       for (var j = 0; j < dealers.length; j++) {
         var dname = dealers[j].name;
         if (!Object.prototype.hasOwnProperty.call(data.outstanding, dname)) continue;
-        var since = data.outstanding[dname];
+        // Changed 8 Sep 2026: each entry is now {since, balance} instead of
+        // a bare date value, so the live current balance (for "Manage
+        // dealers", see balanceBadgeHtml() above) travels alongside the
+        // outstanding-since date - see the matching Code.gs change.
+        var rec = data.outstanding[dname] || {};
+        var since = rec.since;
+        var bal = rec.balance;
         if (since) {
           if (dealers[j].outstandingSince !== since) { dealers[j].outstandingSince = since; dealersChanged = true; }
         } else if (dealers[j].outstandingSince) {
           delete dealers[j].outstandingSince;
+          dealersChanged = true;
+        }
+        if (bal !== null && bal !== undefined && !isNaN(bal)) {
+          if (dealers[j].balance !== bal) { dealers[j].balance = bal; dealersChanged = true; }
+        } else if (dealers[j].balance !== undefined) {
+          delete dealers[j].balance;
           dealersChanged = true;
         }
       }
