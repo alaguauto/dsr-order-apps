@@ -1715,7 +1715,20 @@
         var upd = data.stock[items[i].name];
         if (!upd) continue;
         if (upd.stock !== null && upd.stock !== undefined && !isNaN(upd.stock) && items[i].stock !== upd.stock) { items[i].stock = upd.stock; stockChanged = true; }
-        if (upd.rate !== null && upd.rate !== undefined && !isNaN(upd.rate) && items[i].rate !== upd.rate) { items[i].rate = upd.rate; stockChanged = true; }
+        // Rate live-patching DISABLED 11 Sep 2026 - root-cause bug found: Tally's
+        // CLOSINGRATE (what tally_live_watcher.py's fetch_stock() was pulling into
+        // upd.rate) is a stock VALUATION/costing figure (closing stock value / closing
+        // qty), not the selling/billing rate this app needs - so every item's live-fed
+        // rate was being replaced with its cost-basis figure instead of its actual
+        // selling rate, then this app's own GST-inclusive display formula
+        // (Math.round(rate * 1.18)) was applied on top of that wrong number - explains
+        // why EVERY item's displayed price was off, not just one. The owner confirmed
+        // this by cross-checking Daily Stock Update.xlsx/Item Catalog (correct) against
+        // the live app (wrong) for multiple items. Until tally_live_watcher.py is fixed
+        // to pull a genuine selling-rate field from Tally (not yet verified - see
+        // live-tally-sync-notes.md), rate is left exactly as baked in from the last
+        // Drive sync (claude/drive-sync-scripts.md), which is confirmed correct.
+        // if (upd.rate !== null && upd.rate !== undefined && !isNaN(upd.rate) && items[i].rate !== upd.rate) { items[i].rate = upd.rate; stockChanged = true; }
         if (upd.mrp !== null && upd.mrp !== undefined && !isNaN(upd.mrp) && items[i].mrp !== upd.mrp) { items[i].mrp = upd.mrp; stockChanged = true; }
       }
     }
