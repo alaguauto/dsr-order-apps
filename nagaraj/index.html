@@ -191,6 +191,7 @@
     color-scheme: light dark;
   }
   .field input[type="text"]::placeholder { color: var(--text-muted); opacity: 0.7; }
+  .date-echo { font-size: 11px; font-family: "IBM Plex Mono", monospace; color: var(--accent-strong); margin-top: 2px; min-height: 14px; }
   .field input[type="text"]:focus, .field input[type="date"]:focus { background: var(--surface); }
   .field input[readonly] { color: var(--text-muted); background: var(--surface-2); opacity: 0.85; cursor: default; }
 
@@ -857,13 +858,19 @@
     <details class="manage" id="pastOrdersDetails">
       <summary>Past orders</summary>
       <div class="manage-body">
-        <p class="hint">Look up an order from an earlier day — view only. To change an order, edit it the same day it was taken.</p>
+        <p class="hint">Look up orders from an earlier date range.</p>
         <div class="field-grid">
           <div class="field">
-            <label for="historyDateInput">By date</label>
-            <input type="date" id="historyDateInput" autocomplete="off">
+            <label for="historyFromInput">From date</label>
+            <input type="date" id="historyFromInput" autocomplete="off">
+            <div class="date-echo" id="historyFromEcho"></div>
           </div>
           <div class="field">
+            <label for="historyToInput">To date</label>
+            <input type="date" id="historyToInput" autocomplete="off">
+            <div class="date-echo" id="historyToEcho"></div>
+          </div>
+          <div class="field full">
             <label for="historyDealerInput">By dealer name</label>
             <input type="text" id="historyDealerInput" placeholder="Type dealer name" autocomplete="off">
           </div>
@@ -1988,12 +1995,38 @@
       "</div>";
   }
 
+  function formatDDMMYYYY(iso) {
+    if (!iso) return "";
+    var parts = iso.split("-");
+    if (parts.length !== 3) return "";
+    return parts[2] + "/" + parts[1] + "/" + parts[0];
+  }
+
+  function updateDateEcho(inputId, echoId) {
+    var inputEl = document.getElementById(inputId);
+    var echoEl = document.getElementById(echoId);
+    if (!inputEl || !echoEl) return;
+    echoEl.textContent = inputEl.value ? formatDDMMYYYY(inputEl.value) : "";
+  }
+
+  document.getElementById("historyFromInput").addEventListener("change", function () {
+    updateDateEcho("historyFromInput", "historyFromEcho");
+  });
+  document.getElementById("historyToInput").addEventListener("change", function () {
+    updateDateEcho("historyToInput", "historyToEcho");
+  });
+
   function searchPastOrders() {
     var historyResultsEl = document.getElementById("historyResults");
-    var dateVal = document.getElementById("historyDateInput").value;
+    var fromVal = document.getElementById("historyFromInput").value;
+    var toVal = document.getElementById("historyToInput").value;
     var dealerVal = document.getElementById("historyDealerInput").value.trim();
-    if (!dateVal && !dealerVal) {
-      showToast("Enter a date or dealer name to search");
+    if (!fromVal && !toVal && !dealerVal) {
+      showToast("Enter a date range or dealer name to search");
+      return;
+    }
+    if (fromVal && toVal && toVal < fromVal) {
+      showToast("\"To date\" can't be before \"From date\"");
       return;
     }
     if (!apiConfigured()) {
@@ -2003,7 +2036,9 @@
     historyResultsEl.innerHTML = '<p class="empty-note">Searching…</p>';
     var dsrNameVal = document.getElementById("dsrName").value || "";
     var url = ORDERS_API_URL + "?dsrName=" + encodeURIComponent(dsrNameVal) +
-      (dateVal ? "&historyDate=" + encodeURIComponent(dateVal) : "") +
+      (fromVal ? "&historyFrom=" + encodeURIComponent(fromVal) : "") +
+      (toVal ? "&historyTo=" + encodeURIComponent(toVal) : "") +
+      (fromVal ? "&historyDate=" + encodeURIComponent(fromVal) : "") +
       (dealerVal ? "&dealerSearch=" + encodeURIComponent(dealerVal) : "") +
       "&_ts=" + Date.now();
     fetch(url, { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (res) {
@@ -2016,7 +2051,16 @@
         historyResultsEl.innerHTML = '<p class="empty-note">No orders found.</p>';
         return;
       }
-      historyResultsEl.innerHTML = list.map(formatHistoryOrderRow).join("");
+      var rangeLabel = "";
+      if (fromVal && toVal) {
+        rangeLabel = "Showing orders from " + formatDDMMYYYY(fromVal) + " to " + formatDDMMYYYY(toVal);
+      } else if (fromVal) {
+        rangeLabel = "Showing orders from " + formatDDMMYYYY(fromVal) + " onward";
+      } else if (toVal) {
+        rangeLabel = "Showing orders up to " + formatDDMMYYYY(toVal);
+      }
+      var rangeHtml = rangeLabel ? '<p class="hint" style="margin-bottom:8px;">' + escapeHtml(rangeLabel) + "</p>" : "";
+      historyResultsEl.innerHTML = rangeHtml + list.map(formatHistoryOrderRow).join("");
     }).catch(function () {
       historyResultsEl.innerHTML = '<p class="empty-note">Couldn’t search — check your connection and try again.</p>';
     });
@@ -2025,7 +2069,10 @@
   document.getElementById("historySearchBtn").addEventListener("click", searchPastOrders);
 
   function clearPastOrders() {
-    document.getElementById("historyDateInput").value = "";
+    document.getElementById("historyFromInput").value = todayISO();
+    document.getElementById("historyToInput").value = todayISO();
+    updateDateEcho("historyFromInput", "historyFromEcho");
+    updateDateEcho("historyToInput", "historyToEcho");
     document.getElementById("historyDealerInput").value = "";
     document.getElementById("historyResults").innerHTML = "";
   }
@@ -2465,6 +2512,10 @@
 
   deliveryDateInput.min = todayISO();
   deliveryDateInput.value = todayISO();
+  document.getElementById("historyFromInput").value = todayISO();
+  document.getElementById("historyToInput").value = todayISO();
+  updateDateEcho("historyFromInput", "historyFromEcho");
+  updateDateEcho("historyToInput", "historyToEcho");
   renderItemList();
   renderManageDealerList();
   renderDealerNote();
