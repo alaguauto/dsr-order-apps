@@ -2314,10 +2314,17 @@
       collectionSummaryLabelEl.textContent = "";
       return;
     }
+    // "Today" chip added 14 Sep 2026 - liveCollectionToday already existed
+    // (fed by applyLiveOverlay_() above, same as liveCollectionMonth) but
+    // was previously only used in the WhatsApp report text, never shown
+    // in this panel itself. Layout now mirrors the liters Target-Balance
+    // panel exactly: Today/This month on top, Target/Balance below.
+    var todayCollected = liveCollectionToday || 0;
     var balance = COLLECTION_TARGET_RS - liveCollectionMonth;
-    var topRow = '<div class="target-chip">Target <b>₹' + formatNum(COLLECTION_TARGET_RS) + "</b></div>";
-    topRow += '<div class="target-chip">Collected <b>₹' + formatNum(liveCollectionMonth) + "</b></div>";
-    var bottomRow = balance <= 0
+    var topRow = '<div class="target-chip">Today <b>₹' + formatNum(todayCollected) + "</b></div>";
+    topRow += '<div class="target-chip">This month <b>₹' + formatNum(liveCollectionMonth) + "</b></div>";
+    var bottomRow = '<div class="target-chip">Target <b>₹' + formatNum(COLLECTION_TARGET_RS) + "</b></div>";
+    bottomRow += balance <= 0
       ? '<div class="target-chip balance-met">Balance <b>Target reached (+₹' + formatNum(Math.abs(balance)) + ")</b></div>"
       : '<div class="target-chip">Balance <b>₹' + formatNum(balance) + "</b></div>";
     collectionStripEl.innerHTML = '<div class="target-strip-row">' + topRow + "</div>" +
