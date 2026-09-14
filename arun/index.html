@@ -855,6 +855,16 @@
   </section>
 
   <section style="padding-bottom:0;">
+    <details class="manage" id="collectionDetails">
+      <summary>Collection <span id="collectionSummaryLabel" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">Live from Tally — updates automatically, nothing to enter here.</p>
+        <div class="target-strip" id="collectionStrip"></div>
+      </div>
+    </details>
+  </section>
+
+  <section style="padding-bottom:0;">
     <details class="manage" id="pastOrdersDetails">
       <summary>Past orders</summary>
       <div class="manage-body">
@@ -1048,6 +1058,22 @@
   // 0 hides the Target/Balance chips in "Target - Balance" (only Today/This month still show).
   var MONTHLY_TARGET_LTR = 4100;
 
+  // This DSR's monthly Collection target (rupees), added 12 Sep 2026 - test
+  // build for Arun only, per the owner's own choice as the DSR to verify
+  // this feature against before rolling it out to the rest. 0 hides the
+  // whole "Collection" panel (same convention as MONTHLY_TARGET_LTR above).
+  // "Collected" is never typed in anywhere - it comes live from Tally via
+  // tally_live_watcher.py's Receipt-voucher total for this DSR's dealers,
+  // this calendar month, polled the same way as stock/rate/outstanding
+  // (see applyLiveOverlay_()/renderCollection() below). Confirmed via
+  // --check-collection against real Tally data 12 Sep 2026: "Receipt" is
+  // the exact voucher-type label on this Tally setup, and the dealer's own
+  // ledger entry on a Receipt voucher comes back POSITIVE (a real sample
+  // voucher showed +10,000 on the dealer's ledger, -10,000 on the bank
+  // ledger) - matching the negative=Dr/positive=Cr convention already used
+  // for CLOSINGBALANCE throughout tally_live_watcher.py.
+  var COLLECTION_TARGET_RS = 1302920;
+
   // Orders backend — a Google Apps Script Web App URL (ends in /exec) backed by a Google
   // Sheet. Works with no claude.ai login, so it's usable by any DSR opening this link on
   // their phone. Set by the office when publishing this app; substituted the same way as
@@ -1144,6 +1170,9 @@
   var previewBtn = document.getElementById("previewBtn");
   var toastEl = document.getElementById("toast");
   var targetStripEl = document.getElementById("targetStrip");
+  var collectionStripEl = document.getElementById("collectionStrip");
+  var collectionSummaryLabelEl = document.getElementById("collectionSummaryLabel");
+  var collectionDetailsEl = document.getElementById("collectionDetails");
   var reportBtn = document.getElementById("reportBtn");
   var ordersListEl = document.getElementById("ordersList");
   var ordersCountLabel = document.getElementById("ordersCountLabel");
@@ -1799,6 +1828,23 @@
         }
       }
     }
+    // Collection (Receipt-voucher total for this DSR, this month), added
+    // 12 Sep 2026 - see COLLECTION_TARGET_RS/renderCollection() above.
+    // Backend sends { "<DSR Name>": amount, ... } for every DSR it has data
+    // for; only this app's own dsrName entry is used. Purely additive -
+    // if the backend hasn't been upgraded yet, data.collection is simply
+    // absent and this silently does nothing, same pattern as every other
+    // live field here.
+    if (data.collection) {
+      var myDsrNameForCollection = document.getElementById("dsrName").value || "";
+      if (Object.prototype.hasOwnProperty.call(data.collection, myDsrNameForCollection)) {
+        var newCollected = data.collection[myDsrNameForCollection];
+        if (newCollected !== null && newCollected !== undefined && !isNaN(newCollected) && newCollected !== liveCollectionAmount) {
+          liveCollectionAmount = Number(newCollected);
+          if (typeof renderCollection === "function") renderCollection();
+        }
+      }
+    }
     if (stockChanged && typeof renderItemList === "function") renderItemList();
     if (dealersChanged) {
       if (typeof renderDealerNote === "function") renderDealerNote();
@@ -2222,6 +2268,35 @@
     }).join("");
   }
 
+  // "Collection" panel, added 12 Sep 2026 - Target (owner-supplied, see
+  // COLLECTION_TARGET_RS above) vs Collected (live from Tally, via
+  // applyLiveOverlay_() below - never typed in) vs Balance. No live data
+  // yet on first load (liveCollectionAmount starts null) shows a waiting
+  // message rather than a misleading "0 collected".
+  var liveCollectionAmount = null;
+
+  function renderCollection() {
+    if (!collectionDetailsEl) return;
+    if (COLLECTION_TARGET_RS <= 0) {
+      collectionDetailsEl.hidden = true;
+      return;
+    }
+    if (liveCollectionAmount === null) {
+      collectionStripEl.innerHTML = '<p class="empty-note">Waiting for the next Tally sync…</p>';
+      collectionSummaryLabelEl.textContent = "";
+      return;
+    }
+    var balance = COLLECTION_TARGET_RS - liveCollectionAmount;
+    var topRow = '<div class="target-chip">Target <b>₹' + formatNum(COLLECTION_TARGET_RS) + "</b></div>";
+    topRow += '<div class="target-chip">Collected <b>₹' + formatNum(liveCollectionAmount) + "</b></div>";
+    var bottomRow = balance <= 0
+      ? '<div class="target-chip balance-met">Balance <b>Target reached (+₹' + formatNum(Math.abs(balance)) + ")</b></div>"
+      : '<div class="target-chip">Balance <b>₹' + formatNum(balance) + "</b></div>";
+    collectionStripEl.innerHTML = '<div class="target-strip-row">' + topRow + "</div>" +
+      '<div class="target-strip-row">' + bottomRow + "</div>";
+    collectionSummaryLabelEl.textContent = "(₹" + formatNum(liveCollectionAmount) + ")";
+  }
+
   ordersListEl.addEventListener("click", function (e) {
     var editBtn = e.target.closest(".edit-order-btn");
     if (editBtn) {
@@ -2521,6 +2596,7 @@
   renderDealerNote();
   renderSummary();
   renderOrdersAndTarget();
+  renderCollection();
   initOrders();
   checkReportBlock();
 })();
