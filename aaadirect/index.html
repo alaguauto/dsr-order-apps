@@ -854,6 +854,16 @@
   </section>
 
   <section style="padding-bottom:0;">
+    <details class="manage" id="collectionDetails">
+      <summary>Collection <span id="collectionSummaryLabel" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">Live from Tally — updates automatically, nothing to enter here.</p>
+        <div class="target-strip" id="collectionStrip"></div>
+      </div>
+    </details>
+  </section>
+
+  <section style="padding-bottom:0;">
     <details class="manage" id="pastOrdersDetails">
       <summary>Past orders</summary>
       <div class="manage-body">
@@ -1047,6 +1057,20 @@
   // 0 hides the Target/Balance chips in "Target - Balance" (only Today/This month still show).
   var MONTHLY_TARGET_LTR = 6900;
 
+  // This DSR's monthly Collection target (rupees). 0 hides the whole
+  // "Collection" panel and keeps the daily WhatsApp report sales-only
+  // (same convention as MONTHLY_TARGET_LTR above) - set by the owner once
+  // he gives a figure for this DSR; still 0 here until then. "Collected"
+  // is never typed in anywhere - it comes live from Tally via
+  // tally_live_watcher.py's fetch_collection() (Receipt-voucher totals
+  // for this DSR's dealers), the same way stock/rate/outstanding do (see
+  // applyLiveOverlay_()/renderCollection() below). Feature built and
+  // verified against real Tally data for Arun, 12-14 Sep 2026 - see
+  // dsr-app-registry.md's "DSR Collection" entries for the full history;
+  // rolled out to this file with the target left at 0 pending the
+  // owner's figure for this specific DSR.
+  var COLLECTION_TARGET_RS = 0;
+
   // Orders backend — a Google Apps Script Web App URL (ends in /exec) backed by a Google
   // Sheet. Works with no claude.ai login, so it's usable by any DSR opening this link on
   // their phone. Set by the office when publishing this app; substituted the same way as
@@ -1143,6 +1167,9 @@
   var previewBtn = document.getElementById("previewBtn");
   var toastEl = document.getElementById("toast");
   var targetStripEl = document.getElementById("targetStrip");
+  var collectionStripEl = document.getElementById("collectionStrip");
+  var collectionSummaryLabelEl = document.getElementById("collectionSummaryLabel");
+  var collectionDetailsEl = document.getElementById("collectionDetails");
   var reportBtn = document.getElementById("reportBtn");
   var ordersListEl = document.getElementById("ordersList");
   var ordersCountLabel = document.getElementById("ordersCountLabel");
@@ -1797,6 +1824,32 @@
         }
       }
     }
+    // Collection (Receipt-voucher totals for this DSR), added 12 Sep 2026,
+    // split into today/month 14 Sep 2026 - see COLLECTION_TARGET_RS/
+    // renderCollection()/buildReportText() above/below. Backend sends
+    // { "<DSR Name>": {today, month}, ... } for every DSR it has data for;
+    // only this app's own dsrName entry is used. Purely additive - if the
+    // backend hasn't been upgraded yet, data.collection is simply absent
+    // and this silently does nothing, same pattern as every other live
+    // field here.
+    if (data.collection) {
+      var myDsrNameForCollection = document.getElementById("dsrName").value || "";
+      if (Object.prototype.hasOwnProperty.call(data.collection, myDsrNameForCollection)) {
+        var collRec = data.collection[myDsrNameForCollection] || {};
+        var newToday = collRec.today;
+        var newMonth = collRec.month;
+        var collectionChanged = false;
+        if (newToday !== null && newToday !== undefined && !isNaN(newToday) && newToday !== liveCollectionToday) {
+          liveCollectionToday = Number(newToday);
+          collectionChanged = true;
+        }
+        if (newMonth !== null && newMonth !== undefined && !isNaN(newMonth) && newMonth !== liveCollectionMonth) {
+          liveCollectionMonth = Number(newMonth);
+          collectionChanged = true;
+        }
+        if (collectionChanged && typeof renderCollection === "function") renderCollection();
+      }
+    }
     if (stockChanged && typeof renderItemList === "function") renderItemList();
     if (dealersChanged) {
       if (typeof renderDealerNote === "function") renderDealerNote();
@@ -2144,10 +2197,44 @@
     ].join("\n");
   }
 
+  // Combined "SALES & COLLECTION REPORT" format, added 14 Sep 2026 per the
+  // owner's exact requested layout - only used once BOTH a liters target
+  // and a Collection target are set AND live Collection data has actually
+  // arrived at least once (liveCollectionMonth !== null); otherwise falls
+  // back to the original sales-only report below, so nothing ever shows a
+  // blank/misleading Collection figure. Collection numbers are never
+  // typed in - they come from Tally the same way the Collection panel
+  // above does. Only the Balance line is wrapped in single asterisks
+  // (WhatsApp bold), matching the owner's own format and the same trick
+  // already used for the Delivery date line/scheme text in
+  // buildOrderText().
   function buildReportText() {
     var dsr = document.getElementById("dsrName").value.trim() || "—";
     var todayTotal = ordersSummary.todayLtr || 0;
     var monthTotal = ordersSummary.monthLtr || 0;
+    var hasCollection = COLLECTION_TARGET_RS > 0 && MONTHLY_TARGET_LTR > 0 && liveCollectionMonth !== null;
+
+    if (hasCollection) {
+      var todayCollected = liveCollectionToday || 0;
+      var monthCollected = liveCollectionMonth || 0;
+      var salesBalance = MONTHLY_TARGET_LTR - monthTotal;
+      var collectionBalance = COLLECTION_TARGET_RS - monthCollected;
+      var salesBalanceText = salesBalance <= 0
+        ? "Target reached (+" + formatNum(Math.abs(salesBalance)) + " Ltr)"
+        : formatNum(salesBalance) + " Ltr";
+      var collectionBalanceText = collectionBalance <= 0
+        ? "Target reached (+₹" + formatNum(Math.abs(collectionBalance)) + ")"
+        : "₹" + formatNum(collectionBalance);
+      return [
+        "SALES & COLLECTION REPORT — " + dsr,
+        "Date: " + formatDateDisplay(todayISO()),
+        "Today: Sales = " + formatNum(todayTotal) + " Ltr , Collection = ₹" + formatNum(todayCollected),
+        "This month: Sales = " + formatNum(monthTotal) + " Ltr , Collected = ₹" + formatNum(monthCollected),
+        "Target: Sales = " + formatNum(MONTHLY_TARGET_LTR) + " Ltr , Collection = ₹" + formatNum(COLLECTION_TARGET_RS),
+        "*Balance: Sales = " + salesBalanceText + " , Collection = " + collectionBalanceText + "*"
+      ].join("\n");
+    }
+
     var lines = [
       "SALES REPORT — " + dsr,
       "Date: " + formatDateDisplay(todayISO()),
@@ -2202,6 +2289,40 @@
         '<button type="button" class="del-btn" data-order-id="' + o.id + '" title="Delete this order">×</button>' +
         "</div></div>";
     }).join("");
+  }
+
+  // "Collection" panel, added 12 Sep 2026 - Target (owner-supplied, see
+  // COLLECTION_TARGET_RS above) vs Collected (live from Tally, via
+  // applyLiveOverlay_() above - never typed in) vs Balance. No live data
+  // yet on first load (liveCollectionMonth starts null) shows a waiting
+  // message rather than a misleading "0 collected". The panel itself
+  // still shows the MONTH-to-date figure (unchanged); liveCollectionToday
+  // was added 14 Sep 2026 alongside it purely for the combined Sales &
+  // Collection WhatsApp report's "Today: ..." line (see buildReportText()
+  // below) - the panel doesn't display it separately.
+  var liveCollectionToday = null;
+  var liveCollectionMonth = null;
+
+  function renderCollection() {
+    if (!collectionDetailsEl) return;
+    if (COLLECTION_TARGET_RS <= 0) {
+      collectionDetailsEl.hidden = true;
+      return;
+    }
+    if (liveCollectionMonth === null) {
+      collectionStripEl.innerHTML = '<p class="empty-note">Waiting for the next Tally sync…</p>';
+      collectionSummaryLabelEl.textContent = "";
+      return;
+    }
+    var balance = COLLECTION_TARGET_RS - liveCollectionMonth;
+    var topRow = '<div class="target-chip">Target <b>₹' + formatNum(COLLECTION_TARGET_RS) + "</b></div>";
+    topRow += '<div class="target-chip">Collected <b>₹' + formatNum(liveCollectionMonth) + "</b></div>";
+    var bottomRow = balance <= 0
+      ? '<div class="target-chip balance-met">Balance <b>Target reached (+₹' + formatNum(Math.abs(balance)) + ")</b></div>"
+      : '<div class="target-chip">Balance <b>₹' + formatNum(balance) + "</b></div>";
+    collectionStripEl.innerHTML = '<div class="target-strip-row">' + topRow + "</div>" +
+      '<div class="target-strip-row">' + bottomRow + "</div>";
+    collectionSummaryLabelEl.textContent = "(₹" + formatNum(liveCollectionMonth) + ")";
   }
 
   ordersListEl.addEventListener("click", function (e) {
@@ -2503,6 +2624,7 @@
   renderDealerNote();
   renderSummary();
   renderOrdersAndTarget();
+  renderCollection();
   initOrders();
   checkReportBlock();
 })();
