@@ -2197,16 +2197,38 @@
     ].join("\n");
   }
 
+  // Shortens a full dsrName like "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)" to
+  // just "NAGARAJ" for the report header - added 14 Sep 2026, owner's own
+  // request. Falls back to the full name if there's nothing in
+  // parentheses to pull out (e.g. AAA Direct's dsrName, "PETRONAS AAA
+  // DIRECT AREA SALES", has no "(NAME)" part at all).
+  function shortDsrName(fullName) {
+    var m = /\(([^)]+)\)/.exec(fullName || "");
+    return m ? m[1] : (fullName || "—");
+  }
+
+  // Current month as a 3-letter uppercase abbreviation ("SEP", "OCT", ...)
+  // - added 14 Sep 2026 for the combined report's month lines below.
+  // Always reads off the device's current date, same as Date: already
+  // does, so this rolls over to the next month automatically with no
+  // code change needed.
+  function currentMonthAbbrev() {
+    return new Date().toLocaleDateString("en-US", { month: "short" }).toUpperCase();
+  }
+
   // Combined "SALES & COLLECTION REPORT" format, added 14 Sep 2026 per the
-  // owner's exact requested layout - only used once BOTH a liters target
-  // and a Collection target are set AND live Collection data has actually
+  // owner's exact requested layout, revised same day to the owner's
+  // corrected line-by-line format (Today on its own line; a "<MON> :"
+  // line each for Sales and Collection, each combining its own
+  // Total/Target/Balance) - only used once BOTH a liters target and a
+  // Collection target are set AND live Collection data has actually
   // arrived at least once (liveCollectionMonth !== null); otherwise falls
   // back to the original sales-only report below, so nothing ever shows a
   // blank/misleading Collection figure. Collection numbers are never
   // typed in - they come from Tally the same way the Collection panel
-  // above does. Only the Balance line is wrapped in single asterisks
-  // (WhatsApp bold), matching the owner's own format and the same trick
-  // already used for the Delivery date line/scheme text in
+  // above does. Only each "Balance To Do" clause is wrapped in single
+  // asterisks (WhatsApp bold), matching the owner's own format and the
+  // same trick already used for the Delivery date line/scheme text in
   // buildOrderText().
   function buildReportText() {
     var dsr = document.getElementById("dsrName").value.trim() || "—";
@@ -2225,18 +2247,18 @@
       var collectionBalanceText = collectionBalance <= 0
         ? "Target reached (+₹" + formatNum(Math.abs(collectionBalance)) + ")"
         : "₹" + formatNum(collectionBalance);
+      var mon = currentMonthAbbrev();
       return [
-        "SALES & COLLECTION REPORT — " + dsr,
+        "SALES & COLLECTION REPORT — " + shortDsrName(dsr),
         "Date: " + formatDateDisplay(todayISO()),
-        "Today: Sales = " + formatNum(todayTotal) + " Ltr , Collection = ₹" + formatNum(todayCollected),
-        "This month: Sales = " + formatNum(monthTotal) + " Ltr , Collected = ₹" + formatNum(monthCollected),
-        "Target: Sales = " + formatNum(MONTHLY_TARGET_LTR) + " Ltr , Collection = ₹" + formatNum(COLLECTION_TARGET_RS),
-        "*Balance: Sales = " + salesBalanceText + " , Collection = " + collectionBalanceText + "*"
+        "Today: Sales = " + formatNum(todayTotal) + " Ltr & Collection = ₹" + formatNum(todayCollected),
+        mon + " : Sales = " + formatNum(monthTotal) + " Ltr , Target = " + formatNum(MONTHLY_TARGET_LTR) + " Ltr & *Balance To Do = " + salesBalanceText + "*",
+        mon + " : Collection = ₹" + formatNum(monthCollected) + " , Target = ₹" + formatNum(COLLECTION_TARGET_RS) + " & *Balance To Do = " + collectionBalanceText + "*"
       ].join("\n");
     }
 
     var lines = [
-      "SALES REPORT — " + dsr,
+      "SALES REPORT — " + shortDsrName(dsr),
       "Date: " + formatDateDisplay(todayISO()),
       "Today: " + formatNum(todayTotal) + " Ltr",
       "This month: " + formatNum(monthTotal) + " Ltr"
