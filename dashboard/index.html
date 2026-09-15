@@ -24,6 +24,8 @@
     --live-soft: #dbeaf1;
     --warn: #a4432a;
     --warn-soft: #f3ded6;
+    --money: #2f6f5a;
+    --money-soft: #dcece5;
     --shadow: 0 1px 2px rgba(28, 26, 22, 0.04), 0 8px 24px -12px rgba(28, 26, 22, 0.12);
   }
 
@@ -45,6 +47,8 @@
       --live-soft: #1a2c33;
       --warn: #d97a5c;
       --warn-soft: #35201a;
+      --money: #5cc19f;
+      --money-soft: #163229;
       --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
     }
   }
@@ -151,11 +155,13 @@
     border: 1px solid var(--border);
     border-radius: 14px;
     overflow: hidden;
-    margin-bottom: 30px;
+    margin-bottom: 22px;
     box-shadow: var(--shadow);
   }
   @media (max-width: 640px) { .summary { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 380px) { .summary { grid-template-columns: 1fr; } }
+
+  .summary.money { margin-bottom: 30px; }
 
   .stat { background: var(--surface); padding: 16px 18px; }
   .stat-label {
@@ -166,11 +172,14 @@
   .stat-value .unit { font-size: 13px; font-weight: 500; color: var(--ink-muted); margin-left: 4px; }
   .stat.balance .stat-value { color: var(--accent); }
   .stat.balance.done .stat-value { color: var(--good); }
+  .stat.balance.money-stat .stat-value { color: var(--money); }
+  .stat.balance.money-stat.done .stat-value { color: var(--good); }
 
   .section-label {
     font-size: 13px; font-weight: 600; color: var(--ink-secondary);
-    text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 12px;
+    text-transform: uppercase; letter-spacing: 0.06em; margin: 22px 0 12px;
   }
+  .section-label:first-of-type { margin-top: 0; }
 
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
 
@@ -190,6 +199,7 @@
   .pill.on { background: var(--accent-soft); color: var(--accent); }
   .pill.done { background: var(--good-soft); color: var(--good); }
   .pill.err { background: var(--warn-soft); color: var(--warn); }
+  .pill.money { background: var(--money-soft); color: var(--money); }
 
   .today-row { display: flex; align-items: baseline; gap: 8px; }
   .today-value { font-size: 28px; font-weight: 700; }
@@ -198,6 +208,7 @@
   .progress-track { position: relative; height: 10px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
   .progress-fill { height: 100%; border-radius: 999px; background: var(--accent); transition: width 0.4s ease; }
   .progress-fill.done { background: var(--good); }
+  .progress-fill.money { background: var(--money); }
 
   .progress-meta { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--ink-secondary); }
   .progress-meta .pct { font-weight: 600; color: var(--ink); }
@@ -205,6 +216,15 @@
   .balance-line { font-size: 13.5px; color: var(--ink-secondary); padding-top: 10px; border-top: 1px solid var(--border); }
   .balance-line strong { color: var(--accent); font-weight: 600; }
   .balance-line.done strong { color: var(--good); }
+  .balance-line.money strong { color: var(--money); }
+  .balance-line.money.done strong { color: var(--good); }
+
+  .collection-block { padding-top: 13px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 10px; }
+  .collection-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .collection-title { font-size: 12px; font-weight: 600; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 0; }
+  .collection-today { font-size: 13.5px; color: var(--ink-secondary); }
+  .collection-today strong { color: var(--money); font-weight: 600; }
+  .collection-waiting { font-size: 12.5px; color: var(--ink-muted); font-style: italic; }
 
   footer {
     margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border);
@@ -217,12 +237,12 @@
 <div class="page">
   <header class="top">
     <div>
-      <p class="eyebrow">Petronas Lubricants · DSR Sales</p>
-      <h1>Today's Sales &amp; Monthly Target</h1>
+      <p class="eyebrow">Petronas Lubricants · DSR Sales &amp; Collection</p>
+      <h1>Today's Sales &amp; Collection</h1>
     </div>
     <div class="top-meta">
       <span id="sourceLabel">Loading current sales…</span><br>
-      <span>Pulled live from each DSR's order log</span>
+      <span>Pulled live from each DSR's order log &amp; Tally</span>
     </div>
   </header>
 
@@ -234,7 +254,11 @@
     </button>
   </div>
 
+  <p class="section-label">Combined — Sales</p>
   <div class="summary" id="summary"></div>
+
+  <p class="section-label">Combined — Collection</p>
+  <div class="summary money" id="summaryMoney"></div>
 
   <p class="section-label">By DSR</p>
   <div class="cards" id="cards"></div>
@@ -244,15 +268,16 @@
   var ORDERS_API_URL = "https://script.google.com/macros/s/AKfycbxppCHNsSlDGVY5gWKC-N2MKJ4wrLOd97FsKC19-SXjg9NPh4myip5Ht4h5R1dDlSl4GQ/exec";
 
   var DSRS = [
-    { name: "Prabha",     dsrName: "PETRONAS THENI AREA (PRABHA)",         territory: "Theni Area",        todayLtr: 0, monthLtr: 0, target: 4200 },
-    { name: "Arun",       dsrName: "PETRONAS DINDIGUL AREA (ARUN)",        territory: "Dindigul Area",     todayLtr: 0, monthLtr: 0, target: 4100 },
-    { name: "Nagaraj",    dsrName: "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)", territory: "Virudhunagar Area", todayLtr: 0, monthLtr: 0, target: 5100 },
-    { name: "Chellamani", dsrName: "PETRONAS MDU AREA (CHELLAMANI)",       territory: "MDU Area",          todayLtr: 0, monthLtr: 0, target: 5330 },
-    { name: "Anandh",     dsrName: "PETRONAS TVL1 AREA (ANANDH)",          territory: "TVL1 Area",         todayLtr: 0, monthLtr: 0, target: 6100 },
-    { name: "Madhu",      dsrName: "PETRONAS NKL AREA (MADHU)",            territory: "NKL Area",          todayLtr: 0, monthLtr: 0, target: 2500 }
+    { name: "Prabha",     dsrName: "PETRONAS THENI AREA (PRABHA)",         territory: "Theni Area",        todayLtr: 0, monthLtr: 0, target: 4200, collectionTarget: 1119523, todayCollected: 0, monthCollected: null },
+    { name: "Arun",       dsrName: "PETRONAS DINDIGUL AREA (ARUN)",        territory: "Dindigul Area",     todayLtr: 0, monthLtr: 0, target: 4100, collectionTarget: 1302920,  todayCollected: 0, monthCollected: null },
+    { name: "Nagaraj",    dsrName: "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)", territory: "Virudhunagar Area", todayLtr: 0, monthLtr: 0, target: 5100, collectionTarget: 2060761,  todayCollected: 0, monthCollected: null },
+    { name: "Chellamani", dsrName: "PETRONAS MDU AREA (CHELLAMANI)",       territory: "MDU Area",          todayLtr: 0, monthLtr: 0, target: 5330, collectionTarget: 1355606,  todayCollected: 0, monthCollected: null },
+    { name: "Anandh",     dsrName: "PETRONAS TVL1 AREA (ANANDH)",          territory: "TVL1 Area",         todayLtr: 0, monthLtr: 0, target: 6100, collectionTarget: 2344746,  todayCollected: 0, monthCollected: null },
+    { name: "Madhu",      dsrName: "PETRONAS NKL AREA (MADHU)",            territory: "NKL Area",          todayLtr: 0, monthLtr: 0, target: 2500, collectionTarget: 884005,   todayCollected: 0, monthCollected: null }
   ];
 
   function fmt(n) { return Math.round(n).toLocaleString('en-IN'); }
+  function fmtRs(n) { return '₹' + fmt(n); }
 
   function todayISO() {
     var d = new Date();
@@ -288,6 +313,36 @@
     }).join('');
   }
 
+  // Collection combined strip, added 15 Sep 2026 - same shape as the Sales
+  // strip above but in rupees, and only counts DSRs whose live Collection
+  // figure has actually arrived at least once (monthCollected !== null);
+  // a DSR still waiting on its first Tally sync is left out of the
+  // combined total rather than silently counted as ₹0.
+  function renderSummaryMoney() {
+    var withData = DSRS.filter(function (d) { return d.collectionTarget > 0 && d.monthCollected !== null; });
+    var anyWaiting = DSRS.some(function (d) { return d.collectionTarget > 0 && d.monthCollected === null; });
+
+    var todayTotal = withData.reduce(function (a, d) { return a + (d.todayCollected || 0); }, 0);
+    var monthTotal = withData.reduce(function (a, d) { return a + (d.monthCollected || 0); }, 0);
+    var targetTotal = withData.reduce(function (a, d) { return a + d.collectionTarget; }, 0);
+    var balanceTotal = targetTotal - monthTotal;
+    var done = balanceTotal <= 0;
+
+    var suffix = anyWaiting ? ' *' : '';
+    var stats = [
+      { label: "Today, all DSRs" + suffix, value: fmtRs(todayTotal) },
+      { label: "This month, all DSRs" + suffix, value: fmtRs(monthTotal) },
+      { label: "Combined target" + suffix, value: fmtRs(targetTotal) },
+      { label: (done ? "Combined — target reached" : "Combined balance to go") + suffix, value: done ? '+' + fmtRs(Math.abs(balanceTotal)) : fmtRs(balanceTotal), balance: true, done: done }
+    ];
+
+    document.getElementById('summaryMoney').innerHTML = stats.map(function (s) {
+      var cls = "stat balance money-stat" + (s.done ? " done" : "");
+      return '<div class="' + cls + '"><p class="stat-label">' + s.label + '</p>' +
+        '<div class="stat-value num">' + s.value + '</div></div>';
+    }).join('') + (anyWaiting ? '<div style="grid-column:1/-1;background:var(--surface);padding:8px 18px 14px;font-size:12px;color:var(--ink-muted);">* one or more DSRs are still waiting on their first Tally sync today — left out of these totals until then.</div>' : '');
+  }
+
   function renderCards() {
     document.getElementById('cards').innerHTML = DSRS.map(function (d) {
       var pct = d.target > 0 ? (d.monthLtr / d.target) * 100 : 0;
@@ -303,17 +358,41 @@
         ? '<div class="balance-line done">Target reached — <strong class="num">+' + fmt(Math.abs(balance)) + ' Ltr</strong> over this month\'s target</div>'
         : '<div class="balance-line"><strong class="num">' + fmt(balance) + ' Ltr</strong> to reach this month\'s target</div>';
 
+      var collectionBlock = '';
+      if (d.collectionTarget > 0) {
+        if (d.collectionError) {
+          collectionBlock = '<div class="collection-block"><div class="collection-head"><p class="collection-title">Collection</p><span class="pill err">Couldn\'t load</span></div></div>';
+        } else if (d.monthCollected === null) {
+          collectionBlock = '<div class="collection-block"><div class="collection-head"><p class="collection-title">Collection</p></div>' +
+            '<div class="collection-waiting">Waiting for the next Tally sync…</div></div>';
+        } else {
+          var cPct = (d.monthCollected / d.collectionTarget) * 100;
+          var cPctClamped = Math.min(100, Math.max(0, cPct));
+          var cBalance = d.collectionTarget - d.monthCollected;
+          var cDone = cBalance <= 0;
+          var cPill = cDone ? '<span class="pill done">Target reached</span>' : '<span class="pill money">' + Math.round(cPctClamped) + '% of target</span>';
+          var cBalanceLine = cDone
+            ? '<div class="balance-line money done">Target reached — <strong class="num">+' + fmtRs(Math.abs(cBalance)) + '</strong> over this month\'s target</div>'
+            : '<div class="balance-line money"><strong class="num">' + fmtRs(cBalance) + '</strong> to reach this month\'s target</div>';
+          collectionBlock = '<div class="collection-block"><div class="collection-head"><p class="collection-title">Collection</p>' + cPill + '</div>' +
+            '<div class="collection-today">Today <strong class="num">' + fmtRs(d.todayCollected || 0) + '</strong></div>' +
+            '<div class="progress-track"><div class="progress-fill money' + (cDone ? ' done' : '') + '" style="width:' + cPctClamped + '%"></div></div>' +
+            '<div class="progress-meta"><span class="num">' + fmtRs(d.monthCollected) + ' / ' + fmtRs(d.collectionTarget) + ' this month</span>' +
+            '<span class="pct num">' + Math.round(cPctClamped) + '%</span></div>' + cBalanceLine + '</div>';
+        }
+      }
+
       return '<div class="card' + (d.error ? ' stale' : '') + '"><div class="card-head"><div><p class="card-name">' + d.name + '</p>' +
         '<p class="card-territory">' + d.territory + '</p></div>' + pill + '</div>' +
         '<div class="today-row"><span class="today-value num">' + fmt(d.todayLtr) + '</span>' +
         '<span class="today-caption">Ltr sold today</span></div>' +
         '<div class="progress-track"><div class="progress-fill' + (done ? ' done' : '') + '" style="width:' + pctClamped + '%"></div></div>' +
         '<div class="progress-meta"><span class="num">' + fmt(d.monthLtr) + ' / ' + fmt(d.target) + ' Ltr this month</span>' +
-        '<span class="pct num">' + Math.round(pctClamped) + '%</span></div>' + balanceLine + '</div>';
+        '<span class="pct num">' + Math.round(pctClamped) + '%</span></div>' + balanceLine + collectionBlock + '</div>';
     }).join('');
   }
 
-  function render() { renderSummary(); renderCards(); }
+  function render() { renderSummary(); renderSummaryMoney(); renderCards(); }
   render();
 
   function setNote(msg, isErr) {
@@ -341,13 +420,42 @@
       .catch(function () { d.error = true; });
   }
 
+  // Collection data, added 15 Sep 2026 - one shared call to ?type=live
+  // (the same endpoint every DSR app already polls for its own Collection
+  // panel) rather than one call per DSR, since it already returns every
+  // DSR's figures in a single {dsrName: {today, month}} map. A DSR missing
+  // from the map (no Tally sync yet today) keeps monthCollected at null so
+  // the card shows "waiting for sync" instead of a false ₹0; a DSR present
+  // but with a null today/month value (sheet row exists but a field is
+  // blank) is treated the same way, field by field.
+  function fetchLive() {
+    var url = ORDERS_API_URL + "?type=live&_ts=" + Date.now();
+    return fetch(url, { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        var collection = (res && res.ok && res.collection) ? res.collection : null;
+        DSRS.forEach(function (d) {
+          if (d.collectionTarget <= 0) return;
+          d.collectionError = !collection;
+          if (!collection) return;
+          var entry = collection[d.dsrName];
+          if (!entry) return; // no Tally sync for this DSR yet today - leave as-is (null)
+          if (entry.today !== null && entry.today !== undefined) d.todayCollected = entry.today;
+          if (entry.month !== null && entry.month !== undefined) d.monthCollected = entry.month;
+        });
+      })
+      .catch(function () {
+        DSRS.forEach(function (d) { if (d.collectionTarget > 0) d.collectionError = true; });
+      });
+  }
+
   function refreshAll() {
     var btn = document.getElementById('refreshBtn');
     btn.disabled = true;
     btn.classList.add('loading');
     setNote('');
 
-    Promise.all(DSRS.map(fetchOne)).then(function () {
+    Promise.all(DSRS.map(fetchOne).concat([fetchLive()])).then(function () {
       render();
       var failed = DSRS.filter(function (d) { return d.error; }).length;
       document.getElementById('sourceLabel').textContent = 'Updated ' + nowStamp();
