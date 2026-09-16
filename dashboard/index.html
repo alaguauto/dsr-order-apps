@@ -232,6 +232,12 @@
   }
   footer a { color: var(--accent); }
 </style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a4a44">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Dashboard">
 </head>
 <body>
 <div class="page">
@@ -475,6 +481,16 @@
 
   document.getElementById('refreshBtn').addEventListener('click', refreshAll);
   refreshAll();
+</script>
+<script>
+// Register the PWA service worker (added 15 Sep 2026) so this app is
+// installable via "Add to Home Screen". Fails silently on any browser
+// that doesn't support it - purely additive, nothing else depends on it.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('service-worker.js').catch(function () {});
+  });
+}
 </script>
 </body>
 </html>

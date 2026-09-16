@@ -1,0 +1,106 @@
+PWA INSTALL — SETUP INSTRUCTIONS (added 15 Sep 2026, icons updated 16 Sep 2026 to use your real AAA logo)
+=============================================================================================================
+
+WHAT THIS IS
+============
+Right now every DSR opens their order slip through Chrome/Safari and it
+behaves like any other website. This adds "installability" — each DSR (and
+you, for the dashboard) can tap "Add to Home Screen" once and get a real app
+icon (your AAA star logo) on their phone that opens full-screen, without the
+browser address bar, exactly like a downloaded app. Nothing about how the
+app WORKS changes — same GitHub Pages site underneath, same order-saving,
+same live Tally sync. This is purely cosmetic/convenience on top.
+
+This is the "PWA install" path you chose (no Play Store, no app file to send
+around — just a home-screen shortcut with an app icon).
+
+WHAT'S IN THIS ZIP
+===================
+For EACH of these 10 locations, 5 new files were added (manifest.json,
+service-worker.js, icon-192.png, icon-512.png, icon-maskable-512.png — all
+three icons built from your actual AAA logo) and the existing index.html got
+a small addition (nothing removed):
+
+  /                (the hub page — index.html)
+  /dashboard/
+  /aaadirect/
+  /anandh/
+  /arun/
+  /chellamani/
+  /madhu/
+  /nagaraj/
+  /prabha/
+  /saravanan/
+
+Plus order-slip-template.html (the master template used when building a new
+DSR app) got the same small addition, with a comment inside explaining what
+to copy alongside it next time a new DSR app is built.
+
+UPLOAD STEPS
+============
+1. Upload every file in this zip to GitHub at the SAME path it already sits
+   at in this zip — e.g. this zip's "prabha/manifest.json" goes into your
+   repo's existing "prabha/" folder, this zip's root "manifest.json" and
+   "icon-*.png" go at the repo's TOP level (same level as index.html), and
+   so on for every folder. Nothing goes into a new subfolder — upload
+   directly at the same top level each file already sits at in this zip
+   (this exact mistake has happened a few times before with other handovers,
+   so double-checking this step is worth it).
+2. The updated index.html files (10 of them, one per folder + the root hub)
+   REPLACE the existing files at those same paths — GitHub will ask "this
+   file already exists, replace it?" — say yes.
+3. No Apps Script / Code.gs changes needed for this — this is 100%
+   front-end, doesn't touch the backend at all.
+
+HOW A DSR INSTALLS IT ON THEIR PHONE
+=====================================
+Android (Chrome):
+  1. Open their usual order-slip link (the same bookmark they already use).
+  2. Chrome shows a small "Install app" banner automatically after a few
+     seconds, OR: tap the 3-dot menu (top right) → "Add to Home screen" /
+     "Install app".
+  3. Confirm — a new icon (your AAA star logo) appears on their home screen
+     with their own name under it (e.g. "Prabha").
+  4. Tapping that icon from now on opens the app full-screen, no browser
+     address bar, no tabs — feels like a real installed app.
+
+iPhone (Safari):
+  1. Open the link in Safari (must be Safari, not Chrome, for this to work
+     on iPhone).
+  2. Tap the Share icon (square with an upward arrow) → "Add to Home
+     Screen" → Add.
+  3. Same result — an app icon on their home screen.
+
+This is a one-time thing per phone. If a DSR gets a new phone, they just do
+it again on the new one — nothing to reinstall or reconfigure on your end.
+
+WHAT DOESN'T CHANGE / IS SAFE
+==============================
+- If a DSR never installs it, everything works exactly as it does today —
+  this is purely additive and invisible until someone chooses to install.
+- If they keep using it as a normal browser bookmark instead of installing,
+  that also still works exactly as before.
+- Live Tally Sync, order saving, dealer outstanding — all untouched, all
+  still work identically whether installed or not.
+- The one built-in offline behavior: if a DSR's phone briefly has no signal,
+  the app will still OPEN (showing whatever it last loaded) instead of a
+  browser error page. It still needs a connection to actually save orders or
+  pull fresh live data — this only softens "no internet = blank error page"
+  into "no internet = app opens, live data just doesn't refresh yet."
+
+TROUBLESHOOTING
+================
+- "Add to Home Screen" doesn't show an install option on Android: make sure
+  the uploaded manifest.json and service-worker.js actually landed in that
+  same folder on GitHub (Step 1) — Chrome silently won't offer install if
+  either file is missing or 404s. Open <the folder>/manifest.json directly
+  in a browser to sanity-check it loads instead of a GitHub 404 page.
+- Icon looks blank/wrong after installing: the phone may have cached the old
+  (missing, or the earlier placeholder) icon from before this was uploaded —
+  uninstall the home-screen icon and re-add it once, that always fixes it.
+- Any of this feels like it broke the order-saving flow: it shouldn't be
+  possible, since none of these new files are wired into billing or the
+  live-sync polling in any way — but if something looks off after uploading,
+  it's safe to just delete the new manifest.json/service-worker.js/icon-*.png
+  files and revert index.html to before this change; that fully undoes this
+  feature with zero effect on anything else.
