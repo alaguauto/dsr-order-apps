@@ -226,6 +226,24 @@
   .collection-today strong { color: var(--money); font-weight: 600; }
   .collection-waiting { font-size: 12.5px; color: var(--ink-muted); font-style: italic; }
 
+  /* Ranking / leaderboard, added 17 Sep 2026 - two side-by-side panels
+     (Sales, Collection) each sorted by % of target descending, reusing
+     the existing .progress-track/.progress-fill mini bars and .num font
+     rather than introducing new visual language. */
+  .leaderboard { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 30px; }
+  @media (max-width: 720px) { .leaderboard { grid-template-columns: 1fr; } }
+  .leaderboard-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
+  .leaderboard-title { font-size: 13px; font-weight: 600; color: var(--ink-secondary); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 10px; }
+  .rank-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
+  .rank-row:first-child { border-top: none; }
+  .rank-num { font-family: 'Archivo', system-ui, sans-serif; font-weight: 800; font-size: 13px; color: var(--ink-muted); width: 18px; flex-shrink: 0; text-align: center; }
+  .rank-row.top .rank-num { color: var(--accent); }
+  .rank-name { flex: 1.1; min-width: 0; font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank-bar-wrap { flex: 1.3; min-width: 50px; }
+  .progress-track.mini { height: 6px; }
+  .rank-pct { font-weight: 600; font-size: 12px; width: 38px; text-align: right; flex-shrink: 0; }
+  .rank-waiting { font-size: 11.5px; color: var(--ink-muted); font-style: italic; }
+
   footer {
     margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border);
     font-size: 12.5px; color: var(--ink-muted); line-height: 1.6;
@@ -265,6 +283,18 @@
 
   <p class="section-label">Combined — Collection</p>
   <div class="summary money" id="summaryMoney"></div>
+
+  <p class="section-label">Ranking</p>
+  <div class="leaderboard">
+    <div class="leaderboard-panel">
+      <p class="leaderboard-title">Sales — % of target</p>
+      <div id="salesRanking"></div>
+    </div>
+    <div class="leaderboard-panel">
+      <p class="leaderboard-title">Collection — % of target</p>
+      <div id="collectionRanking"></div>
+    </div>
+  </div>
 
   <p class="section-label">By DSR</p>
   <div class="cards" id="cards"></div>
@@ -398,7 +428,53 @@
     }).join('');
   }
 
-  function render() { renderSummary(); renderSummaryMoney(); renderCards(); }
+  // Ranking / leaderboard, added 17 Sep 2026 per the owner's request -
+  // "DSR performance/ranking". Sales ranks all 6 by % of monthly Ltr
+  // target reached, descending - a DSR past 100% still sorts correctly
+  // (percentages aren't clamped for the SORT, only for the bar width).
+  // Collection ranks separately (different unit, own target) and only
+  // among DSRs whose live Collection figure has actually arrived at least
+  // once (monthCollected !== null) - a DSR still waiting on today's first
+  // Tally sync is listed at the bottom, unranked, rather than sorted in
+  // with a misleading 0%, same "don't fake a number" principle already
+  // used for the Collection summary strip above.
+  function renderLeaderboard() {
+    var salesRanked = DSRS.slice().sort(function (a, b) {
+      var pa = a.target > 0 ? a.monthLtr / a.target : 0;
+      var pb = b.target > 0 ? b.monthLtr / b.target : 0;
+      return pb - pa;
+    });
+    document.getElementById('salesRanking').innerHTML = salesRanked.map(function (d, i) {
+      var pct = d.target > 0 ? (d.monthLtr / d.target) * 100 : 0;
+      var pctClamped = Math.min(100, Math.max(0, pct));
+      return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
+        '<span class="rank-name">' + d.name + '</span>' +
+        '<span class="rank-bar-wrap"><div class="progress-track mini"><div class="progress-fill' + (pctClamped >= 100 ? ' done' : '') + '" style="width:' + pctClamped + '%"></div></div></span>' +
+        '<span class="rank-pct num">' + Math.round(pct) + '%</span></div>';
+    }).join('');
+
+    var withCollection = DSRS.filter(function (d) { return d.collectionTarget > 0 && d.monthCollected !== null; });
+    var waiting = DSRS.filter(function (d) { return d.collectionTarget > 0 && d.monthCollected === null; });
+    var collectionRanked = withCollection.slice().sort(function (a, b) {
+      return (b.monthCollected / b.collectionTarget) - (a.monthCollected / a.collectionTarget);
+    });
+    var rows = collectionRanked.map(function (d, i) {
+      var pct = (d.monthCollected / d.collectionTarget) * 100;
+      var pctClamped = Math.min(100, Math.max(0, pct));
+      return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
+        '<span class="rank-name">' + d.name + '</span>' +
+        '<span class="rank-bar-wrap"><div class="progress-track mini"><div class="progress-fill money' + (pctClamped >= 100 ? ' done' : '') + '" style="width:' + pctClamped + '%"></div></div></span>' +
+        '<span class="rank-pct num">' + Math.round(pct) + '%</span></div>';
+    });
+    rows = rows.concat(waiting.map(function (d) {
+      return '<div class="rank-row"><span class="rank-num">—</span><span class="rank-name">' + d.name +
+        '</span><span class="rank-waiting">Waiting for sync…</span></div>';
+    }));
+    document.getElementById('collectionRanking').innerHTML = rows.join('') ||
+      '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Collection targets set yet.</p>';
+  }
+
+  function render() { renderSummary(); renderSummaryMoney(); renderCards(); renderLeaderboard(); }
   render();
 
   function setNote(msg, isErr) {
