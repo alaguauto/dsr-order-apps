@@ -246,6 +246,26 @@
   .dealer-note { margin-top: 5px; }
   .dealer-note .outstanding-badge { font-size: 11.5px; padding: 3px 8px; }
   .dealer-note .outstanding-badge-info { font-size: 11.5px; padding: 3px 8px; }
+  /* "Repeat" last-order button, added 18 Sep 2026 - small inline pill next
+     to the "Last order: ..." hint text under the Dealer Name field. */
+  .repeat-order-btn {
+    display: inline-block;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--accent-strong);
+    background: var(--accent-soft);
+    border: none;
+    border-radius: 999px;
+    padding: 3px 10px;
+    margin-left: 4px;
+    cursor: pointer;
+  }
+  .repeat-order-btn:active { opacity: 0.8; }
+  /* Clickable dealer name in Dormant dealers / Manage dealers, added 18
+     Sep 2026 - tapping the name selects that dealer straight into the
+     order in progress, same as picking from the Dealer Name dropdown. */
+  .manage-row-name.clickable { cursor: pointer; }
+  .manage-row-name.clickable:active { opacity: 0.7; }
   /* Added 8 Sep 2026: current account balance shown in "Manage dealers"
      (see balanceBadgeHtml()/renderManageDealerList() below) - a Dr balance
      ("...due") uses the same neutral/muted style as outstanding-badge-info
@@ -871,6 +891,16 @@
   </section>
 
   <section style="padding-bottom:0;">
+    <details class="manage" id="dormantDetails">
+      <summary>Dormant dealers <span id="dormantSummaryLabel" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">Bought from you within the last 100 days, but no order yet this month — worth a call. Live from Tally, nothing to enter here.</p>
+        <div id="dormantListEl"></div>
+      </div>
+    </details>
+  </section>
+
+  <section style="padding-bottom:0;">
     <details class="manage" id="pastOrdersDetails">
       <summary>Past orders</summary>
       <div class="manage-body">
@@ -921,6 +951,7 @@
             <div class="combo-list" id="dealerDropdown" hidden></div>
           </div>
           <div class="dealer-note" id="dealerNote"></div>
+          <div class="dealer-note" id="dealerLastOrderNote"></div>
         </div>
         <div class="field">
           <label for="deliveryDate">Delivery Date</label>
@@ -1064,18 +1095,20 @@
   // 0 hides the Target/Balance chips in "Target - Balance" (only Today/This month still show).
   var MONTHLY_TARGET_LTR = 2500;
 
-  // This DSR's monthly Collection target (rupees). 0 hides the whole
-  // "Collection" panel and keeps the daily WhatsApp report sales-only
-  // (same convention as MONTHLY_TARGET_LTR above) - set by the owner once
-  // he gives a figure for this DSR; still 0 here until then. "Collected"
-  // is never typed in anywhere - it comes live from Tally via
-  // tally_live_watcher.py's fetch_collection() (Receipt-voucher totals
-  // for this DSR's dealers), the same way stock/rate/outstanding do (see
-  // applyLiveOverlay_()/renderCollection() below). Feature built and
-  // verified against real Tally data for Arun, 12-14 Sep 2026 - see
-  // dsr-app-registry.md's "DSR Collection" entries for the full history;
-  // rolled out to this file with the target left at 0 pending the
-  // owner's figure for this specific DSR.
+  // This DSR's monthly Collection target (rupees), added 12 Sep 2026 - test
+  // build for Arun only, per the owner's own choice as the DSR to verify
+  // this feature against before rolling it out to the rest. 0 hides the
+  // whole "Collection" panel (same convention as MONTHLY_TARGET_LTR above).
+  // "Collected" is never typed in anywhere - it comes live from Tally via
+  // tally_live_watcher.py's Receipt-voucher total for this DSR's dealers,
+  // this calendar month, polled the same way as stock/rate/outstanding
+  // (see applyLiveOverlay_()/renderCollection() below). Confirmed via
+  // --check-collection against real Tally data 12 Sep 2026: "Receipt" is
+  // the exact voucher-type label on this Tally setup, and the dealer's own
+  // ledger entry on a Receipt voucher comes back POSITIVE (a real sample
+  // voucher showed +10,000 on the dealer's ledger, -10,000 on the bank
+  // ledger) - matching the negative=Dr/positive=Cr convention already used
+  // for CLOSINGBALANCE throughout tally_live_watcher.py.
   var COLLECTION_TARGET_RS = 884005;
 
   // Orders backend — a Google Apps Script Web App URL (ends in /exec) backed by a Google
@@ -1177,6 +1210,8 @@
   var collectionStripEl = document.getElementById("collectionStrip");
   var collectionSummaryLabelEl = document.getElementById("collectionSummaryLabel");
   var collectionDetailsEl = document.getElementById("collectionDetails");
+  var dormantSummaryLabelEl = document.getElementById("dormantSummaryLabel");
+  var dormantListEl = document.getElementById("dormantListEl");
   var reportBtn = document.getElementById("reportBtn");
   var ordersListEl = document.getElementById("ordersList");
   var ordersCountLabel = document.getElementById("ordersCountLabel");
@@ -1497,6 +1532,20 @@
     return '<span class="balance-badge-credit">₹' + formatBalance_(bal) + " credit</span>";
   }
 
+  // Selecting a dealer straight from a list, added 18 Sep 2026 - the
+  // owner asked that tapping a dealer's name in Dormant dealers or Manage
+  // dealers pick them for the order in progress, same as picking from the
+  // Dealer Name dropdown, so seeing "this dealer needs attention" and
+  // acting on it are one tap apart instead of having to re-type the name.
+  function selectDealerForOrder_(name) {
+    dealerInput.value = name;
+    hideDealerDropdown();
+    renderDealerNote();
+    renderSummary();
+    showToast("Selected " + name + " — add items below");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function renderManageDealerList() {
     dealerCountLabel.textContent = "(" + dealers.length + ")";
     if (!dealers.length) {
@@ -1505,12 +1554,17 @@
     }
     manageDealerListEl.innerHTML = dealers.map(function (d) {
       return (
-        '<div class="manage-row"><span class="manage-row-name">' + escapeHtml(d.name) + "</span>" +
+        '<div class="manage-row"><span class="manage-row-name clickable" data-dealer-name="' + escapeHtml(d.name) + '">' + escapeHtml(d.name) + "</span>" +
         outstandingBadgeHtml(d) + balanceBadgeHtml(d) +
         "</div>"
       );
     }).join("");
   }
+  manageDealerListEl.addEventListener("click", function (e) {
+    var nameEl = e.target.closest(".manage-row-name.clickable");
+    if (!nameEl) return;
+    selectDealerForOrder_(nameEl.getAttribute("data-dealer-name"));
+  });
 
   function renderDealerDropdown(filter) {
     var term = (filter || "").trim().toLowerCase();
@@ -1551,6 +1605,110 @@
     } else {
       noteEl.innerHTML = match ? outstandingBadgeHtml(match) : "";
     }
+    fetchDealerHistoryNote_(match ? match.name : null);
+  }
+
+  // Faster order-taking, added 18 Sep 2026 (owner picked this from a menu
+  // of dashboard/app ideas: "anything else interesting or useful") - test
+  // build on Arun's app per the owner's own choice ("TEST WITH ARUN"), same
+  // as the original Collection feature's test rollout. Shows every item
+  // this dealer has EVER bought (from the full Google Sheet order history,
+  // not just their one most recent order - the owner's own correction:
+  // "no order number need, i need items he has purchased ever ... and
+  // repeat symbol near to that"), each with its own small repeat button so
+  // a DSR can re-add exactly what this dealer usually buys, one item at a
+  // time, instead of hunting through Past Orders. Reuses the SAME backend
+  // endpoint Past Orders already calls (dealerSearch, no date range needed
+  // - returns EVERY order for that dealer, most-recent-date first per
+  // Code.gs's own sort) - no new backend piece needed. A tiny in-memory
+  // cache (cleared on page load, not persisted) avoids re-fetching if the
+  // same dealer is picked again in the same session.
+  var dealerHistoryCache_ = {};
+  var dealerHistoryFetchSeq_ = 0;
+  var DEALER_HISTORY_ITEM_LIMIT = 25; // cap the list - a long-standing dealer could otherwise show 50+ distinct items
+
+  function fetchDealerHistoryNote_(dealerName) {
+    var noteEl = document.getElementById("dealerLastOrderNote");
+    if (!noteEl) return;
+    if (!dealerName || !apiConfigured()) { noteEl.innerHTML = ""; return; }
+    var seq = ++dealerHistoryFetchSeq_; // guards against a slower earlier fetch overwriting a faster later one
+    if (Object.prototype.hasOwnProperty.call(dealerHistoryCache_, dealerName)) {
+      renderDealerHistoryNote_(dealerHistoryCache_[dealerName]);
+      return;
+    }
+    noteEl.innerHTML = '<span class="hint">Checking past items…</span>';
+    var dsrNameVal = document.getElementById("dsrName").value || "";
+    var url = ORDERS_API_URL + "?dsrName=" + encodeURIComponent(dsrNameVal) +
+      "&dealerSearch=" + encodeURIComponent(dealerName) + "&_ts=" + Date.now();
+    fetch(url, { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (res) {
+      if (seq !== dealerHistoryFetchSeq_) return; // a newer dealer pick has already superseded this
+      var list = (res && res.ok && res.historyOrders) ? res.historyOrders : [];
+      // dealerSearch is a substring match server-side - keep only an exact
+      // match on this dealer's own name, same caution as anywhere else a
+      // substring search could catch a similarly-named dealer.
+      var exact = list.filter(function (o) { return (o.dealer || "").trim().toLowerCase() === dealerName.trim().toLowerCase(); });
+      // Already most-recent-order-first per Code.gs's own sort - walk it
+      // and keep only the FIRST (i.e. most recent) time each item id shows
+      // up, so every item this dealer has ever bought appears once, with
+      // the quantity/unit/date from their most recent purchase of it.
+      var seenItem = {};
+      var itemHistory = [];
+      exact.forEach(function (o) {
+        (o.items || []).forEach(function (line) {
+          if (!line || !line.id || seenItem[line.id]) return;
+          seenItem[line.id] = true;
+          itemHistory.push({ id: line.id, qty: line.qty, unit: line.unit, dateKey: o.dateKey });
+        });
+      });
+      dealerHistoryCache_[dealerName] = itemHistory;
+      renderDealerHistoryNote_(itemHistory);
+    }).catch(function () {
+      if (seq !== dealerHistoryFetchSeq_) return;
+      noteEl.innerHTML = "";
+    });
+  }
+
+  function renderDealerHistoryNote_(itemHistory) {
+    var noteEl = document.getElementById("dealerLastOrderNote");
+    if (!noteEl) return;
+    if (!itemHistory || !itemHistory.length) {
+      noteEl.innerHTML = '<span class="hint">No past orders for this dealer yet.</span>';
+      return;
+    }
+    var shown = itemHistory.slice(0, DEALER_HISTORY_ITEM_LIMIT);
+    var rowsHtml = shown.map(function (line, idx) {
+      var it = items.filter(function (x) { return x.id === line.id; })[0];
+      var itemName = it ? it.name : line.id; // fall back to the raw id if the item's left the catalog since
+      var dateLabel = line.dateKey || "";
+      try { if (line.dateKey) dateLabel = formatDateDisplay(line.dateKey); } catch (e) { /* keep raw dateKey */ }
+      var unitLabel = line.unit === "Nos" ? " Nos" : "";
+      return '<div class="manage-row"><span class="manage-row-name">' + escapeHtml(itemName) +
+        '<br><span class="hint" style="margin:2px 0 0;">Last: ' + escapeHtml(dateLabel) + ' · Qty ' + formatNum(line.qty || 0) + unitLabel + '</span></span>' +
+        '<button type="button" class="repeat-order-btn" data-history-idx="' + idx + '">↻</button></div>';
+    }).join('');
+    var moreNote = itemHistory.length > DEALER_HISTORY_ITEM_LIMIT
+      ? '<p class="hint" style="margin-top:4px;">+' + (itemHistory.length - DEALER_HISTORY_ITEM_LIMIT) + ' more item(s) not shown.</p>'
+      : '';
+    noteEl.innerHTML = '<p class="hint">Items bought before — tap ↻ to add:</p>' + rowsHtml + moreNote;
+    noteEl.querySelectorAll('.repeat-order-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        addItemFromHistory_(shown[Number(btn.getAttribute('data-history-idx'))]);
+      });
+    });
+  }
+
+  function addItemFromHistory_(line) {
+    var it = items.filter(function (x) { return x.id === line.id; })[0];
+    if (!it) { showToast("That item isn't in the current catalog anymore"); return; }
+    qty[it.id] = line.qty;
+    if (line.unit === "Nos" && isNosEligible(it)) {
+      qtyUnit[it.id] = "nos";
+    } else {
+      delete qtyUnit[it.id];
+    }
+    renderItemList();
+    renderSummary();
+    showToast("Added " + it.name + " (" + formatNum(line.qty || 0) + (line.unit === "Nos" ? " Nos" : "") + ")");
   }
 
   function renderSummary() {
@@ -1857,6 +2015,38 @@
         }
         if (collectionChanged && typeof renderCollection === "function") renderCollection();
       }
+    }
+    // Dormant dealers, added 18 Sep 2026 - same rule built on the manager
+    // dashboard and AAA Direct's app the same day: a dealer with a real
+    // Tally sale within the last 100 days, but nothing ordered this
+    // calendar month. Uses this DSR's OWN `dealers` array (already the
+    // real, current dealer list) cross-referenced against
+    // data.salesByDealer's lastSaleDate field (see fetch_sales() in
+    // tally_live_watcher.py and handleLiveGet_() in Code.gs). Purely
+    // additive: if the backend hasn't been upgraded yet, data.salesByDealer
+    // is simply absent and this silently does nothing.
+    if (data.salesByDealer) {
+      var DORMANT_MAX_DAYS = 100;
+      var newDormant = [];
+      for (var dd = 0; dd < dealers.length; dd++) {
+        var ddName = dealers[dd].name;
+        var ddRec = data.salesByDealer[ddName];
+        if (!ddRec || !ddRec.lastSaleDate) continue;
+        var ds = String(ddRec.lastSaleDate);
+        if (ds.length !== 8) continue;
+        var saleDate = new Date(Number(ds.slice(0, 4)), Number(ds.slice(4, 6)) - 1, Number(ds.slice(6, 8)));
+        if (isNaN(saleDate.getTime())) continue;
+        var nowD = new Date();
+        var today0 = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate());
+        var daysAgo = Math.round((today0 - saleDate) / 86400000);
+        if (daysAgo < 0 || daysAgo > DORMANT_MAX_DAYS) continue; // no real sale on record, or too long ago
+        var ddMonth = ddRec.month || 0;
+        if (ddMonth > 0) continue; // already ordered this month - not dormant
+        newDormant.push({ name: ddName, days: daysAgo });
+      }
+      newDormant.sort(function (a, b) { return b.days - a.days; }); // longest-quiet first
+      dormantDealers = newDormant;
+      if (typeof renderDormant === "function") renderDormant();
     }
     if (stockChanged && typeof renderItemList === "function") renderItemList();
     if (dealersChanged) {
@@ -2378,6 +2568,31 @@
     collectionSummaryLabelEl.textContent = "(₹" + formatNum(liveCollectionMonth) + ")";
   }
 
+  // Dormant dealers list rendering, added 18 Sep 2026 - see the
+  // computation in applyLiveOverlay_() above for the rule itself.
+  var dormantDealers = [];
+
+  function renderDormant() {
+    if (!dormantListEl) return;
+    dormantSummaryLabelEl.textContent = dormantDealers.length ? "(" + dormantDealers.length + ")" : "";
+    if (!dormantDealers.length) {
+      dormantListEl.innerHTML = '<p class="empty-note" style="padding:10px 0;">No dormant dealers right now.</p>';
+      return;
+    }
+    dormantListEl.innerHTML = dormantDealers.map(function (r) {
+      return (
+        '<div class="manage-row"><span class="manage-row-name clickable" data-dealer-name="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + "</span>" +
+        '<span class="manage-row-fields-static">' + r.days + "d ago</span>" +
+        "</div>"
+      );
+    }).join("");
+  }
+  dormantListEl.addEventListener("click", function (e) {
+    var nameEl = e.target.closest(".manage-row-name.clickable");
+    if (!nameEl) return;
+    selectDealerForOrder_(nameEl.getAttribute("data-dealer-name"));
+  });
+
   ordersListEl.addEventListener("click", function (e) {
     var editBtn = e.target.closest(".edit-order-btn");
     if (editBtn) {
@@ -2678,6 +2893,7 @@
   renderSummary();
   renderOrdersAndTarget();
   renderCollection();
+  renderDormant();
   initOrders();
   checkReportBlock();
 })();
