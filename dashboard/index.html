@@ -179,6 +179,14 @@
   .stat-value { font-size: clamp(20px, 2.6vw, 26px); font-weight: 600; color: var(--ink); }
   .stat-value .unit { font-size: 13px; font-weight: 500; color: var(--ink-muted); margin-left: 4px; }
   .stat-sub { font-size: 12.5px; font-weight: 500; color: var(--ink-muted); margin: 4px 0 0; }
+
+  /* On-pace vs behind-pace tags, added 18 Sep 2026 - reuse the pill's own
+     ink colors so no new palette is introduced. */
+  .pace-tag { font-size: 11px; font-weight: 600; margin-left: 6px; white-space: nowrap; }
+  .pace-tag.ahead { color: var(--good); }
+  .pace-tag.behind { color: var(--warn); }
+  .pace-tag.onpace { color: var(--ink-muted); }
+  .rank-pct .pace-tag { margin-left: 4px; font-size: 10px; }
   .stat.balance .stat-value { color: var(--accent); }
   .stat.balance.done .stat-value { color: var(--good); }
   .stat.balance.money-stat .stat-value { color: var(--money); }
@@ -386,6 +394,29 @@
   function fmt(n) { return Math.round(n).toLocaleString('en-IN'); }
   function fmtRs(n) { return '₹' + fmt(n); }
 
+  // On-pace vs behind-pace, added 18 Sep 2026 - "expected pace" = how far
+  // through the current month we are (today's day / days in this month),
+  // as a percentage - a DSR/target's actual % of target is compared
+  // against that line rather than shown bare with no context (77% on day
+  // 18 of 30 is actually ahead, but reads as "not there yet" without
+  // this). +/-5 points either side of expected counts as "on pace" -
+  // wide enough that normal day-to-day billing lumpiness (a big invoice
+  // posted one day, none the next) doesn't flip the tag back and forth.
+  function monthPaceExpectedPct() {
+    var now = new Date();
+    var daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return (now.getDate() / daysInMonth) * 100;
+  }
+  function paceTagHtml(actualPct, small) {
+    var expected = monthPaceExpectedPct();
+    var diff = actualPct - expected;
+    var cls, label, symbol;
+    if (diff > 5) { cls = 'ahead'; label = 'ahead of pace'; symbol = '▲'; }
+    else if (diff < -5) { cls = 'behind'; label = 'behind pace'; symbol = '▼'; }
+    else { cls = 'onpace'; label = 'on pace'; symbol = '●'; }
+    return '<span class="pace-tag ' + cls + '" title="' + label + '">' + symbol + (small ? '' : ' ' + label) + '</span>';
+  }
+
   function todayISO() {
     var d = new Date();
     var m = String(d.getMonth() + 1).padStart(2, "0");
@@ -482,7 +513,7 @@
         var pctClamped = Math.min(100, Math.max(0, pct));
         var balance = d.target - d.monthLtr;
         var done = balance <= 0;
-        salesPill = done ? '<span class="pill done">Target reached</span>' : '<span class="pill on">' + Math.round(pctClamped) + '% of target</span>';
+        salesPill = done ? '<span class="pill done">Target reached</span>' : '<span class="pill on">' + Math.round(pctClamped) + '% of target</span>' + (d.target > 0 ? paceTagHtml(pct, true) : '');
         var balanceLine = done
           ? '<div class="balance-line done">Target reached — <strong class="num">+' + fmt(Math.abs(balance)) + ' Ltr</strong> over this month\'s target</div>'
           : '<div class="balance-line"><strong class="num">' + fmt(balance) + ' Ltr</strong> to reach this month\'s target</div>';
@@ -509,7 +540,7 @@
           var cPctClamped = Math.min(100, Math.max(0, cPct));
           var cBalance = d.collectionTarget - d.monthCollected;
           var cDone = cBalance <= 0;
-          var cPill = cDone ? '<span class="pill done">Target reached</span>' : '<span class="pill money">' + Math.round(cPctClamped) + '% of target</span>';
+          var cPill = cDone ? '<span class="pill done">Target reached</span>' : '<span class="pill money">' + Math.round(cPctClamped) + '% of target</span>' + paceTagHtml(cPct, true);
           var cBalanceLine = cDone
             ? '<div class="balance-line money done">Target reached — <strong class="num">+' + fmtRs(Math.abs(cBalance)) + '</strong> over this month\'s target</div>'
             : '<div class="balance-line money"><strong class="num">' + fmtRs(cBalance) + '</strong> to reach this month\'s target</div>';
@@ -554,7 +585,7 @@
       return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
         '<span class="rank-name">' + d.name + '</span>' +
         '<span class="rank-bar-wrap"><div class="progress-track mini"><div class="progress-fill' + (pctClamped >= 100 ? ' done' : '') + '" style="width:' + pctClamped + '%"></div></div></span>' +
-        '<span class="rank-pct num">' + Math.round(pct) + '%</span></div>';
+        '<span class="rank-pct num">' + Math.round(pct) + '%' + (pctClamped < 100 ? paceTagHtml(pct, true) : '') + '</span></div>';
     });
     salesRows = salesRows.concat(waitingSales.map(function (d) {
       return '<div class="rank-row"><span class="rank-num">—</span><span class="rank-name">' + d.name +
@@ -574,7 +605,7 @@
       return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
         '<span class="rank-name">' + d.name + '</span>' +
         '<span class="rank-bar-wrap"><div class="progress-track mini"><div class="progress-fill money' + (pctClamped >= 100 ? ' done' : '') + '" style="width:' + pctClamped + '%"></div></div></span>' +
-        '<span class="rank-pct num">' + Math.round(pct) + '%</span></div>';
+        '<span class="rank-pct num">' + Math.round(pct) + '%' + (pctClamped < 100 ? paceTagHtml(pct, true) : '') + '</span></div>';
     });
     rows = rows.concat(waiting.map(function (d) {
       return '<div class="rank-row"><span class="rank-num">—</span><span class="rank-name">' + d.name +
