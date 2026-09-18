@@ -187,6 +187,30 @@
   .pace-tag.behind { color: var(--warn); }
   .pace-tag.onpace { color: var(--ink-muted); }
   .rank-pct .pace-tag { margin-left: 4px; font-size: 10px; }
+
+  /* Dormant dealers, added 18 Sep 2026 - card names that expand into a
+     modal (up to 20 dealers) reuse the existing .card/.card-name styling,
+     just made clickable. */
+  .card-name.clickable { cursor: pointer; }
+  .card-name.clickable:hover { text-decoration: underline; text-decoration-color: var(--border); }
+  .card-name-hint { font-size: 11px; font-weight: 500; color: var(--ink-muted); margin: 1px 0 0; }
+
+  .dormant-overlay {
+    position: fixed; inset: 0; background: rgba(28, 26, 22, 0.45);
+    display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px;
+  }
+  .dormant-sheet {
+    background: var(--surface); border-radius: 16px; box-shadow: var(--shadow);
+    max-width: 480px; width: 100%; max-height: 80vh; overflow-y: auto; padding: 20px 22px;
+  }
+  .dormant-sheet-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 4px; }
+  .dormant-sheet-title { font-family: 'Archivo', system-ui, sans-serif; font-weight: 700; font-size: 18px; margin: 0; }
+  .dormant-sheet-sub { font-size: 12.5px; color: var(--ink-muted); margin: 2px 0 14px; }
+  .dormant-close {
+    background: none; border: none; font-size: 20px; line-height: 1; cursor: pointer;
+    color: var(--ink-muted); padding: 2px 6px; border-radius: 6px;
+  }
+  .dormant-close:hover { background: var(--surface-2); color: var(--ink); }
   .stat.balance .stat-value { color: var(--accent); }
   .stat.balance.done .stat-value { color: var(--good); }
   .stat.balance.money-stat .stat-value { color: var(--money); }
@@ -322,8 +346,24 @@
   <div class="summary attn" id="attentionStats"></div>
   <div class="cards" id="overdueByDsr" style="margin-bottom:22px;"></div>
 
+  <p class="section-label" id="dormantLabel">Dormant dealers</p>
+  <div class="cards" id="dormantByDsr" style="margin-bottom:22px;"></div>
+
   <p class="section-label">By DSR</p>
   <div class="cards" id="cards"></div>
+
+  <div class="dormant-overlay" id="dormantOverlay" style="display:none;">
+    <div class="dormant-sheet">
+      <div class="dormant-sheet-head">
+        <div>
+          <p class="dormant-sheet-title" id="dormantSheetTitle"></p>
+          <p class="dormant-sheet-sub" id="dormantSheetSub"></p>
+        </div>
+        <button type="button" class="dormant-close" id="dormantCloseBtn" aria-label="Close">&times;</button>
+      </div>
+      <div id="dormantSheetList"></div>
+    </div>
+  </div>
 
   <p class="section-label">Top 5 — this month</p>
   <div class="leaderboard three">
@@ -808,7 +848,106 @@
     }).join('');
   }
 
-  function render() { renderSummary(); renderSummaryMoney(); renderCards(); renderLeaderboard(); renderNeedsAttention(); renderTop5(); }
+  // Dormant dealers, added 18 Sep 2026 - the owner's exact rule: a dealer
+  // with a real Tally sale within the last 100 days, but nothing ordered
+  // this calendar month (so far). Reuses knownDealerDsrMap_() (built for
+  // Needs Attention) for the same real-dealer/Saravanan-into-Chellamani
+  // scoping, and salesByDealer's new lastSaleDate field (see fetch_sales()
+  // in tally_live_watcher.py and handleLiveGet_() in Code.gs) - no new
+  // network call, salesByDealer is already fetched by fetchLive() above.
+  // Cards show 5 per DSR by default; clicking a DSR's name opens a modal
+  // with up to 20, per the owner's request.
+  var DORMANT_MAX_DAYS = 100;
+  var DORMANT_CARD_LIMIT = 5;
+  var DORMANT_MODAL_LIMIT = 20;
+
+  function daysSinceYyyymmdd(s) {
+    if (!s || s.length !== 8) return null;
+    var y = Number(s.slice(0, 4)), m = Number(s.slice(4, 6)), day = Number(s.slice(6, 8));
+    var then = new Date(y, m - 1, day);
+    if (isNaN(then.getTime())) return null;
+    var now = new Date();
+    var today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.round((today0 - then) / 86400000);
+  }
+
+  function dormantByDsr_() {
+    var byDsr = {};
+    if (salesByDealer === null || dealerRoster === null) return byDsr;
+    var dealerDsr = knownDealerDsrMap_();
+    Object.keys(salesByDealer).forEach(function (name) {
+      var dsrName = dealerDsr[name];
+      if (!dsrName) return; // not one of these 7 DSRs' known dealers
+      var rec = salesByDealer[name] || {};
+      var days = daysSinceYyyymmdd(rec.lastSaleDate);
+      if (days === null || days > DORMANT_MAX_DAYS) return; // no sale on record, or too long ago
+      var monthLtr = rec.month || 0;
+      if (monthLtr > 0) return; // already ordered this month - not dormant
+      (byDsr[dsrName] = byDsr[dsrName] || []).push({ name: name, days: days });
+    });
+    Object.keys(byDsr).forEach(function (dsrName) {
+      byDsr[dsrName].sort(function (a, b) { return b.days - a.days; }); // longest-quiet first
+    });
+    return byDsr;
+  }
+
+  function dormantRowsHtml_(list) {
+    return list.map(function (r, i) {
+      return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
+        '<span class="rank-name">' + r.name + '</span>' +
+        '<span class="rank-value num">' + r.days + 'd ago</span></div>';
+    }).join('');
+  }
+
+  function openDormantSheet_(dsrDisplayName, fullList) {
+    document.getElementById('dormantSheetTitle').textContent = dsrDisplayName;
+    document.getElementById('dormantSheetSub').textContent = fullList.length + ' dormant dealer' + (fullList.length === 1 ? '' : 's') + ' (showing up to ' + DORMANT_MODAL_LIMIT + ')';
+    document.getElementById('dormantSheetList').innerHTML = dormantRowsHtml_(fullList.slice(0, DORMANT_MODAL_LIMIT));
+    document.getElementById('dormantOverlay').style.display = 'flex';
+  }
+  function closeDormantSheet_() {
+    document.getElementById('dormantOverlay').style.display = 'none';
+  }
+  document.getElementById('dormantCloseBtn').addEventListener('click', closeDormantSheet_);
+  document.getElementById('dormantOverlay').addEventListener('click', function (e) {
+    if (e.target.id === 'dormantOverlay') closeDormantSheet_();
+  });
+
+  function renderDormant() {
+    var wrap = document.getElementById('dormantByDsr');
+    if (salesByDealer === null || dealerRoster === null) {
+      document.getElementById('dormantLabel').textContent = 'Dormant dealers';
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Waiting for the next Tally sync…</p>';
+      return;
+    }
+    var byDsr = dormantByDsr_();
+    var totalCount = Object.keys(byDsr).reduce(function (a, k) { return a + byDsr[k].length; }, 0);
+    document.getElementById('dormantLabel').textContent = 'Dormant dealers — ' + totalCount +
+      ' (sold within ' + DORMANT_MAX_DAYS + ' days, nothing ordered this month)';
+
+    wrap.innerHTML = DSRS.map(function (d) {
+      var full = byDsr[d.name] || [];
+      var shown = full.slice(0, DORMANT_CARD_LIMIT);
+      var body = shown.length
+        ? dormantRowsHtml_(shown)
+        : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No dormant dealers.</p>';
+      var moreHint = full.length > DORMANT_CARD_LIMIT
+        ? '<p class="card-name-hint">+' + (full.length - DORMANT_CARD_LIMIT) + ' more - click name to see up to ' + DORMANT_MODAL_LIMIT + '</p>'
+        : (full.length > 0 ? '<p class="card-name-hint">Click name for details</p>' : '');
+      var nameCls = full.length > 0 ? 'card-name clickable' : 'card-name';
+      return '<div class="card"><div class="card-head"><div><p class="' + nameCls + '" data-dsr="' + d.name + '">' + d.name + '</p>' +
+        '<p class="card-territory">' + d.territory + '</p>' + moreHint + '</div></div>' + body + '</div>';
+    }).join('');
+
+    wrap.querySelectorAll('.card-name.clickable').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var dsrName = el.getAttribute('data-dsr');
+        openDormantSheet_(dsrName, byDsr[dsrName] || []);
+      });
+    });
+  }
+
+  function render() { renderSummary(); renderSummaryMoney(); renderCards(); renderLeaderboard(); renderNeedsAttention(); renderDormant(); renderTop5(); }
   render();
 
   function setNote(msg, isErr) {
