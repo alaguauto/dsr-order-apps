@@ -344,17 +344,17 @@
     { name: "Anandh",     dsrName: "PETRONAS TVL1 AREA (ANANDH)",          territory: "TVL1 Area",         appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 6100, collectionTarget: 2344746,  todayCollected: 0, monthCollected: null },
     { name: "Madhu",      dsrName: "PETRONAS NKL AREA (MADHU)",            territory: "NKL Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 2500, collectionTarget: 884005,   todayCollected: 0, monthCollected: null },
     // AAA Direct added 18 Sep 2026, per the owner's request. Same 6900 Ltr
-    // target already baked into its own order-taking app. No Collection
-    // target has been given for this DSR yet (see dsr-app-registry.md) -
-    // collectionTarget: 0 uses the same "0 hides the panel" convention
-    // already used everywhere else on this dashboard, so its card simply
-    // shows no Collection block until a real target is provided, rather
-    // than a broken/empty one. Saravanan is NOT added as his own card -
-    // his dealers are a separate Tally Group but his orders are taken
-    // through Chellamani's app and counted under her name, so the watcher
-    // now folds his real Tally Sales/Collection into her totals instead
-    // (see _merge_saravanan_into_chellamani() in tally_live_watcher.py).
-    { name: "AAA Direct", dsrName: "PETRONAS AAA DIRECT AREA SALES",       territory: "AAA Direct Area",   appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 6900, collectionTarget: 0,        todayCollected: 0, monthCollected: null }
+    // target already baked into its own order-taking app. Collection
+    // target (Rs 21,70,281) given by the owner the same day, so its
+    // Collection block is on from the start - same "0 hides the panel"
+    // convention used everywhere else on this dashboard would have kept
+    // it hidden if this were still 0. Saravanan is NOT added as his own
+    // card - his dealers are a separate Tally Group but his orders are
+    // taken through Chellamani's app and counted under her name, so the
+    // watcher now folds his real Tally Sales/Collection into her totals
+    // instead (see _merge_saravanan_into_chellamani() in
+    // tally_live_watcher.py).
+    { name: "AAA Direct", dsrName: "PETRONAS AAA DIRECT AREA SALES",       territory: "AAA Direct Area",   appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 6900, collectionTarget: 2170281,  todayCollected: 0, monthCollected: null }
   ];
 
   // Top 5 panels' state, added 17 Sep 2026, switched to Tally-sourced
