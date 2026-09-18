@@ -163,6 +163,14 @@
 
   .summary.money { margin-bottom: 30px; }
 
+  /* Needs-attention stat row, added 18 Sep 2026 - same .summary/.stat
+     tiles as the Combined strips above, just 3 columns instead of 4
+     (30+/60+/90+ days overdue) so it doesn't need its own visual
+     language. */
+  .summary.attn { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 640px) { .summary.attn { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 380px) { .summary.attn { grid-template-columns: 1fr; } }
+
   .stat { background: var(--surface); padding: 16px 18px; }
   .stat-label {
     font-size: 12px; font-weight: 500; color: var(--ink-muted);
@@ -170,10 +178,12 @@
   }
   .stat-value { font-size: clamp(20px, 2.6vw, 26px); font-weight: 600; color: var(--ink); }
   .stat-value .unit { font-size: 13px; font-weight: 500; color: var(--ink-muted); margin-left: 4px; }
+  .stat-sub { font-size: 12.5px; font-weight: 500; color: var(--ink-muted); margin: 4px 0 0; }
   .stat.balance .stat-value { color: var(--accent); }
   .stat.balance.done .stat-value { color: var(--good); }
   .stat.balance.money-stat .stat-value { color: var(--money); }
   .stat.balance.money-stat.done .stat-value { color: var(--good); }
+  .stat.warn .stat-value { color: var(--warn); }
 
   .section-label {
     font-size: 13px; font-weight: 600; color: var(--ink-secondary);
@@ -300,6 +310,10 @@
     </div>
   </div>
 
+  <p class="section-label">Needs attention</p>
+  <div class="summary attn" id="attentionStats"></div>
+  <div class="cards" id="overdueByDsr" style="margin-bottom:22px;"></div>
+
   <p class="section-label">By DSR</p>
   <div class="cards" id="cards"></div>
 
@@ -365,6 +379,9 @@
   var salesByItem = null;   // {itemName: {today, month}} Ltr, or null before first successful fetch
   var collectionByDealer = null; // {dealerName: {today, month}} or null before first successful fetch
   var outstandingMap = null; // {dealerName: {since, balance, pendingAmount}} or null before first successful fetch, added 17 Sep 2026
+  var dealerRoster = null; // {dsrName: [dealerName, ...]} - company-wide, added 8 Sep 2026 for the new-dealer auto-add
+  // feature, read by this dashboard for the first time 18 Sep 2026 to
+  // scope "Needs attention" to real dealers only - see renderNeedsAttention().
 
   function fmt(n) { return Math.round(n).toLocaleString('en-IN'); }
   function fmtRs(n) { return '₹' + fmt(n); }
@@ -628,7 +645,139 @@
     renderList_('topCustomersCollection', dealerRows, function (r) { return fmtRs(r.month); }, false, 'No collection recorded yet this month.');
   }
 
-  function render() { renderSummary(); renderSummaryMoney(); renderCards(); renderLeaderboard(); renderTop5(); }
+  // Needs attention, added 18 Sep 2026, corrected same day - the first of
+  // the 5 dashboard ideas the owner asked for on 17 Sep 2026. First cut
+  // scanned the WHOLE `outstanding` map company-wide (every Sundry
+  // Debtor in Tally) - the owner caught that this pulled in non-dealer
+  // ledger accounts too (a scooter purchase account, a mutual fund, a
+  // gift-purchase account - anything sitting under Sundry Debtors in
+  // Tally that isn't actually one of these 7 DSRs' dealers), with absurd
+  // day counts (thousands of days) and bucket counts (585/481/397) far
+  // bigger than any real dealer list could produce. Fixed by cross-
+  // referencing `dealerRoster` ({dsrName: [dealerName,...]}, already
+  // sent via ?type=live for the new-dealer auto-add feature, just never
+  // read by this dashboard before) to build the real, known dealer set
+  // for these 7 DSRs specifically - only an outstanding entry whose name
+  // is actually in one of these DSRs' own dealer lists is ever counted
+  // or shown now. Saravanan's dealer list is folded into Chellamani's
+  // here too, same reasoning as the Sales/Collection merge
+  // (_merge_saravanan_into_chellamani() in tally_live_watcher.py) - his
+  // dealers are a separate Tally Group but count as her territory
+  // everywhere else on this dashboard.
+  //
+  // Sign note: a dealer who genuinely owes money has a NEGATIVE balance/
+  // pendingAmount (Tally's own negative=Dr/positive=Cr convention, same
+  // as everywhere else in this project) - a dealer sitting at a positive
+  // (credit) balance owes nothing and is correctly excluded from "needs
+  // attention" entirely, rather than shown with a confusing negative
+  // number (the earlier build showed raw signed amounts unfiltered,
+  // e.g. "Rs -52,587", which is both hard to read and, worse, would have
+  // included credit-balance dealers who don't actually owe anything).
+  //
+  // "Overdue" = has a real `since` date, bucketed by days since that
+  // date into 30+/60+/90+, matching the same 90-day threshold already
+  // used elsewhere in this project (each DSR app's own 90-day order-
+  // taking block). "Total outstanding" (added per the owner's request,
+  // same round) is the sum of every filtered, genuinely-owed dealer's
+  // amount, not limited to the 30+-overdue subset - a fresh 5-day-old
+  // bill still counts toward what's currently owed company-wide.
+  function daysOverdue(sinceIso) {
+    if (!sinceIso) return null;
+    var parts = sinceIso.split('-');
+    if (parts.length !== 3) return null;
+    var since = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    if (isNaN(since.getTime())) return null;
+    var now = new Date();
+    var today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.round((today0 - since) / 86400000);
+  }
+
+  function knownDealerDsrMap_() {
+    // {dealerName: dsrDisplayName} for exactly the 7 dashboard DSRs' own
+    // real dealers (Saravanan's folded into Chellamani's, same as Sales/
+    // Collection).
+    var map = {};
+    if (!dealerRoster) return map;
+    DSRS.forEach(function (d) {
+      var names = (dealerRoster[d.dsrName] || []).slice();
+      if (d.name === 'Chellamani' && dealerRoster['PETRONAS MDU AREA (SARAVANAN)']) {
+        names = names.concat(dealerRoster['PETRONAS MDU AREA (SARAVANAN)']);
+      }
+      names.forEach(function (dealerName) { map[dealerName] = d.name; });
+    });
+    return map;
+  }
+
+  function renderNeedsAttention() {
+    var attnEl = document.getElementById('attentionStats');
+    var listEl = document.getElementById('overdueByDsr');
+    if (outstandingMap === null || dealerRoster === null) {
+      attnEl.innerHTML =
+        '<div class="stat"><p class="stat-label">Total outstanding</p><div class="stat-value">—</div></div>' +
+        '<div class="stat"><p class="stat-label">30+ days overdue</p><div class="stat-value">—</div></div>' +
+        '<div class="stat"><p class="stat-label">60+ days overdue</p><div class="stat-value">—</div></div>' +
+        '<div class="stat warn"><p class="stat-label">90+ days overdue</p><div class="stat-value">—</div></div>';
+      listEl.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Waiting for the next Tally sync…</p>';
+      return;
+    }
+
+    var dealerDsr = knownDealerDsrMap_();
+    var rows = Object.keys(outstandingMap)
+      .filter(function (name) { return dealerDsr.hasOwnProperty(name); })
+      .map(function (name) {
+        var rec = outstandingMap[name] || {};
+        var raw = (rec.pendingAmount !== null && rec.pendingAmount !== undefined) ? rec.pendingAmount : rec.balance;
+        return { name: name, dsrName: dealerDsr[name], days: daysOverdue(rec.since), raw: raw };
+      })
+      .filter(function (r) { return r.raw !== null && r.raw !== undefined && r.raw < 0; }); // only genuinely-owed (debit) balances
+
+    var totalOwed = rows.reduce(function (a, r) { return a + Math.abs(r.raw); }, 0);
+    // 30-59/60-89/90+ are non-overlapping AGE BANDS (not cumulative "30+"/
+    // "60+"/"90+" thresholds, which is what these tiles showed until the
+    // owner flagged their amounts summing to MORE than Total outstanding -
+    // that was never a math bug, cumulative buckets are supposed to
+    // overlap (a 95-day-overdue dealer belongs in all three), but it reads
+    // as broken - fixed 18 Sep 2026 by switching to exclusive bands, whose
+    // amounts now never overlap each other. Total outstanding still covers
+    // EVERY genuinely-owed dealer regardless of age (including under-30-
+    // day debt, which isn't in any band below) - the footnote makes that
+    // explicit so the three bands are never mistaken for a full partition
+    // of Total.
+    var overdue = rows.filter(function (r) { return r.days !== null && r.days >= 30; }); // also the per-DSR list's population below
+    var band3059 = overdue.filter(function (r) { return r.days < 60; });
+    var band6089 = overdue.filter(function (r) { return r.days >= 60 && r.days < 90; });
+    var band90 = overdue.filter(function (r) { return r.days >= 90; });
+    var c30 = band3059.length, c60 = band6089.length, c90 = band90.length;
+    var sumAbs = function (list) { return list.reduce(function (a, r) { return a + Math.abs(r.raw); }, 0); };
+    var sum30 = sumAbs(band3059), sum60 = sumAbs(band6089), sum90 = sumAbs(band90);
+
+    attnEl.innerHTML =
+      '<div class="stat"><p class="stat-label">Total outstanding</p><div class="stat-value">' + fmtRs(totalOwed) + '</div></div>' +
+      '<div class="stat"><p class="stat-label">30-59 days overdue</p><div class="stat-value">' + c30 + '</div><p class="stat-sub">' + fmtRs(sum30) + '</p></div>' +
+      '<div class="stat"><p class="stat-label">60-89 days overdue</p><div class="stat-value">' + c60 + '</div><p class="stat-sub">' + fmtRs(sum60) + '</p></div>' +
+      '<div class="stat warn"><p class="stat-label">90+ days overdue</p><div class="stat-value">' + c90 + '</div><p class="stat-sub">' + fmtRs(sum90) + '</p></div>';
+
+    var byDsr = {};
+    overdue.forEach(function (r) { (byDsr[r.dsrName] = byDsr[r.dsrName] || []).push(r); });
+
+    listEl.innerHTML = DSRS.map(function (d) {
+      var list = (byDsr[d.name] || []).slice().sort(function (a, b) {
+        if (b.days !== a.days) return b.days - a.days;
+        return Math.abs(b.raw) - Math.abs(a.raw);
+      }).slice(0, 5);
+      var body = list.length
+        ? list.map(function (r, i) {
+            return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
+              '<span class="rank-name">' + r.name + '</span>' +
+              '<span class="rank-value num">' + fmtRs(Math.abs(r.raw)) + ' · ' + r.days + 'd</span></div>';
+          }).join('')
+        : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No dealers overdue 30+ days.</p>';
+      return '<div class="card"><div class="card-head"><div><p class="card-name">' + d.name + '</p>' +
+        '<p class="card-territory">' + d.territory + '</p></div></div>' + body + '</div>';
+    }).join('');
+  }
+
+  function render() { renderSummary(); renderSummaryMoney(); renderCards(); renderLeaderboard(); renderNeedsAttention(); renderTop5(); }
   render();
 
   function setNote(msg, isErr) {
@@ -696,6 +845,7 @@
         // list - see the 17 Sep scoping discussion in
         // claude/dsr-app-registry.md).
         if (res && res.ok && res.outstanding) outstandingMap = res.outstanding;
+        if (res && res.ok && res.dealerRoster) dealerRoster = res.dealerRoster;
 
         // Added 18 Sep 2026 - actually-billed Sales, from Tally's own
         // Sales vouchers (see Code.gs's handleLiveGet_()/
