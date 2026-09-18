@@ -323,23 +323,36 @@
 <script>
   var ORDERS_API_URL = "https://script.google.com/macros/s/AKfycbxppCHNsSlDGVY5gWKC-N2MKJ4wrLOd97FsKC19-SXjg9NPh4myip5Ht4h5R1dDlSl4GQ/exec";
 
+  // Sales, added 18 Sep 2026: `todayLtr`/`monthLtr` below are now the
+  // ACTUALLY-BILLED figure straight from Tally's own Sales vouchers
+  // (fetchLive(), same ?type=live call as everything else live) - this
+  // is what drives the target/progress bar/balance and the Sales
+  // ranking, per the owner's explicit instruction ("in all the ranking,
+  // sales, items i need only tally live data"). `appTodayLtr`/
+  // `appMonthLtr` are the OLD figure (fetchOne(), the Orders sheet - what
+  // a DSR actually typed into their own app) - kept as a secondary,
+  // clearly-labeled comparison line on each card only ("sit alongside
+  // it"), never used for target tracking or ranking anymore. `monthLtr`/
+  // `todayLtr` start at null (not 0) - same "don't fake a number before
+  // the first real sync" rule already used for Collection - a DSR with
+  // no Tally Sales data yet shows "waiting for sync", not a false 0%.
   var DSRS = [
-    { name: "Prabha",     dsrName: "PETRONAS THENI AREA (PRABHA)",         territory: "Theni Area",        todayLtr: 0, monthLtr: 0, target: 4200, collectionTarget: 1119523, todayCollected: 0, monthCollected: null },
-    { name: "Arun",       dsrName: "PETRONAS DINDIGUL AREA (ARUN)",        territory: "Dindigul Area",     todayLtr: 0, monthLtr: 0, target: 4100, collectionTarget: 1302920,  todayCollected: 0, monthCollected: null },
-    { name: "Nagaraj",    dsrName: "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)", territory: "Virudhunagar Area", todayLtr: 0, monthLtr: 0, target: 5100, collectionTarget: 2060761,  todayCollected: 0, monthCollected: null },
-    { name: "Chellamani", dsrName: "PETRONAS MDU AREA (CHELLAMANI)",       territory: "MDU Area",          todayLtr: 0, monthLtr: 0, target: 5330, collectionTarget: 1355606,  todayCollected: 0, monthCollected: null },
-    { name: "Anandh",     dsrName: "PETRONAS TVL1 AREA (ANANDH)",          territory: "TVL1 Area",         todayLtr: 0, monthLtr: 0, target: 6100, collectionTarget: 2344746,  todayCollected: 0, monthCollected: null },
-    { name: "Madhu",      dsrName: "PETRONAS NKL AREA (MADHU)",            territory: "NKL Area",          todayLtr: 0, monthLtr: 0, target: 2500, collectionTarget: 884005,   todayCollected: 0, monthCollected: null }
+    { name: "Prabha",     dsrName: "PETRONAS THENI AREA (PRABHA)",         territory: "Theni Area",        appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4200, collectionTarget: 1119523, todayCollected: 0, monthCollected: null },
+    { name: "Arun",       dsrName: "PETRONAS DINDIGUL AREA (ARUN)",        territory: "Dindigul Area",     appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4100, collectionTarget: 1302920,  todayCollected: 0, monthCollected: null },
+    { name: "Nagaraj",    dsrName: "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)", territory: "Virudhunagar Area", appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5100, collectionTarget: 2060761,  todayCollected: 0, monthCollected: null },
+    { name: "Chellamani", dsrName: "PETRONAS MDU AREA (CHELLAMANI)",       territory: "MDU Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5330, collectionTarget: 1355606,  todayCollected: 0, monthCollected: null },
+    { name: "Anandh",     dsrName: "PETRONAS TVL1 AREA (ANANDH)",          territory: "TVL1 Area",         appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 6100, collectionTarget: 2344746,  todayCollected: 0, monthCollected: null },
+    { name: "Madhu",      dsrName: "PETRONAS NKL AREA (MADHU)",            territory: "NKL Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 2500, collectionTarget: 884005,   todayCollected: 0, monthCollected: null }
   ];
 
-  // Top 5 panels' state, added 17 Sep 2026 - populated by fetchTopSales()
-  // (items/sales customers, from the Orders sheet) and fetchLive()'s
-  // existing ?type=live call (collectionByDealer, added to that same
-  // response - see Code.gs). Kept separate from DSRS since these aren't
-  // per-DSR figures.
-  var topItems = [];
-  var topCustomersSales = [];
+  // Top 5 panels' state, added 17 Sep 2026, switched to Tally-sourced
+  // 18 Sep 2026 (per the owner's "items" instruction, same as Sales/
+  // Ranking above) - both maps come from fetchLive()'s ?type=live call,
+  // same as collectionByDealer, no separate network request.
+  var salesByDealer = null; // {dealerName: {today, month}} Ltr, or null before first successful fetch
+  var salesByItem = null;   // {itemName: {today, month}} Ltr, or null before first successful fetch
   var collectionByDealer = null; // {dealerName: {today, month}} or null before first successful fetch
+  var outstandingMap = null; // {dealerName: {since, balance, pendingAmount}} or null before first successful fetch, added 17 Sep 2026
 
   function fmt(n) { return Math.round(n).toLocaleString('en-IN'); }
   function fmtRs(n) { return '₹' + fmt(n); }
@@ -357,25 +370,34 @@
     });
   }
 
+  // Switched to Tally-actual (d.monthLtr/d.todayLtr) 18 Sep 2026, per the
+  // owner's explicit instruction - only DSRs whose live Sales figure has
+  // arrived at least once (monthLtr !== null) count toward these totals,
+  // same "don't fake a number" rule already used for the Collection strip
+  // below.
   function renderSummary() {
-    var todayTotal = DSRS.reduce(function (a, d) { return a + d.todayLtr; }, 0);
-    var monthTotal = DSRS.reduce(function (a, d) { return a + d.monthLtr; }, 0);
-    var targetTotal = DSRS.reduce(function (a, d) { return a + d.target; }, 0);
+    var withData = DSRS.filter(function (d) { return d.monthLtr !== null; });
+    var anyWaiting = DSRS.some(function (d) { return d.monthLtr === null; });
+
+    var todayTotal = withData.reduce(function (a, d) { return a + (d.todayLtr || 0); }, 0);
+    var monthTotal = withData.reduce(function (a, d) { return a + (d.monthLtr || 0); }, 0);
+    var targetTotal = withData.reduce(function (a, d) { return a + d.target; }, 0);
     var balanceTotal = targetTotal - monthTotal;
     var done = balanceTotal <= 0;
 
+    var suffix = anyWaiting ? ' *' : '';
     var stats = [
-      { label: "Today, all DSRs", value: fmt(todayTotal) },
-      { label: "This month, all DSRs", value: fmt(monthTotal) },
-      { label: "Combined monthly target", value: fmt(targetTotal) },
-      { label: done ? "Combined — target reached" : "Combined balance to go", value: fmt(Math.abs(balanceTotal)), balance: true, done: done }
+      { label: "Today, all DSRs" + suffix, value: fmt(todayTotal) },
+      { label: "This month, all DSRs" + suffix, value: fmt(monthTotal) },
+      { label: "Combined monthly target" + suffix, value: fmt(targetTotal) },
+      { label: (done ? "Combined — target reached" : "Combined balance to go") + suffix, value: fmt(Math.abs(balanceTotal)), balance: true, done: done }
     ];
 
     document.getElementById('summary').innerHTML = stats.map(function (s) {
       var cls = "stat" + (s.balance ? " balance" : "") + (s.done ? " done" : "");
       return '<div class="' + cls + '"><p class="stat-label">' + s.label + '</p>' +
         '<div class="stat-value num">' + s.value + '<span class="unit">Ltr</span></div></div>';
-    }).join('');
+    }).join('') + (anyWaiting ? '<div style="grid-column:1/-1;background:var(--surface);padding:8px 18px 14px;font-size:12px;color:var(--ink-muted);">* one or more DSRs are still waiting on their first Tally Sales sync today — left out of these totals until then.</div>' : '');
   }
 
   // Collection combined strip, added 15 Sep 2026 - same shape as the Sales
@@ -408,20 +430,43 @@
     }).join('') + (anyWaiting ? '<div style="grid-column:1/-1;background:var(--surface);padding:8px 18px 14px;font-size:12px;color:var(--ink-muted);">* one or more DSRs are still waiting on their first Tally sync today — left out of these totals until then.</div>' : '');
   }
 
+  // Primary Sales block switched to Tally-actual (d.monthLtr/d.todayLtr)
+  // 18 Sep 2026, same target/progress/ranking figure as everywhere else
+  // now - see the DSRS comment above. A DSR with no Tally Sales sync yet
+  // shows "waiting for sync" instead of a false 0%/100%-behind reading,
+  // same pattern as the Collection block below it. The OLD Orders-sheet
+  // figure (appMonthLtr/appTodayLtr) is kept as a small secondary
+  // "Logged via app" line for comparison, per the owner's own "sit
+  // alongside it" request - if the two numbers disagree, that's exactly
+  // the missed-order/office-direct-sale gap he originally flagged.
   function renderCards() {
     document.getElementById('cards').innerHTML = DSRS.map(function (d) {
-      var pct = d.target > 0 ? (d.monthLtr / d.target) * 100 : 0;
-      var pctClamped = Math.min(100, Math.max(0, pct));
-      var balance = d.target - d.monthLtr;
-      var done = balance <= 0;
+      var salesPill, salesBody;
+      if (d.salesError) {
+        salesPill = '<span class="pill err">Couldn\'t load</span>';
+        salesBody = '<div class="collection-waiting">Sales sync unavailable — showing last known app-logged figures only.</div>';
+      } else if (d.monthLtr === null) {
+        salesPill = '<span class="pill on">Waiting for sync</span>';
+        salesBody = '<div class="collection-waiting">Waiting for the next Tally Sales sync…</div>';
+      } else {
+        var pct = d.target > 0 ? (d.monthLtr / d.target) * 100 : 0;
+        var pctClamped = Math.min(100, Math.max(0, pct));
+        var balance = d.target - d.monthLtr;
+        var done = balance <= 0;
+        salesPill = done ? '<span class="pill done">Target reached</span>' : '<span class="pill on">' + Math.round(pctClamped) + '% of target</span>';
+        var balanceLine = done
+          ? '<div class="balance-line done">Target reached — <strong class="num">+' + fmt(Math.abs(balance)) + ' Ltr</strong> over this month\'s target</div>'
+          : '<div class="balance-line"><strong class="num">' + fmt(balance) + ' Ltr</strong> to reach this month\'s target</div>';
+        salesBody = '<div class="today-row"><span class="today-value num">' + fmt(d.todayLtr) + '</span>' +
+          '<span class="today-caption">Ltr sold today (Tally)</span></div>' +
+          '<div class="progress-track"><div class="progress-fill' + (done ? ' done' : '') + '" style="width:' + pctClamped + '%"></div></div>' +
+          '<div class="progress-meta"><span class="num">' + fmt(d.monthLtr) + ' / ' + fmt(d.target) + ' Ltr this month</span>' +
+          '<span class="pct num">' + Math.round(pctClamped) + '%</span></div>' + balanceLine;
+      }
 
-      var pill = d.error
-        ? '<span class="pill err">Couldn\'t load</span>'
-        : (done ? '<span class="pill done">Target reached</span>' : '<span class="pill on">' + Math.round(pctClamped) + '% of target</span>');
-
-      var balanceLine = done
-        ? '<div class="balance-line done">Target reached — <strong class="num">+' + fmt(Math.abs(balance)) + ' Ltr</strong> over this month\'s target</div>'
-        : '<div class="balance-line"><strong class="num">' + fmt(balance) + ' Ltr</strong> to reach this month\'s target</div>';
+      var appLine = '<div class="collection-today" style="padding-top:2px;">Logged via app ' +
+        '<strong class="num">' + fmt(d.appMonthLtr || 0) + ' Ltr</strong> this month' +
+        (d.error ? ' <span class="pill err" style="margin-left:4px;">Couldn\'t load</span>' : '') + '</div>';
 
       var collectionBlock = '';
       if (d.collectionTarget > 0) {
@@ -447,13 +492,9 @@
         }
       }
 
-      return '<div class="card' + (d.error ? ' stale' : '') + '"><div class="card-head"><div><p class="card-name">' + d.name + '</p>' +
-        '<p class="card-territory">' + d.territory + '</p></div>' + pill + '</div>' +
-        '<div class="today-row"><span class="today-value num">' + fmt(d.todayLtr) + '</span>' +
-        '<span class="today-caption">Ltr sold today</span></div>' +
-        '<div class="progress-track"><div class="progress-fill' + (done ? ' done' : '') + '" style="width:' + pctClamped + '%"></div></div>' +
-        '<div class="progress-meta"><span class="num">' + fmt(d.monthLtr) + ' / ' + fmt(d.target) + ' Ltr this month</span>' +
-        '<span class="pct num">' + Math.round(pctClamped) + '%</span></div>' + balanceLine + collectionBlock + '</div>';
+      return '<div class="card' + (d.error && d.salesError ? ' stale' : '') + '"><div class="card-head"><div><p class="card-name">' + d.name + '</p>' +
+        '<p class="card-territory">' + d.territory + '</p></div>' + salesPill + '</div>' +
+        salesBody + appLine + collectionBlock + '</div>';
     }).join('');
   }
 
@@ -468,19 +509,30 @@
   // with a misleading 0%, same "don't fake a number" principle already
   // used for the Collection summary strip above.
   function renderLeaderboard() {
-    var salesRanked = DSRS.slice().sort(function (a, b) {
-      var pa = a.target > 0 ? a.monthLtr / a.target : 0;
-      var pb = b.target > 0 ? b.monthLtr / b.target : 0;
-      return pb - pa;
+    // Sales ranking, switched to Tally-live monthLtr on 18 Sep 2026 - a DSR
+    // with no Tally Sales sync yet today has monthLtr === null (see
+    // fetchLive() above), so it's excluded from the ranked/sorted list and
+    // shown as "Waiting for sync" instead, same waiting-list pattern the
+    // Collection ranking directly below already uses.
+    var withSales = DSRS.filter(function (d) { return d.target > 0 && d.monthLtr !== null; });
+    var waitingSales = DSRS.filter(function (d) { return d.target > 0 && d.monthLtr === null; });
+    var salesRanked = withSales.slice().sort(function (a, b) {
+      return (b.monthLtr / b.target) - (a.monthLtr / a.target);
     });
-    document.getElementById('salesRanking').innerHTML = salesRanked.map(function (d, i) {
-      var pct = d.target > 0 ? (d.monthLtr / d.target) * 100 : 0;
+    var salesRows = salesRanked.map(function (d, i) {
+      var pct = (d.monthLtr / d.target) * 100;
       var pctClamped = Math.min(100, Math.max(0, pct));
       return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
         '<span class="rank-name">' + d.name + '</span>' +
         '<span class="rank-bar-wrap"><div class="progress-track mini"><div class="progress-fill' + (pctClamped >= 100 ? ' done' : '') + '" style="width:' + pctClamped + '%"></div></div></span>' +
         '<span class="rank-pct num">' + Math.round(pct) + '%</span></div>';
-    }).join('');
+    });
+    salesRows = salesRows.concat(waitingSales.map(function (d) {
+      return '<div class="rank-row"><span class="rank-num">—</span><span class="rank-name">' + d.name +
+        '</span><span class="rank-waiting">Waiting for sync…</span></div>';
+    }));
+    document.getElementById('salesRanking').innerHTML = salesRows.join('') ||
+      '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Sales targets set yet.</p>';
 
     var withCollection = DSRS.filter(function (d) { return d.collectionTarget > 0 && d.monthCollected !== null; });
     var waiting = DSRS.filter(function (d) { return d.collectionTarget > 0 && d.monthCollected === null; });
@@ -503,13 +555,15 @@
       '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Collection targets set yet.</p>';
   }
 
-  // Top 5 panels, added 17 Sep 2026. Items/Sales customers come from
-  // fetchTopSales() (already top-5, sorted server-side in Code.gs).
-  // Collection customers are sorted here client-side from the full
-  // collectionByDealer map, same pattern as the Ranking panels above -
-  // only counting dealers with a non-null monthCollected (a dealer whose
-  // DSR hasn't synced today yet simply isn't in the map at all, same
-  // "don't fake a number" rule used everywhere else on this dashboard).
+  // Top 5 panels, added 17 Sep 2026, switched to Tally-live Sales data on
+  // 18 Sep 2026 - Items sold and Top customers (Sales) are now sorted here
+  // client-side from the full salesByItem/salesByDealer maps (see
+  // fetchLive() above), same pattern Top customers (Collection) already
+  // used from collectionByDealer - only counting entries with a non-null,
+  // positive month figure. A map still null (no Tally sync at all yet this
+  // session) shows "Waiting for the next Tally sync…" rather than an empty
+  // "no orders" message, same "don't fake a number" rule used everywhere
+  // else on this dashboard.
   function renderList_(elId, rows, valueFn, errorFlag, emptyMsg) {
     var el = document.getElementById(elId);
     if (errorFlag) {
@@ -528,8 +582,27 @@
   }
 
   function renderTop5() {
-    renderList_('topItems', topItems, function (r) { return fmt(r.ltr) + ' Ltr'; }, topSalesError, 'No orders yet this month.');
-    renderList_('topCustomersSales', topCustomersSales, function (r) { return fmt(r.ltr) + ' Ltr'; }, topSalesError, 'No orders yet this month.');
+    if (salesByItem === null) {
+      renderList_('topItems', [], function () { return ''; }, false, 'Waiting for the next Tally sync…');
+    } else {
+      var itemRows = Object.keys(salesByItem)
+        .map(function (name) { return { name: name, month: salesByItem[name].month }; })
+        .filter(function (r) { return r.month !== null && r.month !== undefined && r.month > 0; })
+        .sort(function (a, b) { return b.month - a.month; })
+        .slice(0, 5);
+      renderList_('topItems', itemRows, function (r) { return fmt(r.month) + ' Ltr'; }, false, 'No Sales recorded yet this month.');
+    }
+
+    if (salesByDealer === null) {
+      renderList_('topCustomersSales', [], function () { return ''; }, false, 'Waiting for the next Tally sync…');
+    } else {
+      var salesDealerRows = Object.keys(salesByDealer)
+        .map(function (name) { return { name: name, month: salesByDealer[name].month }; })
+        .filter(function (r) { return r.month !== null && r.month !== undefined && r.month > 0; })
+        .sort(function (a, b) { return b.month - a.month; })
+        .slice(0, 5);
+      renderList_('topCustomersSales', salesDealerRows, function (r) { return fmt(r.month) + ' Ltr'; }, false, 'No Sales recorded yet this month.');
+    }
 
     if (collectionByDealer === null) {
       renderList_('topCustomersCollection', [], function () { return ''; }, false, 'Waiting for the next Tally sync…');
@@ -552,6 +625,9 @@
     el.classList.toggle('err', !!isErr);
   }
 
+  // Renamed to write appTodayLtr/appMonthLtr, 18 Sep 2026 - this is the
+  // Orders-sheet figure (what a DSR actually typed into their own app),
+  // now a secondary comparison line only - see the DSRS comment above.
   function fetchOne(d) {
     var url = ORDERS_API_URL + "?dsrName=" + encodeURIComponent(d.dsrName) +
       "&date=" + encodeURIComponent(todayISO()) +
@@ -561,8 +637,8 @@
       .then(function (r) { return r.json(); })
       .then(function (res) {
         if (res && res.ok) {
-          d.todayLtr = res.todayLtr || 0;
-          d.monthLtr = res.monthLtr || 0;
+          d.appTodayLtr = res.todayLtr || 0;
+          d.appMonthLtr = res.monthLtr || 0;
           d.error = false;
         } else {
           d.error = true;
@@ -598,34 +674,40 @@
         // handleLiveGet_()). Kept as the full map, not pre-sorted - top-5
         // sorting happens in renderTop5() alongside the other two panels.
         if (res && res.ok && res.collectionByDealer) collectionByDealer = res.collectionByDealer;
+        // Added 17 Sep 2026 - the SAME `outstanding` map every DSR app's
+        // own Manage Dealers list already reads (see order-slip-
+        // template.html's outstandingBadgeHtml()), company-wide, not
+        // scoped to one DSR - this dashboard only ever needed the
+        // company-wide overdue COUNT (see renderNeedsAttention()), not a
+        // per-DSR breakdown (there's no single place that maps every
+        // dealer to their DSR company-wide, only each app's own baked-in
+        // list - see the 17 Sep scoping discussion in
+        // claude/dsr-app-registry.md).
+        if (res && res.ok && res.outstanding) outstandingMap = res.outstanding;
+
+        // Added 18 Sep 2026 - actually-billed Sales, from Tally's own
+        // Sales vouchers (see Code.gs's handleLiveGet_()/
+        // tally_live_watcher.py's fetch_sales()). Same
+        // "leave as null/last-known if this DSR hasn't synced" pattern
+        // as collection above - a DSR with no entry yet keeps
+        // monthLtr === null so the card/ranking show "waiting for sync"
+        // rather than a false 0%. salesByDealer/salesByItem feed the
+        // Top 5 panels below the same way collectionByDealer does.
+        var sales = (res && res.ok && res.sales) ? res.sales : null;
+        DSRS.forEach(function (d) {
+          d.salesError = !sales;
+          if (!sales) return;
+          var entry = sales[d.dsrName];
+          if (!entry) return; // no Tally Sales sync for this DSR yet - leave as-is (null)
+          if (entry.today !== null && entry.today !== undefined) d.todayLtr = entry.today;
+          if (entry.month !== null && entry.month !== undefined) d.monthLtr = entry.month;
+        });
+        if (res && res.ok && res.salesByDealer) salesByDealer = res.salesByDealer;
+        if (res && res.ok && res.salesByItem) salesByItem = res.salesByItem;
       })
       .catch(function () {
-        DSRS.forEach(function (d) { if (d.collectionTarget > 0) d.collectionError = true; });
+        DSRS.forEach(function (d) { if (d.collectionTarget > 0) d.collectionError = true; d.salesError = true; });
       });
-  }
-
-  // Items sold / top customers by Sales, added 17 Sep 2026 - one call to
-  // the new ?type=topSales endpoint (see Code.gs's handleTopSales_()),
-  // which does the aggregation server-side over the whole Orders sheet
-  // (same sheet fetchOne() above already reads per-DSR, just summed
-  // across all 6 dashboard DSRs and grouped by item/dealer instead of by
-  // DSR). A failure here only blanks these three panels, not the rest of
-  // the page - Sales/Collection/Ranking above don't depend on this call.
-  var topSalesError = false;
-  function fetchTopSales() {
-    var url = ORDERS_API_URL + "?type=topSales&month=" + encodeURIComponent(todayISO().slice(0, 7)) + "&_ts=" + Date.now();
-    return fetch(url, { cache: "no-store" })
-      .then(function (r) { return r.json(); })
-      .then(function (res) {
-        if (res && res.ok) {
-          topItems = res.topItems || [];
-          topCustomersSales = res.topCustomers || [];
-          topSalesError = false;
-        } else {
-          topSalesError = true;
-        }
-      })
-      .catch(function () { topSalesError = true; });
   }
 
   function refreshAll() {
@@ -634,7 +716,7 @@
     btn.classList.add('loading');
     setNote('');
 
-    Promise.all(DSRS.map(fetchOne).concat([fetchLive(), fetchTopSales()])).then(function () {
+    Promise.all(DSRS.map(fetchOne).concat([fetchLive()])).then(function () {
       render();
       var failed = DSRS.filter(function (d) { return d.error; }).length;
       document.getElementById('sourceLabel').textContent = 'Updated ' + nowStamp();
