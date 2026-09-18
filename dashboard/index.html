@@ -243,6 +243,10 @@
   .progress-track.mini { height: 6px; }
   .rank-pct { font-weight: 600; font-size: 12px; width: 38px; text-align: right; flex-shrink: 0; }
   .rank-waiting { font-size: 11.5px; color: var(--ink-muted); font-style: italic; }
+  .leaderboard.three { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 900px) { .leaderboard.three { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 600px) { .leaderboard.three { grid-template-columns: 1fr; } }
+  .rank-value { font-weight: 600; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
 
   footer {
     margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border);
@@ -298,6 +302,22 @@
 
   <p class="section-label">By DSR</p>
   <div class="cards" id="cards"></div>
+
+  <p class="section-label">Top 5 — this month</p>
+  <div class="leaderboard three">
+    <div class="leaderboard-panel">
+      <p class="leaderboard-title">Items sold</p>
+      <div id="topItems"></div>
+    </div>
+    <div class="leaderboard-panel">
+      <p class="leaderboard-title">Top customers — Sales</p>
+      <div id="topCustomersSales"></div>
+    </div>
+    <div class="leaderboard-panel">
+      <p class="leaderboard-title">Top customers — Collection</p>
+      <div id="topCustomersCollection"></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -311,6 +331,15 @@
     { name: "Anandh",     dsrName: "PETRONAS TVL1 AREA (ANANDH)",          territory: "TVL1 Area",         todayLtr: 0, monthLtr: 0, target: 6100, collectionTarget: 2344746,  todayCollected: 0, monthCollected: null },
     { name: "Madhu",      dsrName: "PETRONAS NKL AREA (MADHU)",            territory: "NKL Area",          todayLtr: 0, monthLtr: 0, target: 2500, collectionTarget: 884005,   todayCollected: 0, monthCollected: null }
   ];
+
+  // Top 5 panels' state, added 17 Sep 2026 - populated by fetchTopSales()
+  // (items/sales customers, from the Orders sheet) and fetchLive()'s
+  // existing ?type=live call (collectionByDealer, added to that same
+  // response - see Code.gs). Kept separate from DSRS since these aren't
+  // per-DSR figures.
+  var topItems = [];
+  var topCustomersSales = [];
+  var collectionByDealer = null; // {dealerName: {today, month}} or null before first successful fetch
 
   function fmt(n) { return Math.round(n).toLocaleString('en-IN'); }
   function fmtRs(n) { return '₹' + fmt(n); }
@@ -474,7 +503,47 @@
       '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Collection targets set yet.</p>';
   }
 
-  function render() { renderSummary(); renderSummaryMoney(); renderCards(); renderLeaderboard(); }
+  // Top 5 panels, added 17 Sep 2026. Items/Sales customers come from
+  // fetchTopSales() (already top-5, sorted server-side in Code.gs).
+  // Collection customers are sorted here client-side from the full
+  // collectionByDealer map, same pattern as the Ranking panels above -
+  // only counting dealers with a non-null monthCollected (a dealer whose
+  // DSR hasn't synced today yet simply isn't in the map at all, same
+  // "don't fake a number" rule used everywhere else on this dashboard).
+  function renderList_(elId, rows, valueFn, errorFlag, emptyMsg) {
+    var el = document.getElementById(elId);
+    if (errorFlag) {
+      el.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--warn);">Couldn\'t load.</p>';
+      return;
+    }
+    if (!rows.length) {
+      el.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">' + emptyMsg + '</p>';
+      return;
+    }
+    el.innerHTML = rows.map(function (r, i) {
+      return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
+        '<span class="rank-name">' + r.name + '</span>' +
+        '<span class="rank-value num">' + valueFn(r) + '</span></div>';
+    }).join('');
+  }
+
+  function renderTop5() {
+    renderList_('topItems', topItems, function (r) { return fmt(r.ltr) + ' Ltr'; }, topSalesError, 'No orders yet this month.');
+    renderList_('topCustomersSales', topCustomersSales, function (r) { return fmt(r.ltr) + ' Ltr'; }, topSalesError, 'No orders yet this month.');
+
+    if (collectionByDealer === null) {
+      renderList_('topCustomersCollection', [], function () { return ''; }, false, 'Waiting for the next Tally sync…');
+      return;
+    }
+    var dealerRows = Object.keys(collectionByDealer)
+      .map(function (name) { return { name: name, month: collectionByDealer[name].month }; })
+      .filter(function (r) { return r.month !== null && r.month !== undefined && r.month > 0; })
+      .sort(function (a, b) { return b.month - a.month; })
+      .slice(0, 5);
+    renderList_('topCustomersCollection', dealerRows, function (r) { return fmtRs(r.month); }, false, 'No collection recorded yet this month.');
+  }
+
+  function render() { renderSummary(); renderSummaryMoney(); renderCards(); renderLeaderboard(); renderTop5(); }
   render();
 
   function setNote(msg, isErr) {
@@ -525,10 +594,38 @@
           if (entry.today !== null && entry.today !== undefined) d.todayCollected = entry.today;
           if (entry.month !== null && entry.month !== undefined) d.monthCollected = entry.month;
         });
+        // Added 17 Sep 2026 - same response, new field (see Code.gs's
+        // handleLiveGet_()). Kept as the full map, not pre-sorted - top-5
+        // sorting happens in renderTop5() alongside the other two panels.
+        if (res && res.ok && res.collectionByDealer) collectionByDealer = res.collectionByDealer;
       })
       .catch(function () {
         DSRS.forEach(function (d) { if (d.collectionTarget > 0) d.collectionError = true; });
       });
+  }
+
+  // Items sold / top customers by Sales, added 17 Sep 2026 - one call to
+  // the new ?type=topSales endpoint (see Code.gs's handleTopSales_()),
+  // which does the aggregation server-side over the whole Orders sheet
+  // (same sheet fetchOne() above already reads per-DSR, just summed
+  // across all 6 dashboard DSRs and grouped by item/dealer instead of by
+  // DSR). A failure here only blanks these three panels, not the rest of
+  // the page - Sales/Collection/Ranking above don't depend on this call.
+  var topSalesError = false;
+  function fetchTopSales() {
+    var url = ORDERS_API_URL + "?type=topSales&month=" + encodeURIComponent(todayISO().slice(0, 7)) + "&_ts=" + Date.now();
+    return fetch(url, { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res && res.ok) {
+          topItems = res.topItems || [];
+          topCustomersSales = res.topCustomers || [];
+          topSalesError = false;
+        } else {
+          topSalesError = true;
+        }
+      })
+      .catch(function () { topSalesError = true; });
   }
 
   function refreshAll() {
@@ -537,7 +634,7 @@
     btn.classList.add('loading');
     setNote('');
 
-    Promise.all(DSRS.map(fetchOne).concat([fetchLive()])).then(function () {
+    Promise.all(DSRS.map(fetchOne).concat([fetchLive(), fetchTopSales()])).then(function () {
       render();
       var failed = DSRS.filter(function (d) { return d.error; }).length;
       document.getElementById('sourceLabel').textContent = 'Updated ' + nowStamp();
