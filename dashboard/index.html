@@ -294,6 +294,11 @@
   @media (max-width: 900px) { .leaderboard.three { grid-template-columns: 1fr 1fr; } }
   @media (max-width: 600px) { .leaderboard.three { grid-template-columns: 1fr; } }
   .rank-value { font-weight: 600; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
+  /* Dormant rows' value grows once the outstanding amount/date is appended
+     (added 19 Sep 2026) - let it wrap to 2 lines and cap its width instead
+     of forcing one line, which was crushing the dealer name down to a
+     couple of characters on a phone-width screen. */
+  .rank-value.wrap { white-space: normal; text-align: right; line-height: 1.35; flex: 0 1 44%; }
 
   footer {
     margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border);
@@ -351,7 +356,7 @@
   <div class="summary attn" id="attentionStats"></div>
   <div class="cards" id="overdueByDsr" style="margin-bottom:22px;"></div>
 
-  <p class="section-label" id="dormantLabel">Dormant dealers</p>
+  <p class="section-label" id="dormantLabel">Inactive dealers</p>
   <div class="cards" id="dormantByDsr" style="margin-bottom:22px;"></div>
 
   <p class="section-label">By DSR</p>
@@ -918,10 +923,11 @@
       });
     });
 
-    // Cards below behave the same as the Dormant Dealers cards, added 19
-    // Sep 2026 per the owner's request ("for all cards make as dormant
-    // card ... expand to 20") - ATTN_CARD_LIMIT shown by default, click
-    // the DSR name to open a modal with up to ATTN_MODAL_LIMIT.
+    // Cards below show ATTN_CARD_LIMIT by default, click the DSR name to
+    // open a modal with EVERYONE overdue for that DSR - uncapped as of 19
+    // Sep 2026, per the owner's call: this is a chase list, not a top-N
+    // ranking, so a big territory (e.g. Chellamani's 186 dealers) must
+    // never have real overdue dealers hidden past a fixed cutoff.
     listEl.innerHTML = DSRS.map(function (d) {
       var full = byDsr[d.name] || [];
       var shown = full.slice(0, ATTN_CARD_LIMIT);
@@ -929,7 +935,7 @@
         ? attnRowsHtml_(shown)
         : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No dealers overdue 30+ days.</p>';
       var moreHint = full.length > ATTN_CARD_LIMIT
-        ? '<p class="card-name-hint">+' + (full.length - ATTN_CARD_LIMIT) + ' more - click name to see up to ' + ATTN_MODAL_LIMIT + '</p>'
+        ? '<p class="card-name-hint">+' + (full.length - ATTN_CARD_LIMIT) + ' more - click name to see all ' + full.length + '</p>'
         : (full.length > 0 ? '<p class="card-name-hint">Click name for details</p>' : '');
       var nameCls = full.length > 0 ? 'card-name clickable' : 'card-name';
       return '<div class="card"><div class="card-head"><div><p class="' + nameCls + '" data-dsr="' + d.name + '">' + d.name + '</p>' +
@@ -944,12 +950,13 @@
     });
   }
 
-  // Needs Attention's own expand-to-20 modal, added 19 Sep 2026 - same
-  // card-limit/click-to-expand pattern as Dormant Dealers (see below),
-  // kept as its own functions/ids rather than sharing Dormant's so the
-  // already-proven Dormant modal isn't touched.
+  // Needs Attention's own expand modal, added 19 Sep 2026 - originally
+  // capped at 20 in the modal like Dormant Dealers, then UNCAPPED the same
+  // day once the owner agreed this list needs to show every overdue
+  // dealer, not just the top 20 - this is a chase list, missing one
+  // defeats the point. Kept as its own functions/ids rather than sharing
+  // Dormant's so the already-proven Dormant modal isn't touched.
   var ATTN_CARD_LIMIT = 5;
-  var ATTN_MODAL_LIMIT = 20;
 
   function attnRowsHtml_(list) {
     return list.map(function (r, i) {
@@ -961,8 +968,8 @@
 
   function openAttnSheet_(dsrDisplayName, fullList) {
     document.getElementById('attnSheetTitle').textContent = dsrDisplayName;
-    document.getElementById('attnSheetSub').textContent = fullList.length + ' dealer' + (fullList.length === 1 ? '' : 's') + ' overdue 30+ days (showing up to ' + ATTN_MODAL_LIMIT + ')';
-    document.getElementById('attnSheetList').innerHTML = attnRowsHtml_(fullList.slice(0, ATTN_MODAL_LIMIT));
+    document.getElementById('attnSheetSub').textContent = fullList.length + ' dealer' + (fullList.length === 1 ? '' : 's') + ' overdue 30+ days';
+    document.getElementById('attnSheetList').innerHTML = attnRowsHtml_(fullList);
     document.getElementById('attnOverlay').style.display = 'flex';
   }
   function closeAttnSheet_() {
@@ -981,10 +988,12 @@
   // in tally_live_watcher.py and handleLiveGet_() in Code.gs) - no new
   // network call, salesByDealer is already fetched by fetchLive() above.
   // Cards show 5 per DSR by default; clicking a DSR's name opens a modal
-  // with up to 20, per the owner's request.
+  // with everyone dormant for that DSR - uncapped as of 19 Sep 2026 (was
+  // capped at 20), same reasoning as Needs Attention just below: this is a
+  // re-engage list, not a top-N ranking, so a big territory must never
+  // have real dormant dealers hidden past a fixed cutoff.
   var DORMANT_MAX_DAYS = 100;
   var DORMANT_CARD_LIMIT = 5;
-  var DORMANT_MODAL_LIMIT = 20;
 
   function daysSinceYyyymmdd(s) {
     if (!s || s.length !== 8) return null;
@@ -994,6 +1003,38 @@
     var now = new Date();
     var today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     return Math.round((today0 - then) / 86400000);
+  }
+
+  // Looks up one dealer's genuinely-owed (debit) outstanding balance from
+  // the same `outstanding` map Needs Attention uses - {owed: null,
+  // overdueDays: null, since: null} if there's no outstanding record for
+  // them, or if their balance is a credit (they don't owe anything).
+  // overdueDays reuses daysOverdue() (same function Needs Attention uses
+  // on the same `since` field) so "how overdue is their oldest pending
+  // bill" reads identically in both places; `since` is that same field's
+  // raw date, for fmtDate_() below. Added 19 Sep 2026, extended same day
+  // to add overdueDays then the actual since-date, so Dormant Dealers can
+  // show "quiet AND owes money AND since when" in one place - no new
+  // network call, outstanding is already fetched by fetchLive() above.
+  function dealerOutstanding_(name) {
+    if (!outstandingMap || !outstandingMap[name]) return { owed: null, overdueDays: null, since: null };
+    var rec = outstandingMap[name];
+    var raw = (rec.pendingAmount !== null && rec.pendingAmount !== undefined) ? rec.pendingAmount : rec.balance;
+    if (raw === null || raw === undefined || raw >= 0) return { owed: null, overdueDays: null, since: null };
+    return { owed: Math.abs(raw), overdueDays: daysOverdue(rec.since), since: rec.since || null };
+  }
+
+  // "2026-05-01" -> "1 May 2026" - only place on this dashboard that needs
+  // a human-readable date rather than a day count, so kept small/local
+  // rather than pulling in a date library.
+  var MONTH_NAMES_ = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function fmtDate_(iso) {
+    if (!iso) return '';
+    var parts = iso.split('-');
+    if (parts.length !== 3) return iso;
+    var y = Number(parts[0]), m = Number(parts[1]) - 1, d = Number(parts[2]);
+    if (isNaN(y) || isNaN(d) || !MONTH_NAMES_[m]) return iso;
+    return d + ' ' + MONTH_NAMES_[m] + ' ' + y;
   }
 
   function dormantByDsr_() {
@@ -1008,7 +1049,8 @@
       if (days === null || days > DORMANT_MAX_DAYS) return; // no sale on record, or too long ago
       var monthLtr = rec.month || 0;
       if (monthLtr > 0) return; // already ordered this month - not dormant
-      (byDsr[dsrName] = byDsr[dsrName] || []).push({ name: name, days: days });
+      var outs = dealerOutstanding_(name);
+      (byDsr[dsrName] = byDsr[dsrName] || []).push({ name: name, days: days, owed: outs.owed, overdueDays: outs.overdueDays, since: outs.since });
     });
     Object.keys(byDsr).forEach(function (dsrName) {
       byDsr[dsrName].sort(function (a, b) { return b.days - a.days; }); // longest-quiet first
@@ -1018,16 +1060,24 @@
 
   function dormantRowsHtml_(list) {
     return list.map(function (r, i) {
+      var valueText = r.days + 'd ago';
+      var valueCls = 'rank-value num';
+      if (r.owed !== null) {
+        valueText += ' · ' + fmtRs(r.owed) + ' due';
+        if (r.since) valueText += ' since ' + fmtDate_(r.since);
+        if (r.overdueDays !== null) valueText += ' (' + r.overdueDays + 'd)';
+        valueCls += ' wrap'; // this line is longer once due info is added - let it wrap to 2 lines instead of crushing the dealer name
+      }
       return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
         '<span class="rank-name">' + r.name + '</span>' +
-        '<span class="rank-value num">' + r.days + 'd ago</span></div>';
+        '<span class="' + valueCls + '">' + valueText + '</span></div>';
     }).join('');
   }
 
   function openDormantSheet_(dsrDisplayName, fullList) {
     document.getElementById('dormantSheetTitle').textContent = dsrDisplayName;
-    document.getElementById('dormantSheetSub').textContent = fullList.length + ' dormant dealer' + (fullList.length === 1 ? '' : 's') + ' (showing up to ' + DORMANT_MODAL_LIMIT + ')';
-    document.getElementById('dormantSheetList').innerHTML = dormantRowsHtml_(fullList.slice(0, DORMANT_MODAL_LIMIT));
+    document.getElementById('dormantSheetSub').textContent = fullList.length + ' inactive dealer' + (fullList.length === 1 ? '' : 's');
+    document.getElementById('dormantSheetList').innerHTML = dormantRowsHtml_(fullList);
     document.getElementById('dormantOverlay').style.display = 'flex';
   }
   function closeDormantSheet_() {
@@ -1041,13 +1091,13 @@
   function renderDormant() {
     var wrap = document.getElementById('dormantByDsr');
     if (salesByDealer === null || dealerRoster === null) {
-      document.getElementById('dormantLabel').textContent = 'Dormant dealers';
+      document.getElementById('dormantLabel').textContent = 'Inactive dealers';
       wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Waiting for the next Tally sync…</p>';
       return;
     }
     var byDsr = dormantByDsr_();
     var totalCount = Object.keys(byDsr).reduce(function (a, k) { return a + byDsr[k].length; }, 0);
-    document.getElementById('dormantLabel').textContent = 'Dormant dealers — ' + totalCount +
+    document.getElementById('dormantLabel').textContent = 'Inactive dealers — ' + totalCount +
       ' (sold within ' + DORMANT_MAX_DAYS + ' days, nothing ordered this month)';
 
     wrap.innerHTML = DSRS.map(function (d) {
@@ -1055,9 +1105,9 @@
       var shown = full.slice(0, DORMANT_CARD_LIMIT);
       var body = shown.length
         ? dormantRowsHtml_(shown)
-        : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No dormant dealers.</p>';
+        : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No inactive dealers.</p>';
       var moreHint = full.length > DORMANT_CARD_LIMIT
-        ? '<p class="card-name-hint">+' + (full.length - DORMANT_CARD_LIMIT) + ' more - click name to see up to ' + DORMANT_MODAL_LIMIT + '</p>'
+        ? '<p class="card-name-hint">+' + (full.length - DORMANT_CARD_LIMIT) + ' more - click name to see all ' + full.length + '</p>'
         : (full.length > 0 ? '<p class="card-name-hint">Click name for details</p>' : '');
       var nameCls = full.length > 0 ? 'card-name clickable' : 'card-name';
       return '<div class="card"><div class="card-head"><div><p class="' + nameCls + '" data-dsr="' + d.name + '">' + d.name + '</p>' +

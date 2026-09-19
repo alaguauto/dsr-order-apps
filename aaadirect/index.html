@@ -892,7 +892,7 @@
 
   <section style="padding-bottom:0;">
     <details class="manage" id="dormantDetails">
-      <summary>Dormant dealers <span id="dormantSummaryLabel" class="num" style="font-weight:500;"></span></summary>
+      <summary>Inactive dealers <span id="dormantSummaryLabel" class="num" style="font-weight:500;"></span></summary>
       <div class="manage-body">
         <p class="hint">Bought from you within the last 100 days, but no order yet this month — worth a call. Live from Tally, nothing to enter here.</p>
         <div id="dormantListEl"></div>
@@ -1199,6 +1199,7 @@
   var dealerInput = document.getElementById("dealerName");
   var dealerDropdown = document.getElementById("dealerDropdown");
   var manageDealerListEl = document.getElementById("manageDealerList");
+  var manageDealersDetailsEl = document.getElementById("manageDealersDetails");
   var dealerCountLabel = document.getElementById("dealerCountLabel");
   var deliveryDateInput = document.getElementById("deliveryDate");
   var summaryStrip = document.getElementById("summaryStrip");
@@ -1212,6 +1213,7 @@
   var collectionDetailsEl = document.getElementById("collectionDetails");
   var dormantSummaryLabelEl = document.getElementById("dormantSummaryLabel");
   var dormantListEl = document.getElementById("dormantListEl");
+  var dormantDetailsEl = document.getElementById("dormantDetails");
   var reportBtn = document.getElementById("reportBtn");
   var ordersListEl = document.getElementById("ordersList");
   var ordersCountLabel = document.getElementById("ordersCountLabel");
@@ -1533,17 +1535,30 @@
   }
 
   // Selecting a dealer straight from a list, added 18 Sep 2026 - the
-  // owner asked that tapping a dealer's name in Dormant dealers or Manage
+  // owner asked that tapping a dealer's name in Inactive dealers or Manage
   // dealers pick them for the order in progress, same as picking from the
   // Dealer Name dropdown, so seeing "this dealer needs attention" and
   // acting on it are one tap apart instead of having to re-type the name.
+  // Extended 19 Sep 2026 per the owner's request: whichever of the two
+  // list panels the dealer was picked from should close immediately (no
+  // point leaving a long dealer list open once one's been chosen), and the
+  // page jumps straight to the Items section instead of back to the top,
+  // so the very next thing the DSR sees is what they came here to do -
+  // add items to this dealer's order.
   function selectDealerForOrder_(name) {
     dealerInput.value = name;
     hideDealerDropdown();
     renderDealerNote();
     renderSummary();
+    if (dormantDetailsEl) dormantDetailsEl.open = false;
+    if (manageDealersDetailsEl) manageDealersDetailsEl.open = false;
     showToast("Selected " + name + " — add items below");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    var itemsSectionEl = document.querySelector(".list-head") || itemListEl;
+    if (itemsSectionEl && typeof itemsSectionEl.scrollIntoView === "function") {
+      itemsSectionEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }
 
   function renderManageDealerList() {
@@ -2042,7 +2057,12 @@
         if (daysAgo < 0 || daysAgo > DORMANT_MAX_DAYS) continue; // no real sale on record, or too long ago
         var ddMonth = ddRec.month || 0;
         if (ddMonth > 0) continue; // already ordered this month - not dormant
-        newDormant.push({ name: ddName, days: daysAgo });
+        // Carry along this dealer's own balance/outstandingSince (already
+        // patched onto dealers[dd] by the outstanding block above, same
+        // poll) so the dormant row can show "quiet AND owes money AND
+        // since when" - added 19 Sep 2026, matching the manager dashboard's
+        // own Dormant Dealers panel the same day. No new network call.
+        newDormant.push({ name: ddName, days: daysAgo, balance: dealers[dd].balance, outstandingSince: dealers[dd].outstandingSince });
       }
       newDormant.sort(function (a, b) { return b.days - a.days; }); // longest-quiet first
       dormantDealers = newDormant;
@@ -2576,13 +2596,26 @@
     if (!dormantListEl) return;
     dormantSummaryLabelEl.textContent = dormantDealers.length ? "(" + dormantDealers.length + ")" : "";
     if (!dormantDealers.length) {
-      dormantListEl.innerHTML = '<p class="empty-note" style="padding:10px 0;">No dormant dealers right now.</p>';
+      dormantListEl.innerHTML = '<p class="empty-note" style="padding:10px 0;">No inactive dealers right now.</p>';
       return;
     }
     dormantListEl.innerHTML = dormantDealers.map(function (r) {
+      // Outstanding due info appended 19 Sep 2026 - only shown when the
+      // dealer genuinely owes money (balance < 0, same Tally negative=Dr
+      // convention as balanceBadgeHtml() above); a dealer with no dues or
+      // a credit balance just shows the days-quiet, no fake ₹0.
+      var valueText = r.days + "d ago";
+      if (r.balance !== null && r.balance !== undefined && !isNaN(r.balance) && r.balance < 0) {
+        valueText += " · ₹" + formatBalance_(r.balance) + " due";
+        if (r.outstandingSince) {
+          valueText += " since " + formatDateDisplay(r.outstandingSince);
+          var od = daysBetweenISO(r.outstandingSince, todayISO());
+          if (!isNaN(od)) valueText += " (" + od + "d)";
+        }
+      }
       return (
         '<div class="manage-row"><span class="manage-row-name clickable" data-dealer-name="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + "</span>" +
-        '<span class="manage-row-fields-static">' + r.days + "d ago</span>" +
+        '<span class="manage-row-fields-static">' + valueText + "</span>" +
         "</div>"
       );
     }).join("");
