@@ -178,7 +178,10 @@
   }
   .stat-value { font-size: clamp(20px, 2.6vw, 26px); font-weight: 600; color: var(--ink); }
   .stat-value .unit { font-size: 13px; font-weight: 500; color: var(--ink-muted); margin-left: 4px; }
-  .stat-sub { font-size: 12.5px; font-weight: 500; color: var(--ink-muted); margin: 4px 0 0; }
+  /* stat-sub amounts, restyled 19 Sep 2026 - was muted/small, now matches
+     the stat-value's own white ink colour and weight so the rupee amount
+     reads as part of the number, not a de-emphasized footnote. */
+  .stat-sub { font-size: 14px; font-weight: 600; color: var(--ink); margin: 3px 0 0; }
 
   /* On-pace vs behind-pace tags, added 18 Sep 2026 - reuse the pill's own
      ink colors so no new palette is introduced. */
@@ -275,7 +278,9 @@
   .leaderboard { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 30px; }
   @media (max-width: 720px) { .leaderboard { grid-template-columns: 1fr; } }
   .leaderboard-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
-  .leaderboard-title { font-size: 13px; font-weight: 600; color: var(--ink-secondary); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 10px; }
+  .leaderboard-title { font-size: 13px; font-weight: 600; color: var(--ink-secondary); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 4px; }
+  .leaderboard-title.clickable { cursor: pointer; }
+  .leaderboard-title.clickable:hover { text-decoration: underline; text-decoration-color: var(--border); }
   .rank-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
   .rank-row:first-child { border-top: none; }
   .rank-num { font-family: 'Archivo', system-ui, sans-serif; font-weight: 800; font-size: 13px; color: var(--ink-muted); width: 18px; flex-shrink: 0; text-align: center; }
@@ -352,6 +357,23 @@
   <p class="section-label">By DSR</p>
   <div class="cards" id="cards"></div>
 
+  <!-- Needs Attention's own expand-to-20 modal, added 19 Sep 2026 - same
+       overlay/sheet styling as the Dormant modal (shared CSS classes),
+       separate ids/markup so it doesn't touch the already-proven Dormant
+       modal at all. -->
+  <div class="dormant-overlay" id="attnOverlay" style="display:none;">
+    <div class="dormant-sheet">
+      <div class="dormant-sheet-head">
+        <div>
+          <p class="dormant-sheet-title" id="attnSheetTitle"></p>
+          <p class="dormant-sheet-sub" id="attnSheetSub"></p>
+        </div>
+        <button type="button" class="dormant-close" id="attnCloseBtn" aria-label="Close">&times;</button>
+      </div>
+      <div id="attnSheetList"></div>
+    </div>
+  </div>
+
   <div class="dormant-overlay" id="dormantOverlay" style="display:none;">
     <div class="dormant-sheet">
       <div class="dormant-sheet-head">
@@ -365,19 +387,37 @@
     </div>
   </div>
 
-  <p class="section-label">Top 5 — this month</p>
+  <p class="section-label">This month</p>
   <div class="leaderboard three">
     <div class="leaderboard-panel">
-      <p class="leaderboard-title">Items sold</p>
+      <div id="topItemsHead"></div>
       <div id="topItems"></div>
     </div>
     <div class="leaderboard-panel">
-      <p class="leaderboard-title">Top customers — Sales</p>
+      <div id="topCustomersSalesHead"></div>
       <div id="topCustomersSales"></div>
     </div>
     <div class="leaderboard-panel">
-      <p class="leaderboard-title">Top customers — Collection</p>
+      <div id="topCustomersCollectionHead"></div>
       <div id="topCustomersCollection"></div>
+    </div>
+  </div>
+
+  <!-- Items sold / Top customers modal, added 19 Sep 2026 - same expand-
+       to-20 pattern as Needs Attention/Dormant above (shared overlay/sheet
+       CSS classes, its own ids), triggered by clicking a panel's title
+       instead of a per-DSR card name since these three panels are each a
+       single company-wide list, not per-DSR. -->
+  <div class="dormant-overlay" id="top5Overlay" style="display:none;">
+    <div class="dormant-sheet">
+      <div class="dormant-sheet-head">
+        <div>
+          <p class="dormant-sheet-title" id="top5SheetTitle"></p>
+          <p class="dormant-sheet-sub" id="top5SheetSub"></p>
+        </div>
+        <button type="button" class="dormant-close" id="top5CloseBtn" aria-label="Close">&times;</button>
+      </div>
+      <div id="top5SheetList"></div>
     </div>
   </div>
 </div>
@@ -664,56 +704,97 @@
   // session) shows "Waiting for the next Tally sync…" rather than an empty
   // "no orders" message, same "don't fake a number" rule used everywhere
   // else on this dashboard.
-  function renderList_(elId, rows, valueFn, errorFlag, emptyMsg) {
-    var el = document.getElementById(elId);
-    if (errorFlag) {
-      el.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--warn);">Couldn\'t load.</p>';
-      return;
-    }
-    if (!rows.length) {
-      el.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">' + emptyMsg + '</p>';
-      return;
-    }
-    el.innerHTML = rows.map(function (r, i) {
+  // Click-to-expand-to-20, added 19 Sep 2026 - same pattern as Needs
+  // Attention/Dormant above (5 shown by default, click for up to 20), but
+  // each of these three panels is a single company-wide list rather than
+  // per-DSR cards, so the click target is the panel's own title instead of
+  // a dealer/DSR name. top5Full_ holds each panel's full (unsliced) sorted
+  // rows so the modal has the other 15+ ready without a re-fetch.
+  var TOP5_CARD_LIMIT = 5;
+  var TOP5_MODAL_LIMIT = 20;
+  var top5Full_ = { items: [], salesDealers: [], collectionDealers: [] };
+
+  function top5RowsHtml_(list) {
+    return list.map(function (r, i) {
       return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
         '<span class="rank-name">' + r.name + '</span>' +
-        '<span class="rank-value num">' + valueFn(r) + '</span></div>';
+        '<span class="rank-value num">' + r.valueText + '</span></div>';
     }).join('');
   }
 
+  function openTop5Sheet_(panelLabel, fullList) {
+    document.getElementById('top5SheetTitle').textContent = panelLabel;
+    document.getElementById('top5SheetSub').textContent = fullList.length + ' ' + (fullList.length === 1 ? 'entry' : 'entries') + ' (showing up to ' + TOP5_MODAL_LIMIT + ')';
+    document.getElementById('top5SheetList').innerHTML = top5RowsHtml_(fullList.slice(0, TOP5_MODAL_LIMIT));
+    document.getElementById('top5Overlay').style.display = 'flex';
+  }
+  function closeTop5Sheet_() {
+    document.getElementById('top5Overlay').style.display = 'none';
+  }
+  document.getElementById('top5CloseBtn').addEventListener('click', closeTop5Sheet_);
+  document.getElementById('top5Overlay').addEventListener('click', function (e) {
+    if (e.target.id === 'top5Overlay') closeTop5Sheet_();
+  });
+
+  function renderTop5Panel_(opts) {
+    // opts: { listElId, headElId, key, fullRows, emptyMsg, panelLabel }
+    top5Full_[opts.key] = opts.fullRows;
+    var listEl = document.getElementById(opts.listElId);
+    var shown = opts.fullRows.slice(0, TOP5_CARD_LIMIT);
+    listEl.innerHTML = shown.length
+      ? top5RowsHtml_(shown)
+      : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">' + opts.emptyMsg + '</p>';
+
+    var moreHint = opts.fullRows.length > TOP5_CARD_LIMIT
+      ? '<p class="card-name-hint">+' + (opts.fullRows.length - TOP5_CARD_LIMIT) + ' more - click title to see up to ' + TOP5_MODAL_LIMIT + '</p>'
+      : '';
+    var titleCls = opts.fullRows.length > 0 ? 'leaderboard-title clickable' : 'leaderboard-title';
+    var headEl = document.getElementById(opts.headElId);
+    headEl.innerHTML = '<p class="' + titleCls + '">' + opts.panelLabel + '</p>' + moreHint;
+    var titleEl = headEl.querySelector('.leaderboard-title.clickable');
+    if (titleEl) {
+      titleEl.addEventListener('click', function () {
+        openTop5Sheet_(opts.panelLabel, top5Full_[opts.key] || []);
+      });
+    }
+  }
+
   function renderTop5() {
-    if (salesByItem === null) {
-      renderList_('topItems', [], function () { return ''; }, false, 'Waiting for the next Tally sync…');
-    } else {
-      var itemRows = Object.keys(salesByItem)
-        .map(function (name) { return { name: name, month: salesByItem[name].month }; })
-        .filter(function (r) { return r.month !== null && r.month !== undefined && r.month > 0; })
-        .sort(function (a, b) { return b.month - a.month; })
-        .slice(0, 5);
-      renderList_('topItems', itemRows, function (r) { return fmt(r.month) + ' Ltr'; }, false, 'No Sales recorded yet this month.');
-    }
+    var itemsFull = salesByItem === null ? [] : Object.keys(salesByItem)
+      .map(function (name) { return { name: name, month: salesByItem[name].month }; })
+      .filter(function (r) { return r.month !== null && r.month !== undefined && r.month > 0; })
+      .sort(function (a, b) { return b.month - a.month; })
+      .map(function (r) { return { name: r.name, valueText: fmt(r.month) + ' Ltr' }; });
+    renderTop5Panel_({
+      listElId: 'topItems', headElId: 'topItemsHead', key: 'items',
+      fullRows: itemsFull,
+      emptyMsg: salesByItem === null ? 'Waiting for the next Tally sync…' : 'No Sales recorded yet this month.',
+      panelLabel: 'Items sold'
+    });
 
-    if (salesByDealer === null) {
-      renderList_('topCustomersSales', [], function () { return ''; }, false, 'Waiting for the next Tally sync…');
-    } else {
-      var salesDealerRows = Object.keys(salesByDealer)
-        .map(function (name) { return { name: name, month: salesByDealer[name].month }; })
-        .filter(function (r) { return r.month !== null && r.month !== undefined && r.month > 0; })
-        .sort(function (a, b) { return b.month - a.month; })
-        .slice(0, 5);
-      renderList_('topCustomersSales', salesDealerRows, function (r) { return fmt(r.month) + ' Ltr'; }, false, 'No Sales recorded yet this month.');
-    }
+    var salesDealersFull = salesByDealer === null ? [] : Object.keys(salesByDealer)
+      .map(function (name) { return { name: name, month: salesByDealer[name].month }; })
+      .filter(function (r) { return r.month !== null && r.month !== undefined && r.month > 0; })
+      .sort(function (a, b) { return b.month - a.month; })
+      .map(function (r) { return { name: r.name, valueText: fmt(r.month) + ' Ltr' }; });
+    renderTop5Panel_({
+      listElId: 'topCustomersSales', headElId: 'topCustomersSalesHead', key: 'salesDealers',
+      fullRows: salesDealersFull,
+      emptyMsg: salesByDealer === null ? 'Waiting for the next Tally sync…' : 'No Sales recorded yet this month.',
+      panelLabel: 'Top customers — Sales'
+    });
 
-    if (collectionByDealer === null) {
-      renderList_('topCustomersCollection', [], function () { return ''; }, false, 'Waiting for the next Tally sync…');
-      return;
-    }
-    var dealerRows = Object.keys(collectionByDealer)
+    var collectionDealersFull = collectionByDealer === null ? [] : Object.keys(collectionByDealer)
       .map(function (name) { return { name: name, month: collectionByDealer[name].month }; })
       .filter(function (r) { return r.month !== null && r.month !== undefined && r.month > 0; })
       .sort(function (a, b) { return b.month - a.month; })
-      .slice(0, 5);
-    renderList_('topCustomersCollection', dealerRows, function (r) { return fmtRs(r.month); }, false, 'No collection recorded yet this month.');
+      .map(function (r) { return { name: r.name, valueText: fmtRs(r.month) }; });
+    renderTop5Panel_({
+      listElId: 'topCustomersCollection', headElId: 'topCustomersCollectionHead', key: 'collectionDealers',
+      fullRows: collectionDealersFull,
+      emptyMsg: collectionByDealer === null ? 'Waiting for the next Tally sync…' : 'No collection recorded yet this month.',
+      panelLabel: 'Top customers — Collection'
+    });
   }
 
   // Needs attention, added 18 Sep 2026, corrected same day - the first of
@@ -830,23 +911,67 @@
 
     var byDsr = {};
     overdue.forEach(function (r) { (byDsr[r.dsrName] = byDsr[r.dsrName] || []).push(r); });
-
-    listEl.innerHTML = DSRS.map(function (d) {
-      var list = (byDsr[d.name] || []).slice().sort(function (a, b) {
+    Object.keys(byDsr).forEach(function (dsrName) {
+      byDsr[dsrName].sort(function (a, b) {
         if (b.days !== a.days) return b.days - a.days;
         return Math.abs(b.raw) - Math.abs(a.raw);
-      }).slice(0, 5);
-      var body = list.length
-        ? list.map(function (r, i) {
-            return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
-              '<span class="rank-name">' + r.name + '</span>' +
-              '<span class="rank-value num">' + fmtRs(Math.abs(r.raw)) + ' · ' + r.days + 'd</span></div>';
-          }).join('')
+      });
+    });
+
+    // Cards below behave the same as the Dormant Dealers cards, added 19
+    // Sep 2026 per the owner's request ("for all cards make as dormant
+    // card ... expand to 20") - ATTN_CARD_LIMIT shown by default, click
+    // the DSR name to open a modal with up to ATTN_MODAL_LIMIT.
+    listEl.innerHTML = DSRS.map(function (d) {
+      var full = byDsr[d.name] || [];
+      var shown = full.slice(0, ATTN_CARD_LIMIT);
+      var body = shown.length
+        ? attnRowsHtml_(shown)
         : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No dealers overdue 30+ days.</p>';
-      return '<div class="card"><div class="card-head"><div><p class="card-name">' + d.name + '</p>' +
-        '<p class="card-territory">' + d.territory + '</p></div></div>' + body + '</div>';
+      var moreHint = full.length > ATTN_CARD_LIMIT
+        ? '<p class="card-name-hint">+' + (full.length - ATTN_CARD_LIMIT) + ' more - click name to see up to ' + ATTN_MODAL_LIMIT + '</p>'
+        : (full.length > 0 ? '<p class="card-name-hint">Click name for details</p>' : '');
+      var nameCls = full.length > 0 ? 'card-name clickable' : 'card-name';
+      return '<div class="card"><div class="card-head"><div><p class="' + nameCls + '" data-dsr="' + d.name + '">' + d.name + '</p>' +
+        '<p class="card-territory">' + d.territory + '</p>' + moreHint + '</div></div>' + body + '</div>';
+    }).join('');
+
+    listEl.querySelectorAll('.card-name.clickable').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var dsrName = el.getAttribute('data-dsr');
+        openAttnSheet_(dsrName, byDsr[dsrName] || []);
+      });
+    });
+  }
+
+  // Needs Attention's own expand-to-20 modal, added 19 Sep 2026 - same
+  // card-limit/click-to-expand pattern as Dormant Dealers (see below),
+  // kept as its own functions/ids rather than sharing Dormant's so the
+  // already-proven Dormant modal isn't touched.
+  var ATTN_CARD_LIMIT = 5;
+  var ATTN_MODAL_LIMIT = 20;
+
+  function attnRowsHtml_(list) {
+    return list.map(function (r, i) {
+      return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
+        '<span class="rank-name">' + r.name + '</span>' +
+        '<span class="rank-value num">' + fmtRs(Math.abs(r.raw)) + ' · ' + r.days + 'd</span></div>';
     }).join('');
   }
+
+  function openAttnSheet_(dsrDisplayName, fullList) {
+    document.getElementById('attnSheetTitle').textContent = dsrDisplayName;
+    document.getElementById('attnSheetSub').textContent = fullList.length + ' dealer' + (fullList.length === 1 ? '' : 's') + ' overdue 30+ days (showing up to ' + ATTN_MODAL_LIMIT + ')';
+    document.getElementById('attnSheetList').innerHTML = attnRowsHtml_(fullList.slice(0, ATTN_MODAL_LIMIT));
+    document.getElementById('attnOverlay').style.display = 'flex';
+  }
+  function closeAttnSheet_() {
+    document.getElementById('attnOverlay').style.display = 'none';
+  }
+  document.getElementById('attnCloseBtn').addEventListener('click', closeAttnSheet_);
+  document.getElementById('attnOverlay').addEventListener('click', function (e) {
+    if (e.target.id === 'attnOverlay') closeAttnSheet_();
+  });
 
   // Dormant dealers, added 18 Sep 2026 - the owner's exact rule: a dealer
   // with a real Tally sale within the last 100 days, but nothing ordered
