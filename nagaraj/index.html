@@ -266,6 +266,26 @@
      order in progress, same as picking from the Dealer Name dropdown. */
   .manage-row-name.clickable { cursor: pointer; }
   .manage-row-name.clickable:active { opacity: 0.7; }
+  /* Payment reminder button, added 19 Sep 2026 - only shown next to a
+     dealer whose outstanding has aged past OUTSTANDING_REMINDER_AGE_DAYS
+     (45 days), in Manage dealers. Reuses the WhatsApp green already used
+     for buildReportText()'s Send-on-WhatsApp button elsewhere in this app. */
+  .remind-btn {
+    background: #25D366;
+    color: #06210F;
+    border: none;
+    border-radius: 6px;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 6px;
+  }
+  .remind-btn svg { width: 14px; height: 14px; }
+  .remind-btn:active { opacity: 0.8; }
   /* Added 8 Sep 2026: current account balance shown in "Manage dealers"
      (see balanceBadgeHtml()/renderManageDealerList() below) - a Dr balance
      ("...due") uses the same neutral/muted style as outstanding-badge-info
@@ -891,6 +911,16 @@
   </section>
 
   <section style="padding-bottom:0;">
+    <details class="manage" id="newDealersDetails">
+      <summary>New dealers <span id="newDealersSummaryLabel" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">First order landed this month — worth a follow-up to keep them ordering. Live from your own order log, nothing to enter here.</p>
+        <div id="newDealersListEl"></div>
+      </div>
+    </details>
+  </section>
+
+  <section style="padding-bottom:0;">
     <details class="manage" id="dormantDetails">
       <summary>Inactive dealers <span id="dormantSummaryLabel" class="num" style="font-weight:500;"></span></summary>
       <div class="manage-body">
@@ -1035,6 +1065,23 @@
       <div class="sent-reminder-actions">
         <button type="button" class="btn btn-whatsapp" id="sentReminderWaBtn">Send on WhatsApp</button>
         <button type="button" class="btn btn-ghost" id="sentReminderCopyBtn">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment reminder, added 19 Sep 2026 - reuses the same preview-overlay/
+       preview-sheet markup and Send-on-WhatsApp/Copy pattern as the order-
+       saved sheet above, with its own ids so the two never interfere. -->
+  <div class="preview-overlay" id="paymentReminderOverlay" hidden>
+    <div class="preview-sheet">
+      <div class="preview-head">
+        <span>Payment reminder</span>
+        <button type="button" id="paymentReminderCloseBtn" aria-label="Close">×</button>
+      </div>
+      <pre class="preview-text" id="paymentReminderText"></pre>
+      <div class="sent-reminder-actions">
+        <button type="button" class="btn btn-whatsapp" id="paymentReminderWaBtn">Send on WhatsApp</button>
+        <button type="button" class="btn btn-ghost" id="paymentReminderCopyBtn">Copy</button>
       </div>
     </div>
   </div>
@@ -1214,6 +1261,9 @@
   var dormantSummaryLabelEl = document.getElementById("dormantSummaryLabel");
   var dormantListEl = document.getElementById("dormantListEl");
   var dormantDetailsEl = document.getElementById("dormantDetails");
+  var newDealersSummaryLabelEl = document.getElementById("newDealersSummaryLabel");
+  var newDealersListEl = document.getElementById("newDealersListEl");
+  var newDealersDetailsEl = document.getElementById("newDealersDetails");
   var reportBtn = document.getElementById("reportBtn");
   var ordersListEl = document.getElementById("ordersList");
   var ordersCountLabel = document.getElementById("ordersCountLabel");
@@ -1247,6 +1297,19 @@
     var m = String(d.getMonth() + 1).padStart(2, "0");
     var day = String(d.getDate()).padStart(2, "0");
     return d.getFullYear() + "-" + m + "-" + day;
+  }
+
+  // "yyyy-MM" for the previous calendar month, added 19 Sep 2026 for the
+  // Target-Balance panel's "Last month" comparison chip. Sets the date to
+  // the 1st BEFORE subtracting a month, so this can never skip or repeat a
+  // month depending on today's day-of-month (e.g. 31 Aug minus a naive
+  // "one month" would land on an invalid/rolled-over date in a
+  // 30-day September otherwise).
+  function lastMonthKeyISO() {
+    var d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
   }
 
   // "YYYY-MM-DD" -> "30 Aug 2026", matching the header date's style.
@@ -1552,6 +1615,7 @@
     renderSummary();
     if (dormantDetailsEl) dormantDetailsEl.open = false;
     if (manageDealersDetailsEl) manageDealersDetailsEl.open = false;
+    if (newDealersDetailsEl) newDealersDetailsEl.open = false;
     showToast("Selected " + name + " — add items below");
     var itemsSectionEl = document.querySelector(".list-head") || itemListEl;
     if (itemsSectionEl && typeof itemsSectionEl.scrollIntoView === "function") {
@@ -1559,6 +1623,35 @@
     } else {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
+  }
+
+  // Payment reminder, added 19 Sep 2026 - a dealer gets the reminder
+  // button only once their outstanding has genuinely aged past
+  // OUTSTANDING_REMINDER_AGE_DAYS (45 days) - see agedPendingAmount in
+  // tally_live_watcher.py's fetch_outstanding() and applyLiveOverlay_()
+  // below, which patches it onto d.agedPendingAmount the same way
+  // d.balance/d.outstandingSince already are. The message deliberately
+  // greets with a bare "Hi," (no dealer name) per the owner's request,
+  // and states both the aged (45d+) amount and the dealer's total
+  // outstanding, so it's clear the total may include newer bills too.
+  var OUTSTANDING_REMINDER_AGE_DAYS = 45;
+  function buildPaymentReminderText_(d) {
+    var dsrLabel = shortDsrName(document.getElementById("dsrName").value || "");
+    return [
+      "Hi,",
+      "",
+      "Your outstanding amount overdue more than " + OUTSTANDING_REMINDER_AGE_DAYS + " days is Rs " + formatBalance_(d.agedPendingAmount) + ".",
+      "Total outstanding is Rs " + formatBalance_(d.pendingAmount) + ".",
+      "",
+      "Kindly clear it at your earliest convenience.",
+      "",
+      "- " + dsrLabel + ", Petronas"
+    ].join("\n");
+  }
+  function remindBtnHtml_(d) {
+    if (d.agedPendingAmount === null || d.agedPendingAmount === undefined || Math.abs(d.agedPendingAmount) < 0.5) return "";
+    return '<button type="button" class="remind-btn" data-dealer-name="' + escapeHtml(d.name) + '" title="Send payment reminder">' +
+      '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6 2 11c0 2.2 1 4.3 2.7 5.9L4 22l5.4-1.4c.8.2 1.7.4 2.6.4 5.5 0 10-4 10-9s-4.5-9-10-9z"/></svg></button>';
   }
 
   function renderManageDealerList() {
@@ -1570,12 +1663,19 @@
     manageDealerListEl.innerHTML = dealers.map(function (d) {
       return (
         '<div class="manage-row"><span class="manage-row-name clickable" data-dealer-name="' + escapeHtml(d.name) + '">' + escapeHtml(d.name) + "</span>" +
-        outstandingBadgeHtml(d) + balanceBadgeHtml(d) +
+        outstandingBadgeHtml(d) + balanceBadgeHtml(d) + remindBtnHtml_(d) +
         "</div>"
       );
     }).join("");
   }
   manageDealerListEl.addEventListener("click", function (e) {
+    var remindBtn = e.target.closest(".remind-btn");
+    if (remindBtn) {
+      var rname = remindBtn.getAttribute("data-dealer-name");
+      var rDealer = dealers.filter(function (x) { return x.name === rname; })[0];
+      if (rDealer) openPaymentReminderSheet_(rDealer);
+      return;
+    }
     var nameEl = e.target.closest(".manage-row-name.clickable");
     if (!nameEl) return;
     selectDealerForOrder_(nameEl.getAttribute("data-dealer-name"));
@@ -1980,6 +2080,23 @@
         });
       });
     }
+    // New dealers, added 19 Sep 2026 (Arun-only trial) - see
+    // newDealersLive/renderNewDealers() above. Same rosterDsrNames scoping
+    // as dealerRoster just above (Chellamani's merged app would need
+    // Saravanan's entries too, once/if this ever ports there).
+    if (data.newDealers) {
+      var newDealersDsrName = document.getElementById("dsrName").value || "";
+      var newDealersDsrNames = [newDealersDsrName];
+      if (newDealersDsrName === "PETRONAS MDU AREA (CHELLAMANI)") {
+        newDealersDsrNames.push("PETRONAS MDU AREA (SARAVANAN)");
+      }
+      var mergedNewDealers = [];
+      newDealersDsrNames.forEach(function (rdn) {
+        mergedNewDealers = mergedNewDealers.concat(data.newDealers[rdn] || []);
+      });
+      newDealersLive = mergedNewDealers;
+      if (typeof renderNewDealers === "function") renderNewDealers();
+    }
     if (data.outstanding) {
       for (var j = 0; j < dealers.length; j++) {
         var dname = dealers[j].name;
@@ -2001,6 +2118,26 @@
           if (dealers[j].balance !== bal) { dealers[j].balance = bal; dealersChanged = true; }
         } else if (dealers[j].balance !== undefined) {
           delete dealers[j].balance;
+          dealersChanged = true;
+        }
+        // pendingAmount/agedPendingAmount added 19 Sep 2026 for the
+        // payment-reminder feature - see fetch_outstanding()'s
+        // agedPendingAmount docstring in tally_live_watcher.py. Same
+        // explicit-clear-beats-silent-skip pattern as balance/
+        // outstandingSince above: a dealer whose bills are all settled or
+        // all under 45 days old gets the field deleted, not left stale.
+        var pendAmt = rec.pendingAmount;
+        if (pendAmt !== null && pendAmt !== undefined && !isNaN(pendAmt)) {
+          if (dealers[j].pendingAmount !== pendAmt) { dealers[j].pendingAmount = pendAmt; dealersChanged = true; }
+        } else if (dealers[j].pendingAmount !== undefined) {
+          delete dealers[j].pendingAmount;
+          dealersChanged = true;
+        }
+        var agedAmt = rec.agedPendingAmount;
+        if (agedAmt !== null && agedAmt !== undefined && !isNaN(agedAmt)) {
+          if (dealers[j].agedPendingAmount !== agedAmt) { dealers[j].agedPendingAmount = agedAmt; dealersChanged = true; }
+        } else if (dealers[j].agedPendingAmount !== undefined) {
+          delete dealers[j].agedPendingAmount;
           dealersChanged = true;
         }
       }
@@ -2505,6 +2642,47 @@
     return lines.join("\n");
   }
 
+  // New dealers, added 19 Sep 2026 (Arun-only trial), REBUILT same day
+  // after the owner caught a real bug on real data: the first version
+  // sourced this from "first order in the Orders sheet this month", which
+  // looked plausible but was wrong - the Orders sheet only goes back to
+  // when the app itself launched (~3 Sep 2026), so a long-time Tally
+  // customer (with real existing outstanding, proving they're not new)
+  // whose app-recorded history just happens to start this month looked
+  // exactly like a genuinely new dealer. Now sourced from newDealersLive
+  // (see applyLiveOverlay_() below), which comes from Tally's own daily
+  // dealer-roster job noticing a name it has NEVER considered eligible
+  // before - a real "Tally has never called this dealer active or
+  // in-debt until today" signal, not an artifact of how young this app's
+  // own order log is. Updates once a day (the roster job's own cadence),
+  // not every 10-minute poll like most other live data here.
+  var newDealersLive = []; // [{name, firstSeenDate}] for THIS dsrName only
+  function renderNewDealers() {
+    if (!newDealersListEl) return;
+    var curMonth = todayISO().slice(0, 7);
+    var list = newDealersLive.filter(function (r) {
+      return r.firstSeenDate && r.firstSeenDate.slice(0, 7) === curMonth;
+    });
+    newDealersSummaryLabelEl.textContent = list.length ? "(" + list.length + ")" : "";
+    if (!list.length) {
+      newDealersListEl.innerHTML = '<p class="empty-note" style="padding:10px 0;">No new dealers yet this month.</p>';
+      return;
+    }
+    newDealersListEl.innerHTML = list.map(function (r) {
+      var dateLabel = r.firstSeenDate || "";
+      try { if (r.firstSeenDate) dateLabel = formatDateDisplay(r.firstSeenDate); } catch (e) { /* ignore */ }
+      return '<div class="manage-row"><span class="manage-row-name clickable" data-dealer-name="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + "</span>" +
+        '<span class="manage-row-fields-static">First seen ' + escapeHtml(dateLabel) + "</span></div>";
+    }).join("");
+  }
+  if (newDealersListEl) {
+    newDealersListEl.addEventListener("click", function (e) {
+      var nameEl = e.target.closest(".manage-row-name.clickable");
+      if (!nameEl) return;
+      selectDealerForOrder_(nameEl.getAttribute("data-dealer-name"));
+    });
+  }
+
   function renderOrdersAndTarget() {
     var todayTotal = ordersSummary.todayLtr || 0;
     var monthTotal = ordersSummary.monthLtr || 0;
@@ -2520,11 +2698,30 @@
         ? '<div class="target-chip balance-met">Balance <b>Target reached (+' + formatNum(Math.abs(balance)) + " Ltr)</b></div>"
         : '<div class="target-chip">Balance <b>' + formatNum(balance) + " Ltr</b></div>";
     }
+    // Last month comparison, added 19 Sep 2026 - only shown once real data
+    // has loaded (avoids a misleading "0 Ltr" flash before the first fetch
+    // resolves) and only once there's a genuine last-month baseline to
+    // compare against (a brand new DSR/dealer relationship with nothing
+    // last month would otherwise show a meaningless "+infinite%").
+    var lastMonthRow = "";
+    if (ordersLoaded && !ordersLoadError) {
+      var lastMonthTotal = ordersSummary.lastMonthLtr || 0;
+      if (lastMonthTotal > 0) {
+        var pct = Math.round(((monthTotal - lastMonthTotal) / lastMonthTotal) * 100);
+        var arrow = pct > 0 ? "▲" : (pct < 0 ? "▼" : "●");
+        var color = pct > 0 ? "var(--accent)" : (pct < 0 ? "var(--danger)" : "var(--text-muted)");
+        lastMonthRow = '<div class="target-chip">Last month <b>' + formatNum(lastMonthTotal) + ' Ltr <span style="color:' + color + ';font-weight:700;">' + arrow + " " + Math.abs(pct) + "%</span></b></div>";
+      } else if (monthTotal > 0) {
+        lastMonthRow = '<div class="target-chip">Last month <b>0 Ltr</b></div>';
+      }
+    }
     targetStripEl.innerHTML = '<div class="target-strip-row">' + topRow + "</div>" +
-      (bottomRow ? '<div class="target-strip-row">' + bottomRow + "</div>" : "");
+      (bottomRow ? '<div class="target-strip-row">' + bottomRow + "</div>" : "") +
+      (lastMonthRow ? '<div class="target-strip-row">' + lastMonthRow + "</div>" : "");
     reportBtn.disabled = !apiConfigured() || !ordersLoaded || ordersLoadError;
 
     ordersCountLabel.textContent = list.length ? "(" + list.length + ")" : "";
+    renderNewDealers();
 
     if (!apiConfigured() || ordersLoadError || !ordersLoaded) {
       ordersListEl.innerHTML = "";
@@ -2701,6 +2898,7 @@
     // existed yet).
     var url = ORDERS_API_URL + "?dsrName=" + encodeURIComponent(dsrNameVal) +
       "&date=" + encodeURIComponent(todayISO()) + "&month=" + encodeURIComponent(todayISO().slice(0, 7)) +
+      "&lastMonthKey=" + encodeURIComponent(lastMonthKeyISO()) +
       "&_ts=" + Date.now();
     fetch(url, { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (res) {
       if (res && res.ok) {
@@ -2892,6 +3090,28 @@
   document.getElementById("sentReminderCopyBtn").addEventListener("click", function () {
     copyTextToClipboard(sentReminderText.textContent);
     sentReminderOverlay.hidden = true;
+  });
+
+  var paymentReminderOverlay = document.getElementById("paymentReminderOverlay");
+  var paymentReminderText = document.getElementById("paymentReminderText");
+  function openPaymentReminderSheet_(d) {
+    if (!paymentReminderOverlay) return;
+    paymentReminderText.textContent = buildPaymentReminderText_(d);
+    paymentReminderOverlay.hidden = false;
+  }
+  document.getElementById("paymentReminderCloseBtn").addEventListener("click", function () {
+    paymentReminderOverlay.hidden = true;
+  });
+  paymentReminderOverlay.addEventListener("click", function (e) {
+    if (e.target === paymentReminderOverlay) paymentReminderOverlay.hidden = true;
+  });
+  document.getElementById("paymentReminderWaBtn").addEventListener("click", function () {
+    window.open("https://wa.me/?text=" + encodeURIComponent(paymentReminderText.textContent), "_blank", "noopener");
+    paymentReminderOverlay.hidden = true;
+  });
+  document.getElementById("paymentReminderCopyBtn").addEventListener("click", function () {
+    copyTextToClipboard(paymentReminderText.textContent);
+    paymentReminderOverlay.hidden = true;
   });
 
   // Clear the whole order: quantities, dealer name, delivery date, and any in-progress edit
