@@ -293,6 +293,58 @@
   .leaderboard.three { grid-template-columns: repeat(3, 1fr); }
   @media (max-width: 900px) { .leaderboard.three { grid-template-columns: 1fr 1fr; } }
   @media (max-width: 600px) { .leaderboard.three { grid-template-columns: 1fr; } }
+
+  /* Sales trend chart, added 20 Sep 2026 - a small hand-drawn inline SVG
+     line chart (no charting library dependency, matching this file's
+     single-page-no-external-deps style), not a real charting component. */
+  .trend-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); margin-bottom: 22px; }
+  .trend-legend { display: flex; gap: 16px; font-size: 12px; margin-top: 8px; color: var(--ink-secondary); flex-wrap: wrap; }
+  .trend-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .trend-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .trend-note { font-size: 11.5px; color: var(--ink-muted); margin: 8px 0 0; font-style: italic; }
+
+  /* Dealer lookup, added 20 Sep 2026 - a plain text search across every
+     dealer this dashboard knows about (dealerRoster, company-wide),
+     pulling together figures otherwise scattered across Needs Attention/
+     Dormant/Top Customers into one card. */
+  .lookup-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow); margin-bottom: 22px; position: relative; }
+  .lookup-input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink); font-size: 14px; font-family: inherit; }
+  .lookup-dropdown { position: absolute; left: 16px; right: 16px; top: 60px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); max-height: 220px; overflow-y: auto; z-index: 5; }
+  .lookup-dropdown-row { padding: 9px 12px; font-size: 13.5px; cursor: pointer; border-top: 1px solid var(--border); }
+  .lookup-dropdown-row:first-child { border-top: none; }
+  .lookup-dropdown-row:hover { background: var(--surface-2); }
+  .lookup-card { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+  .lookup-dealer-name { font-family: 'Archivo', system-ui, sans-serif; font-weight: 700; font-size: 16px; margin: 0 0 2px; }
+  .lookup-dealer-dsr { font-size: 12px; color: var(--ink-muted); margin: 0 0 10px; }
+  .lookup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .lookup-stat { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+  .lookup-stat-label { font-size: 11px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: .05em; margin: 0 0 4px; }
+  .lookup-stat-value { font-size: 15px; font-weight: 700; }
+
+  /* Month-end pace projection, added 20 Sep 2026 - reuses the pace-tag ink
+     colors already defined above so no new palette is introduced. */
+  .proj-line { font-size: 12.5px; color: var(--ink-secondary); padding-top: 8px; margin-top: 2px; border-top: 1px dashed var(--border); }
+  .proj-line b { font-weight: 700; }
+  .proj-line.behind b { color: var(--warn); }
+  .proj-line.ahead b { color: var(--good); }
+
+  /* Share/export, added 20 Sep 2026 - reuses the same overlay/sheet
+     pattern as Dormant/Needs Attention/Top 5's modals (shared CSS
+     classes, own ids), plus a small icon button style reused for the
+     header's "share all" and every section/card's own share button. */
+  .share-icon-btn { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink-secondary); flex-shrink: 0; }
+  .share-icon-btn:hover { color: var(--ink); }
+  .share-icon-btn svg { width: 15px; height: 15px; }
+  .share-icon-btn.small { width: 26px; height: 26px; background: none; border: none; }
+  .share-icon-btn.small svg { width: 14px; height: 14px; }
+  .section-label-row { display: flex; align-items: center; justify-content: space-between; margin: 22px 0 12px; }
+  .section-label-row .section-label { margin: 0; }
+  .section-label-row:first-of-type { margin-top: 0; }
+  .share-sheet-text { white-space: pre-wrap; font-family: inherit; font-size: 13px; background: var(--surface-2); border-radius: 10px; padding: 12px; max-height: 340px; overflow-y: auto; margin: 0 0 12px; }
+  .share-sheet-actions { display: flex; gap: 8px; }
+  .share-sheet-actions button { flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; font-size: 13.5px; }
+  .share-sheet-actions .wa-btn { background: #25D366; color: #06210F; }
+  .share-sheet-actions .copy-btn, .share-sheet-actions .close-btn { background: var(--surface-2); color: var(--ink); }
   .rank-value { font-weight: 600; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
   /* Dormant rows' value grows once the outstanding amount/date is appended
      (added 19 Sep 2026) - let it wrap to 2 lines and cap its width instead
@@ -332,15 +384,28 @@
     <button type="button" class="refresh-btn" id="refreshBtn">
       <span class="spin"></span><span class="label"></span>
     </button>
+    <button type="button" class="share-icon-btn" id="shareAllBtn" title="Share full summary (all DSRs)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+    </button>
   </div>
 
-  <p class="section-label">Combined — Sales</p>
+  <div class="section-label-row">
+    <p class="section-label">Combined — Sales &amp; Collection</p>
+    <button type="button" class="share-icon-btn small" id="shareCombinedBtn" title="Share combined Sales &amp; Collection">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+    </button>
+  </div>
   <div class="summary" id="summary"></div>
 
   <p class="section-label">Combined — Collection</p>
   <div class="summary money" id="summaryMoney"></div>
 
-  <p class="section-label">Ranking</p>
+  <div class="section-label-row">
+    <p class="section-label">Ranking</p>
+    <button type="button" class="share-icon-btn small" id="shareRankingBtn" title="Share Ranking">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+    </button>
+  </div>
   <div class="leaderboard">
     <div class="leaderboard-panel">
       <p class="leaderboard-title">Sales — % of target</p>
@@ -352,11 +417,31 @@
     </div>
   </div>
 
-  <p class="section-label">Needs attention</p>
+  <p class="section-label">Dealer lookup</p>
+  <div class="lookup-wrap">
+    <input type="text" class="lookup-input" id="lookupInput" placeholder="Search any dealer by name…" autocomplete="off">
+    <div class="lookup-dropdown" id="lookupDropdown" hidden></div>
+    <div id="lookupCardWrap"></div>
+  </div>
+
+  <p class="section-label">Sales &amp; Collection trend</p>
+  <div class="trend-wrap" id="trendWrap"></div>
+
+  <div class="section-label-row">
+    <p class="section-label">Needs attention</p>
+    <button type="button" class="share-icon-btn small" id="shareAttnBtn" title="Share Needs attention">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+    </button>
+  </div>
   <div class="summary attn" id="attentionStats"></div>
   <div class="cards" id="overdueByDsr" style="margin-bottom:22px;"></div>
 
-  <p class="section-label" id="dormantLabel">Inactive dealers</p>
+  <div class="section-label-row">
+    <p class="section-label" id="dormantLabel">Inactive dealers</p>
+    <button type="button" class="share-icon-btn small" id="shareInactiveBtn" title="Share Inactive dealers">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+    </button>
+  </div>
   <div class="cards" id="dormantByDsr" style="margin-bottom:22px;"></div>
 
   <p class="section-label">By DSR</p>
@@ -425,6 +510,27 @@
       <div id="top5SheetList"></div>
     </div>
   </div>
+
+  <!-- Share/export preview, added 20 Sep 2026 - one shared modal reused by
+       every share trigger on the page (header "share all", each section's
+       own share icon, each DSR card's own share icon) - whichever trigger
+       was tapped just fills in the title/text before opening it. Same
+       overlay/sheet visual language as the other modals above. -->
+  <div class="dormant-overlay" id="shareOverlay" style="display:none;">
+    <div class="dormant-sheet">
+      <div class="dormant-sheet-head">
+        <div>
+          <p class="dormant-sheet-title" id="shareSheetTitle"></p>
+        </div>
+        <button type="button" class="dormant-close" id="shareCloseBtn" aria-label="Close">&times;</button>
+      </div>
+      <pre class="share-sheet-text" id="shareSheetText"></pre>
+      <div class="share-sheet-actions">
+        <button type="button" class="wa-btn" id="shareWaBtn">Send on WhatsApp</button>
+        <button type="button" class="copy-btn" id="shareCopyBtn">Copy</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -476,6 +582,33 @@
   // feature, read by this dashboard for the first time 18 Sep 2026 to
   // scope "Needs attention" to real dealers only - see renderNeedsAttention().
 
+  // Sales + Collection trend, rebuilt 20 Sep 2026 on real Tally data at
+  // the owner's request ("i dont want log data chart" - he didn't want
+  // the chart on Orders-sheet/app-logged figures, the way it first
+  // shipped). salesTrendMap/collectionTrendMap are {"yyyy-MM-dd": total}
+  // maps straight from ?type=live's own salesTrend/collectionTrend fields
+  // (see Code.gs's handleLiveGet_()) - sourced from Tally's own Sales/
+  // Receipt vouchers, each bucketed by its own voucher date in
+  // tally_live_watcher.py's fetch_sales()/fetch_collection(). Tally
+  // returns its FULL voucher history on every fetch (SVFROMDATE/
+  // SVTODATE don't scope a raw voucher export - confirmed 12 Sep 2026),
+  // so a genuine day-by-day trend for both this month and last month
+  // comes straight off the same fetch already used for the month-to-date
+  // Sales/Collection figures shown everywhere else on this dashboard -
+  // no separate "app-logged" data source anymore, and no new Tally
+  // request either. null before the first successful ?type=live fetch.
+  var salesTrendMap = null;
+  var collectionTrendMap = null;
+  var trendError = false;
+
+  // Share/export, added 20 Sep 2026 - these two caches let the Needs
+  // Attention/Inactive Dealers share buttons reuse numbers their own
+  // render functions already computed, instead of recomputing from
+  // scratch (see the "Cached for the Share button" comments in
+  // renderNeedsAttention()/renderDormant()).
+  var lastAttnSummary = null;
+  var lastDormantSummary = null;
+
   function fmt(n) { return Math.round(n).toLocaleString('en-IN'); }
   function fmtRs(n) { return '₹' + fmt(n); }
 
@@ -513,6 +646,16 @@
     return new Date().toLocaleString('en-IN', {
       day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true
     });
+  }
+
+  // "yyyy-MM" for the previous calendar month, added 20 Sep 2026 for the
+  // Sales trend chart. Sets the date to the 1st before subtracting a
+  // month so this never skips/rolls over depending on today's day-of-month.
+  function lastMonthKeyISO() {
+    var d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
   }
 
   // Switched to Tally-actual (d.monthLtr/d.todayLtr) 18 Sep 2026, per the
@@ -584,6 +727,31 @@
   // "Logged via app" line for comparison, per the owner's own "sit
   // alongside it" request - if the two numbers disagree, that's exactly
   // the missed-order/office-direct-sale gap he originally flagged.
+  // Month-end pace projection, added 20 Sep 2026 - a simple run-rate
+  // extrapolation (this month's total so far, divided by how many days of
+  // the month have passed, scaled up to the full month) - not a
+  // statistical forecast, just "if the rest of the month goes like it has
+  // so far." The point is surfacing a likely shortfall while there's still
+  // time in the month to act on it, rather than only finding out on the
+  // 30th.
+  function projectMonthEnd_(monthTotal) {
+    var now = new Date();
+    var daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    var dayOfMonth = now.getDate();
+    if (dayOfMonth <= 0) return monthTotal;
+    return (monthTotal / dayOfMonth) * daysInMonth;
+  }
+  function projLineHtml_(monthTotal, target, fmtFn) {
+    if (!(target > 0)) return '';
+    var projected = projectMonthEnd_(monthTotal);
+    var shortfall = target - projected;
+    var cls = shortfall > 0.5 ? 'behind' : 'ahead';
+    var verb = shortfall > 0.5
+      ? 'on track to fall short by ~' + fmtFn(Math.abs(shortfall))
+      : 'on track to finish ~' + fmtFn(Math.abs(shortfall)) + ' over target';
+    return '<div class="proj-line ' + cls + '">Projected to finish month: <b>' + fmtFn(projected) + '</b> — ' + verb + '</div>';
+  }
+
   function renderCards() {
     document.getElementById('cards').innerHTML = DSRS.map(function (d) {
       var salesPill, salesBody;
@@ -606,7 +774,8 @@
           '<span class="today-caption">Ltr sold today (Tally)</span></div>' +
           '<div class="progress-track"><div class="progress-fill' + (done ? ' done' : '') + '" style="width:' + pctClamped + '%"></div></div>' +
           '<div class="progress-meta"><span class="num">' + fmt(d.monthLtr) + ' / ' + fmt(d.target) + ' Ltr this month</span>' +
-          '<span class="pct num">' + Math.round(pctClamped) + '%</span></div>' + balanceLine;
+          '<span class="pct num">' + Math.round(pctClamped) + '%</span></div>' + balanceLine +
+          (done ? '' : projLineHtml_(d.monthLtr, d.target, function (n) { return fmt(n) + ' Ltr'; }));
       }
 
       var appLine = '<div class="collection-today" style="padding-top:2px;">Logged via app ' +
@@ -633,12 +802,16 @@
             '<div class="collection-today">Today <strong class="num">' + fmtRs(d.todayCollected || 0) + '</strong></div>' +
             '<div class="progress-track"><div class="progress-fill money' + (cDone ? ' done' : '') + '" style="width:' + cPctClamped + '%"></div></div>' +
             '<div class="progress-meta"><span class="num">' + fmtRs(d.monthCollected) + ' / ' + fmtRs(d.collectionTarget) + ' this month</span>' +
-            '<span class="pct num">' + Math.round(cPctClamped) + '%</span></div>' + cBalanceLine + '</div>';
+            '<span class="pct num">' + Math.round(cPctClamped) + '%</span></div>' + cBalanceLine +
+            (cDone ? '' : projLineHtml_(d.monthCollected, d.collectionTarget, fmtRs)) + '</div>';
         }
       }
 
+      var cardShareBtn = '<button type="button" class="share-icon-btn small" data-share-dsr="' + d.name + '" title="Share ' + d.name + '\'s results" style="margin-left:6px;">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg></button>';
+
       return '<div class="card' + (d.error && d.salesError ? ' stale' : '') + '"><div class="card-head"><div><p class="card-name">' + d.name + '</p>' +
-        '<p class="card-territory">' + d.territory + '</p></div>' + salesPill + '</div>' +
+        '<p class="card-territory">' + d.territory + '</p></div><div style="display:flex;align-items:center;">' + salesPill + cardShareBtn + '</div></div>' +
         salesBody + appLine + collectionBlock + '</div>';
     }).join('');
   }
@@ -923,6 +1096,10 @@
       });
     });
 
+    // Cached for the Share button (buildShareTextAttn_ below) so it
+    // doesn't need to recompute this from scratch - added 20 Sep 2026.
+    lastAttnSummary = { totalOwed: totalOwed, c30: c30, c60: c60, c90: c90, sum30: sum30, sum60: sum60, sum90: sum90, byDsr: byDsr };
+
     // Cards below show ATTN_CARD_LIMIT by default, click the DSR name to
     // open a modal with EVERYONE overdue for that DSR - uncapped as of 19
     // Sep 2026, per the owner's call: this is a chase list, not a top-N
@@ -1099,6 +1276,8 @@
     var totalCount = Object.keys(byDsr).reduce(function (a, k) { return a + byDsr[k].length; }, 0);
     document.getElementById('dormantLabel').textContent = 'Inactive dealers — ' + totalCount +
       ' (sold within ' + DORMANT_MAX_DAYS + ' days, nothing ordered this month)';
+    // Cached for the Share button (buildShareTextInactive_ below) - added 20 Sep 2026.
+    lastDormantSummary = { totalCount: totalCount, byDsr: byDsr };
 
     wrap.innerHTML = DSRS.map(function (d) {
       var full = byDsr[d.name] || [];
@@ -1122,7 +1301,335 @@
     });
   }
 
-  function render() { renderSummary(); renderSummaryMoney(); renderCards(); renderLeaderboard(); renderNeedsAttention(); renderDormant(); renderTop5(); }
+  function render() { renderSummary(); renderSummaryMoney(); renderCards(); renderLeaderboard(); renderNeedsAttention(); renderDormant(); renderTop5(); renderTrend(); renderLookupCard_(); }
+
+  // Sales + Collection trend chart, rebuilt 20 Sep 2026 on Tally-verified
+  // data (see salesTrendMap's own comment near the top of this file).
+  // Hand-drawn inline SVG line chart, no charting library - four
+  // polylines (Sales this/last month, Collection this/last month), each
+  // pair on its OWN axis scale since Sales is in Ltr and Collection is in
+  // Rs (very different magnitudes) - Sales uses --accent, Collection uses
+  // --money (the same color already used for money figures everywhere
+  // else on this dashboard), "this month" solid, "last month" faded+dashed.
+  function renderTrend() {
+    var wrap = document.getElementById('trendWrap');
+    if (trendError) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Couldn\'t load the Sales & Collection trend right now.</p>';
+      return;
+    }
+    if (salesTrendMap === null || collectionTrendMap === null) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Loading…</p>';
+      return;
+    }
+    var thisMonthKey = todayISO().slice(0, 7);
+    var lastMonthKey = lastMonthKeyISO();
+
+    // {"yyyy-MM-dd": total} -> running cumulative Ltr/Rs by day-of-month
+    // (1..N), for just one calendar month - a flat trend reads as
+    // "nothing happened that day", a climbing one shows the month's shape.
+    function cumulativeForMonth_(map, monthKey) {
+      var byDay = {};
+      Object.keys(map).forEach(function (date) {
+        if (date.slice(0, 7) !== monthKey) return;
+        var day = Number(date.slice(8, 10));
+        if (!day) return;
+        byDay[day] = (byDay[day] || 0) + (map[date] || 0);
+      });
+      var maxDay = Object.keys(byDay).length ? Math.max.apply(null, Object.keys(byDay).map(Number)) : 0;
+      var out = [];
+      var running = 0;
+      for (var d = 1; d <= maxDay; d++) {
+        running += byDay[d] || 0;
+        out.push(running);
+      }
+      return out;
+    }
+
+    var salesThis = cumulativeForMonth_(salesTrendMap, thisMonthKey);
+    var salesLast = cumulativeForMonth_(salesTrendMap, lastMonthKey);
+    var collThis = cumulativeForMonth_(collectionTrendMap, thisMonthKey);
+    var collLast = cumulativeForMonth_(collectionTrendMap, lastMonthKey);
+
+    if (!salesThis.length && !salesLast.length && !collThis.length && !collLast.length) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Tally sales or collection recorded yet to chart.</p>';
+      return;
+    }
+
+    var maxLen = Math.max(salesThis.length, salesLast.length, collThis.length, collLast.length, 2);
+    var maxSales = Math.max.apply(null, [1].concat(salesThis).concat(salesLast));
+    var maxColl = Math.max.apply(null, [1].concat(collThis).concat(collLast));
+    var W = 320, H = 130, pad = 6;
+    function pathFor(arr, maxV) {
+      if (arr.length < 2) return '';
+      return arr.map(function (v, i) {
+        var x = pad + (i / (maxLen - 1)) * (W - pad * 2);
+        var y = H - pad - (v / maxV) * (H - pad * 2);
+        return (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
+      }).join(' ');
+    }
+    var salesThisTotal = salesThis.length ? salesThis[salesThis.length - 1] : 0;
+    var salesLastTotal = salesLast.length ? salesLast[salesLast.length - 1] : 0;
+    var collThisTotal = collThis.length ? collThis[collThis.length - 1] : 0;
+    var collLastTotal = collLast.length ? collLast[collLast.length - 1] : 0;
+    wrap.innerHTML =
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:150px;" preserveAspectRatio="none">' +
+        (salesLast.length > 1 ? '<path d="' + pathFor(salesLast, maxSales) + '" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>' : '') +
+        (collLast.length > 1 ? '<path d="' + pathFor(collLast, maxColl) + '" fill="none" stroke="var(--money)" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>' : '') +
+        (salesThis.length > 1 ? '<path d="' + pathFor(salesThis, maxSales) + '" fill="none" stroke="var(--accent)" stroke-width="2.5"/>' : '') +
+        (collThis.length > 1 ? '<path d="' + pathFor(collThis, maxColl) + '" fill="none" stroke="var(--money)" stroke-width="2.5"/>' : '') +
+      '</svg>' +
+      '<div class="trend-legend">' +
+        '<span><i style="background:var(--accent);"></i>Sales this month (' + fmt(salesThisTotal) + ' Ltr)</span>' +
+        '<span><i style="background:var(--accent);opacity:0.5;"></i>Sales last month (' + fmt(salesLastTotal) + ' Ltr)</span>' +
+        '<span><i style="background:var(--money);"></i>Collection this month (' + fmtRs(collThisTotal) + ')</span>' +
+        '<span><i style="background:var(--money);opacity:0.5;"></i>Collection last month (' + fmtRs(collLastTotal) + ')</span>' +
+      '</div>' +
+      '<p class="trend-note">Tally-verified — Sales (Ltr) and Collection (Rs) each scaled to their own range so both lines stay readable together.</p>';
+  }
+
+  // Dealer lookup, added 20 Sep 2026 - a single search box across every
+  // dealer this dashboard knows about (dealerRoster, company-wide,
+  // Saravanan's folded into Chellamani's list same as everywhere else),
+  // pulling Sales/Collection/Outstanding/Last order into one card instead
+  // of making the owner hunt across Needs Attention/Dormant/Top Customers.
+  var lookupSelectedDealer = null; // {name, dsrName} or null
+  function allKnownDealers_() {
+    var out = [];
+    if (!dealerRoster) return out;
+    DSRS.forEach(function (d) {
+      var names = (dealerRoster[d.dsrName] || []).slice();
+      if (d.name === 'Chellamani' && dealerRoster['PETRONAS MDU AREA (SARAVANAN)']) {
+        names = names.concat(dealerRoster['PETRONAS MDU AREA (SARAVANAN)']);
+      }
+      names.forEach(function (name) { out.push({ name: name, dsrName: d.name, territory: d.territory }); });
+    });
+    return out;
+  }
+  function renderLookupDropdown_(filter) {
+    var dropdown = document.getElementById('lookupDropdown');
+    var term = (filter || '').trim().toLowerCase();
+    if (!term) { dropdown.hidden = true; dropdown.innerHTML = ''; return; }
+    var matches = allKnownDealers_().filter(function (r) { return r.name.toLowerCase().indexOf(term) !== -1; }).slice(0, 12);
+    if (!matches.length) { dropdown.hidden = true; dropdown.innerHTML = ''; return; }
+    dropdown.innerHTML = matches.map(function (r, i) {
+      return '<div class="lookup-dropdown-row" data-idx="' + i + '">' + r.name + ' <span style="color:var(--ink-muted);">— ' + r.dsrName + '</span></div>';
+    }).join('');
+    dropdown.hidden = false;
+    dropdown.querySelectorAll('.lookup-dropdown-row').forEach(function (el, i) {
+      el.addEventListener('click', function () {
+        lookupSelectedDealer = matches[i];
+        document.getElementById('lookupInput').value = matches[i].name;
+        dropdown.hidden = true;
+        renderLookupCard_();
+      });
+    });
+  }
+  function renderLookupCard_() {
+    var wrap = document.getElementById('lookupCardWrap');
+    if (!lookupSelectedDealer) { wrap.innerHTML = ''; return; }
+    var name = lookupSelectedDealer.name;
+    var salesRec = salesByDealer ? salesByDealer[name] : null;
+    var collRec = collectionByDealer ? collectionByDealer[name] : null;
+    var outRec = outstandingMap ? outstandingMap[name] : null;
+
+    var salesText = (salesRec && salesRec.month !== null && salesRec.month !== undefined) ? fmt(salesRec.month) + ' Ltr' : '—';
+    var collText = (collRec && collRec.month !== null && collRec.month !== undefined) ? fmtRs(collRec.month) : '—';
+    var owed = null, since = null;
+    if (outRec) {
+      var raw = (outRec.pendingAmount !== null && outRec.pendingAmount !== undefined) ? outRec.pendingAmount : outRec.balance;
+      if (raw !== null && raw !== undefined && raw < 0) { owed = Math.abs(raw); since = outRec.since; }
+    }
+    var outText = owed !== null ? fmtRs(owed) + (since ? ' (' + daysOverdue(since) + 'd)' : '') : 'No dues on record';
+    var outColor = owed !== null ? 'var(--warn)' : 'var(--ink)';
+    var lastOrderText = (salesRec && salesRec.lastSaleDate) ? (function () {
+      var s = String(salesRec.lastSaleDate);
+      var d = daysSinceYyyymmdd(s);
+      return s.slice(0, 4) + '-' + s.slice(4, 6) + '-' + s.slice(6, 8) + (d !== null ? ' (' + d + 'd ago)' : '');
+    })() : 'No recent sale on record';
+
+    wrap.innerHTML = '<div class="lookup-card">' +
+      '<p class="lookup-dealer-name">' + lookupSelectedDealer.name + '</p>' +
+      '<p class="lookup-dealer-dsr">' + lookupSelectedDealer.dsrName + ' — ' + lookupSelectedDealer.territory + '</p>' +
+      '<div class="lookup-grid">' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Sales this month</p><p class="lookup-stat-value">' + salesText + '</p></div>' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Collection this month</p><p class="lookup-stat-value">' + collText + '</p></div>' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Outstanding</p><p class="lookup-stat-value" style="color:' + outColor + ';">' + outText + '</p></div>' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Last order</p><p class="lookup-stat-value">' + lastOrderText + '</p></div>' +
+      '</div></div>';
+  }
+  document.getElementById('lookupInput').addEventListener('input', function (e) {
+    lookupSelectedDealer = null;
+    renderLookupDropdown_(e.target.value);
+  });
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('.lookup-wrap')) document.getElementById('lookupDropdown').hidden = true;
+  });
+
+  // Share/export, added 20 Sep 2026 - the owner's own wishlist item from
+  // 17 Sep 2026, finally built: turns dashboard numbers into a WhatsApp-
+  // ready text message instead of retyping them by hand. Two scopes -
+  // "share all" (everyone combined, header button) and a share button on
+  // each individual section/card (Combined Sales & Collection, Ranking,
+  // Needs Attention, Inactive Dealers, and each DSR's own card) - so a
+  // single DSR's own results can go to just them, without the rest of the
+  // company's numbers riding along. Every message opens with a short
+  // explanation of what the section means, not just bare numbers, per the
+  // owner's request that a reader without the dashboard open still
+  // understands what they're looking at.
+  function dateHeaderLine_() {
+    return new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+  function pctOf_(part, whole) { return whole > 0 ? Math.round((part / whole) * 100) : 0; }
+
+  function buildShareTextCombined_() {
+    var lines = ['COMBINED — SALES & COLLECTION — ' + dateHeaderLine_(), ''];
+    lines.push('This is the company-wide total across all ' + DSRS.length + ' DSRs combined.');
+    lines.push('');
+    var salesSynced = DSRS.filter(function (d) { return d.monthLtr !== null && !d.salesError; });
+    var todaySales = salesSynced.reduce(function (a, d) { return a + (d.todayLtr || 0); }, 0);
+    var monthSales = salesSynced.reduce(function (a, d) { return a + (d.monthLtr || 0); }, 0);
+    var targetSales = DSRS.reduce(function (a, d) { return a + (d.target || 0); }, 0);
+    lines.push('SALES (Tally-verified)');
+    lines.push('Today: ' + fmt(todaySales) + ' Ltr');
+    lines.push('This month: ' + fmt(monthSales) + ' / ' + fmt(targetSales) + ' Ltr (' + pctOf_(monthSales, targetSales) + '%)');
+    if (salesSynced.length < DSRS.length) lines.push('(' + (DSRS.length - salesSynced.length) + ' DSR(s) still waiting on today\'s Tally sync, not counted above)');
+    lines.push('');
+    var collSynced = DSRS.filter(function (d) { return d.collectionTarget > 0 && d.monthCollected !== null && !d.collectionError; });
+    var todayColl = collSynced.reduce(function (a, d) { return a + (d.todayCollected || 0); }, 0);
+    var monthColl = collSynced.reduce(function (a, d) { return a + (d.monthCollected || 0); }, 0);
+    var targetColl = DSRS.reduce(function (a, d) { return a + (d.collectionTarget || 0); }, 0);
+    lines.push('COLLECTION (Tally-verified)');
+    lines.push('Today: ' + fmtRs(todayColl));
+    lines.push('This month: ' + fmtRs(monthColl) + ' / ' + fmtRs(targetColl) + ' (' + pctOf_(monthColl, targetColl) + '%)');
+    return lines.join('\n');
+  }
+
+  function buildShareTextRanking_() {
+    var lines = ['DSR RANKING — ' + dateHeaderLine_(), ''];
+    lines.push('Each DSR ranked by their own % of monthly target reached. Sales and Collection are ranked separately since they\'re different units (Litres vs Rupees) with independent targets.');
+    lines.push('');
+    lines.push('SALES — % of target');
+    DSRS.filter(function (d) { return d.monthLtr !== null; })
+      .slice().sort(function (a, b) { return (b.monthLtr / b.target) - (a.monthLtr / a.target); })
+      .forEach(function (d, i) { lines.push((i + 1) + '. ' + d.name + ' — ' + pctOf_(d.monthLtr, d.target) + '%'); });
+    lines.push('');
+    lines.push('COLLECTION — % of target');
+    DSRS.filter(function (d) { return d.collectionTarget > 0 && d.monthCollected !== null; })
+      .slice().sort(function (a, b) { return (b.monthCollected / b.collectionTarget) - (a.monthCollected / a.collectionTarget); })
+      .forEach(function (d, i) { lines.push((i + 1) + '. ' + d.name + ' — ' + pctOf_(d.monthCollected, d.collectionTarget) + '%'); });
+    return lines.join('\n');
+  }
+
+  function buildShareTextAttn_() {
+    var lines = ['NEEDS ATTENTION — ' + dateHeaderLine_(), ''];
+    lines.push('Dealers who currently owe money, grouped by how long their oldest unpaid bill has been overdue. Total outstanding covers every genuinely-owed dealer regardless of age; the three bands below only cover debt that\'s 30+ days old, so they won\'t add up to the total (debt under 30 days isn\'t in any band).');
+    lines.push('');
+    if (!lastAttnSummary) { lines.push('(Waiting for the next Tally sync…)'); return lines.join('\n'); }
+    lines.push('Total outstanding: ' + fmtRs(lastAttnSummary.totalOwed));
+    lines.push('30-59 days overdue: ' + lastAttnSummary.c30 + ' dealer(s), ' + fmtRs(lastAttnSummary.sum30));
+    lines.push('60-89 days overdue: ' + lastAttnSummary.c60 + ' dealer(s), ' + fmtRs(lastAttnSummary.sum60));
+    lines.push('90+ days overdue: ' + lastAttnSummary.c90 + ' dealer(s), ' + fmtRs(lastAttnSummary.sum90));
+    return lines.join('\n');
+  }
+
+  function buildShareTextInactive_() {
+    var lines = ['INACTIVE DEALERS — ' + dateHeaderLine_(), ''];
+    lines.push('Dealers who bought from us within the last ' + DORMANT_MAX_DAYS + ' days but haven\'t placed an order yet this calendar month - worth a follow-up call before they go quiet for good. This is a live, same-day check: a dealer only drops off this list once they order again, and only ages out of it entirely once ' + DORMANT_MAX_DAYS + ' days have passed since their last real sale.');
+    lines.push('');
+    if (!lastDormantSummary) { lines.push('(Waiting for the next Tally sync…)'); return lines.join('\n'); }
+    lines.push('Total: ' + lastDormantSummary.totalCount + ' dealer(s)');
+    DSRS.forEach(function (d) {
+      var n = (lastDormantSummary.byDsr[d.name] || []).length;
+      if (n > 0) lines.push(d.name + ': ' + n);
+    });
+    return lines.join('\n');
+  }
+
+  function buildShareTextCard_(d) {
+    var lines = [d.name.toUpperCase() + ' — ' + dateHeaderLine_(), ''];
+    lines.push(d.territory + ' - individual results for ' + d.name + ' only.');
+    lines.push('');
+    if (d.monthLtr !== null && !d.salesError) {
+      lines.push('SALES: ' + fmt(d.monthLtr) + ' / ' + fmt(d.target) + ' Ltr (' + pctOf_(d.monthLtr, d.target) + '% of target)');
+      if (d.target > 0 && d.monthLtr < d.target) {
+        lines.push('Projected to finish: ~' + fmt(projectMonthEnd_(d.monthLtr)) + ' Ltr');
+      }
+    } else {
+      lines.push('SALES: waiting for today\'s Tally sync');
+    }
+    lines.push('');
+    if (d.collectionTarget > 0) {
+      if (d.monthCollected !== null && !d.collectionError) {
+        lines.push('COLLECTION: ' + fmtRs(d.monthCollected) + ' / ' + fmtRs(d.collectionTarget) + ' (' + pctOf_(d.monthCollected, d.collectionTarget) + '% of target)');
+      } else {
+        lines.push('COLLECTION: waiting for today\'s Tally sync');
+      }
+    }
+    return lines.join('\n');
+  }
+
+  function buildShareTextAll_() {
+    var lines = ['DSR SALES & COLLECTION SUMMARY — ' + dateHeaderLine_(), ''];
+    lines.push('Every DSR\'s own Sales and Collection % of target, followed by the company-wide combined total.');
+    lines.push('');
+    DSRS.forEach(function (d) {
+      var salesPart = (d.monthLtr !== null && !d.salesError)
+        ? fmt(d.monthLtr) + '/' + fmt(d.target) + ' Ltr (' + pctOf_(d.monthLtr, d.target) + '%)'
+        : 'waiting for sync';
+      var collPart = (d.collectionTarget > 0)
+        ? ((d.monthCollected !== null && !d.collectionError) ? fmtRs(d.monthCollected) + '/' + fmtRs(d.collectionTarget) + ' (' + pctOf_(d.monthCollected, d.collectionTarget) + '%)' : 'waiting for sync')
+        : 'n/a';
+      lines.push(d.name + ': ' + salesPart + ' | ' + collPart);
+    });
+    lines.push('');
+    lines.push('— Combined —');
+    lines.push(buildShareTextCombined_().split('\n').slice(2).join('\n'));
+    return lines.join('\n');
+  }
+
+  var shareOverlay = document.getElementById('shareOverlay');
+  var shareSheetText = document.getElementById('shareSheetText');
+  function openShareSheet_(title, text) {
+    document.getElementById('shareSheetTitle').textContent = title;
+    shareSheetText.textContent = text;
+    shareOverlay.style.display = 'flex';
+  }
+  function closeShareSheet_() { shareOverlay.style.display = 'none'; }
+  document.getElementById('shareCloseBtn').addEventListener('click', closeShareSheet_);
+  shareOverlay.addEventListener('click', function (e) { if (e.target === shareOverlay) closeShareSheet_(); });
+  document.getElementById('shareWaBtn').addEventListener('click', function () {
+    window.open('https://wa.me/?text=' + encodeURIComponent(shareSheetText.textContent), '_blank', 'noopener');
+  });
+  document.getElementById('shareCopyBtn').addEventListener('click', function () {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareSheetText.textContent).catch(function () {});
+    }
+  });
+
+  document.getElementById('shareAllBtn').addEventListener('click', function () {
+    openShareSheet_('Share full summary (all ' + DSRS.length + ' DSRs)', buildShareTextAll_());
+  });
+  document.getElementById('shareCombinedBtn').addEventListener('click', function () {
+    openShareSheet_('Share Combined — Sales & Collection', buildShareTextCombined_());
+  });
+  document.getElementById('shareRankingBtn').addEventListener('click', function () {
+    openShareSheet_('Share Ranking', buildShareTextRanking_());
+  });
+  document.getElementById('shareAttnBtn').addEventListener('click', function () {
+    openShareSheet_('Share Needs attention', buildShareTextAttn_());
+  });
+  document.getElementById('shareInactiveBtn').addEventListener('click', function () {
+    openShareSheet_('Share Inactive dealers', buildShareTextInactive_());
+  });
+  // Per-card share buttons are re-rendered every refresh (renderCards()),
+  // so this is delegated on the cards container rather than bound once.
+  document.getElementById('cards').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-share-dsr]');
+    if (!btn) return;
+    var dsrName = btn.getAttribute('data-share-dsr');
+    var d = DSRS.filter(function (x) { return x.name === dsrName; })[0];
+    if (d) openShareSheet_('Share ' + d.name + '\'s results', buildShareTextCard_(d));
+  });
   render();
 
   function setNote(msg, isErr) {
@@ -1211,9 +1718,20 @@
         });
         if (res && res.ok && res.salesByDealer) salesByDealer = res.salesByDealer;
         if (res && res.ok && res.salesByItem) salesByItem = res.salesByItem;
+
+        // Sales + Collection trend, rebuilt 20 Sep 2026 on the same
+        // ?type=live response - see salesTrendMap's own comment above.
+        if (res && res.ok) {
+          salesTrendMap = res.salesTrend || {};
+          collectionTrendMap = res.collectionTrend || {};
+          trendError = false;
+        } else {
+          trendError = true;
+        }
       })
       .catch(function () {
         DSRS.forEach(function (d) { if (d.collectionTarget > 0) d.collectionError = true; d.salesError = true; });
+        trendError = true;
       });
   }
 
