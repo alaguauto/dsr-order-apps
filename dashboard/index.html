@@ -263,6 +263,10 @@
   .balance-line.done strong { color: var(--good); }
   .balance-line.money strong { color: var(--money); }
   .balance-line.money.done strong { color: var(--good); }
+  /* "MB" (dealers billed this month) + avg Ltr/dealer, added 20 Sep 2026. */
+  .mb-line { font-size: 12.5px; color: var(--ink-secondary); padding-top: 6px; }
+  .mb-line strong { font-weight: 700; color: var(--ink); }
+  .mb-line.money strong { color: var(--money); }
 
   .collection-block { padding-top: 13px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 10px; }
   .collection-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
@@ -327,6 +331,11 @@
   .lookup-dropdown-row:hover { background: var(--surface-2); }
   .lookup-card { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
   .lookup-dealer-name { font-family: 'Archivo', system-ui, sans-serif; font-weight: 700; font-size: 16px; margin: 0 0 2px; }
+  /* Clear + Share on the lookup result card, added 20 Sep 2026. */
+  .lookup-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .lookup-card-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .lookup-clear-btn { font-size: 11.5px; font-weight: 600; color: var(--ink-secondary); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+  .lookup-clear-btn:hover { color: var(--ink); }
   .lookup-dealer-dsr { font-size: 12px; color: var(--ink-muted); margin: 0 0 10px; }
   .lookup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .lookup-stat { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
@@ -715,6 +724,10 @@
   var lastDormantSummary = null;
 
   function fmt(n) { return Math.round(n).toLocaleString('en-IN'); }
+  // One-decimal formatter, added 20 Sep 2026 for the "MB" avg-per-dealer
+  // line only - the owner's own worked example used one decimal place
+  // (1866/10=186.6), not fmt()'s whole-number rounding.
+  function fmt1_(n) { return (Math.round(n * 10) / 10).toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
   function fmtRs(n) { return '₹' + fmt(n); }
   function escapeAttr_(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;'); }
 
@@ -891,6 +904,46 @@
     return '<div class="rrr-line' + (cls ? ' ' + cls : '') + '">Daily required: <b>' + fmtFn(perDay) + '/day</b> for the next ' + remainingDays + ' day' + (remainingDays === 1 ? '' : 's') + '</div>';
   }
 
+  // "MB" (dealers billed this month), added 20 Sep 2026 at the owner's
+  // request - how many DISTINCT dealers a DSR actually billed this month
+  // per Tally (not orders logged - the same source as the primary Sales
+  // figure everywhere else on this dashboard), plus the average Ltr per
+  // billed dealer (monthLtr / MB). Uses knownDealerDsrMap_() (defined
+  // below, hoisted) so Chellamani's count already folds in Saravanan's
+  // dealers the same way every other per-DSR figure on this dashboard
+  // does. Needs no new Tally request or backend field - dealerRoster and
+  // salesByDealer are both already flowing in via fetchLive().
+  // Shared counter behind both mbLineHtml_() (Sales, Ltr) and
+  // mbCollectionLineHtml_() (Collection, Rs, added 20 Sep 2026 at the
+  // owner's follow-up: "like sales mb put collection also") - counts
+  // DISTINCT dealers with a real >0 "month" figure in whichever byDealer
+  // map is passed (salesByDealer or collectionByDealer), scoped to one
+  // DSR via knownDealerDsrMap_() (already folds Saravanan into
+  // Chellamani, same as every other per-DSR figure here).
+  function countMB_(dsrDisplayName, byDealerMap) {
+    if (!byDealerMap || !dealerRoster) return 0;
+    var dsrMap = knownDealerDsrMap_();
+    var mb = 0;
+    Object.keys(dsrMap).forEach(function (dealerName) {
+      if (dsrMap[dealerName] !== dsrDisplayName) return;
+      var rec = byDealerMap[dealerName];
+      if (rec && rec.month > 0) mb++;
+    });
+    return mb;
+  }
+  function mbLineHtml_(dsrDisplayName, monthLtr) {
+    var mb = countMB_(dsrDisplayName, salesByDealer);
+    if (mb === 0) return '';
+    var avg = monthLtr / mb;
+    return '<div class="mb-line">Dealers billed this month (MB): <strong class="num">' + mb + '</strong> · Avg <strong class="num">' + fmt1_(avg) + ' Ltr</strong>/dealer</div>';
+  }
+  function mbCollectionLineHtml_(dsrDisplayName, monthCollected) {
+    var mb = countMB_(dsrDisplayName, collectionByDealer);
+    if (mb === 0) return '';
+    var avg = monthCollected / mb;
+    return '<div class="mb-line money">Dealers who paid this month (MB): <strong class="num">' + mb + '</strong> · Avg <strong class="num">' + fmtRs(avg) + '</strong>/dealer</div>';
+  }
+
   function renderCards() {
     document.getElementById('cards').innerHTML = DSRS.map(function (d) {
       var salesPill, salesBody;
@@ -913,7 +966,8 @@
           '<span class="today-caption">Ltr sold today (Tally)</span></div>' +
           '<div class="progress-track"><div class="progress-fill' + (done ? ' done' : '') + '" style="width:' + pctClamped + '%"></div></div>' +
           '<div class="progress-meta"><span class="num">' + fmt(d.monthLtr) + ' / ' + fmt(d.target) + ' Ltr this month</span>' +
-          '<span class="pct num">' + Math.round(pctClamped) + '%</span></div>' + balanceLine +
+          '<span class="pct num">' + Math.round(pctClamped) + '%</span></div>' +
+          mbLineHtml_(d.name, d.monthLtr) + balanceLine +
           (done ? '' : projLineHtml_(d.monthLtr, d.target, function (n) { return fmt(n) + ' Ltr'; })) +
           (done ? '' : dailyRunRateHtml_(balance, function (n) { return fmt(n) + ' Ltr'; }));
       }
@@ -942,7 +996,8 @@
             '<div class="collection-today">Today <strong class="num">' + fmtRs(d.todayCollected || 0) + '</strong></div>' +
             '<div class="progress-track"><div class="progress-fill money' + (cDone ? ' done' : '') + '" style="width:' + cPctClamped + '%"></div></div>' +
             '<div class="progress-meta"><span class="num">' + fmtRs(d.monthCollected) + ' / ' + fmtRs(d.collectionTarget) + ' this month</span>' +
-            '<span class="pct num">' + Math.round(cPctClamped) + '%</span></div>' + cBalanceLine +
+            '<span class="pct num">' + Math.round(cPctClamped) + '%</span></div>' +
+            mbCollectionLineHtml_(d.name, d.monthCollected) + cBalanceLine +
             (cDone ? '' : projLineHtml_(d.monthCollected, d.collectionTarget, fmtRs)) +
             (cDone ? '' : dailyRunRateHtml_(cBalance, fmtRs, 'money')) + '</div>';
         }
@@ -1793,8 +1848,13 @@
     })() : 'No recent payment on record';
 
     wrap.innerHTML = '<div class="lookup-card">' +
-      '<p class="lookup-dealer-name">' + lookupSelectedDealer.name + '</p>' +
-      '<p class="lookup-dealer-dsr">' + lookupSelectedDealer.dsrName + ' — ' + lookupSelectedDealer.territory + '</p>' +
+      '<div class="lookup-card-head"><div>' +
+        '<p class="lookup-dealer-name">' + lookupSelectedDealer.name + '</p>' +
+        '<p class="lookup-dealer-dsr">' + lookupSelectedDealer.dsrName + ' — ' + lookupSelectedDealer.territory + '</p>' +
+      '</div><div class="lookup-card-actions">' +
+        '<button type="button" class="lookup-clear-btn" id="lookupClearBtn" title="Clear the searched dealer">Clear</button>' +
+        '<button type="button" class="share-icon-btn small" id="lookupShareBtn" title="Share ' + lookupSelectedDealer.name + '\'s card">' + SHARE_ICON_SVG + '</button>' +
+      '</div></div>' +
       '<div class="lookup-grid">' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Sales this month</p><p class="lookup-stat-value">' + salesText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Collection this month</p><p class="lookup-stat-value">' + collText + '</p></div>' +
@@ -1803,6 +1863,27 @@
         '<div class="lookup-stat"><p class="lookup-stat-label">Last payment</p><p class="lookup-stat-value">' + lastPaymentText + '</p></div>' +
       '</div></div>';
   }
+  function buildShareTextLookup_() {
+    if (!lookupSelectedDealer) return '';
+    return 'See attached image for ' + lookupSelectedDealer.name + '\'s details (Sales, Collection, Outstanding, Last order/payment).';
+  }
+  // Clear + Share on the lookup card, added 20 Sep 2026 at the owner's
+  // request - delegated on #lookupCardWrap (bound once) since the card
+  // itself is torn down and rebuilt on every renderLookupCard_() call.
+  document.getElementById('lookupCardWrap').addEventListener('click', function (e) {
+    if (e.target.closest('#lookupClearBtn')) {
+      lookupSelectedDealer = null;
+      document.getElementById('lookupInput').value = '';
+      document.getElementById('lookupDropdown').hidden = true;
+      renderLookupCard_();
+      return;
+    }
+    if (e.target.closest('#lookupShareBtn') && lookupSelectedDealer) {
+      var lookupCardEl = document.querySelector('.lookup-card');
+      openShareSheet_('Share ' + lookupSelectedDealer.name + '\'s card', lookupCardEl,
+        lookupSelectedDealer.name + ' — ' + dateHeaderLine_(), buildShareTextLookup_());
+    }
+  });
   document.getElementById('lookupInput').addEventListener('input', function (e) {
     lookupSelectedDealer = null;
     renderLookupDropdown_(e.target.value);
