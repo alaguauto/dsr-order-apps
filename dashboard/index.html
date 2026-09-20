@@ -303,6 +303,18 @@
   .trend-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
   .trend-note { font-size: 11.5px; color: var(--ink-muted); margin: 8px 0 0; font-style: italic; }
 
+  /* Collection-to-Sales Ratio ("Collection Health"), added 20 Sep 2026 -
+     .ratio-wrap reuses .trend-wrap's card styling (background/border/
+     padding/shadow) so it sits visually consistent with the trend
+     charts right above it. */
+  .ratio-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); margin-bottom: 22px; }
+  .ratio-figure { font-size: 34px; font-weight: 800; margin: 6px 0 10px; color: var(--good); }
+  .ratio-figure.warn { color: var(--warn); }
+  .ratio-figure-label { font-size: 12.5px; font-weight: 500; color: var(--ink-secondary); margin-left: 8px; }
+  .ratio-banner { font-size: 13px; font-weight: 600; padding: 10px 12px; border-radius: 10px; margin-bottom: 10px; }
+  .ratio-banner.warn { background: var(--warn-soft); color: var(--warn); }
+  .ratio-banner.ok { background: var(--good-soft); color: var(--good); }
+
   /* Dealer lookup, added 20 Sep 2026 - a plain text search across every
      dealer this dashboard knows about (dealerRoster, company-wide),
      pulling together figures otherwise scattered across Needs Attention/
@@ -327,6 +339,12 @@
   .proj-line b { font-weight: 700; }
   .proj-line.behind b { color: var(--warn); }
   .proj-line.ahead b { color: var(--good); }
+  /* Daily Required Run-Rate, added 20 Sep 2026 - sits right under proj-line,
+     same visual weight, no extra border (reads as one continuous block with
+     the projection line just above it). */
+  .rrr-line { font-size: 12.5px; color: var(--ink-secondary); padding-top: 4px; }
+  .rrr-line b { font-weight: 700; color: var(--accent); }
+  .rrr-line.money b { color: var(--money); }
 
   /* Share/export, added 20 Sep 2026 - reuses the same overlay/sheet
      pattern as Dormant/Needs Attention/Top 5's modals (shared CSS
@@ -344,7 +362,29 @@
   .share-sheet-actions { display: flex; gap: 8px; }
   .share-sheet-actions button { flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; font-size: 13.5px; }
   .share-sheet-actions .wa-btn { background: #25D366; color: #06210F; }
+  .share-sheet-actions .email-btn { background: var(--live); color: #ffffff; }
+  .share-sheet-actions button:disabled { opacity: 0.5; cursor: default; }
   .share-sheet-actions .copy-btn, .share-sheet-actions .close-btn { background: var(--surface-2); color: var(--ink); }
+  /* Share sheet rebuilt 20 Sep 2026 - now shows an image PREVIEW of what
+     will actually be shared (the owner's own words: "the same card what
+     i am seeing has to be shared not the summary") instead of a text
+     block, plus a small status line while html2canvas is still capturing. */
+  .share-preview-wrap { background: var(--surface-2); border-radius: 10px; padding: 8px; margin: 0 0 12px; max-height: 320px; overflow-y: auto; display: flex; align-items: center; justify-content: center; min-height: 80px; }
+  .share-preview-img { width: 100%; height: auto; border-radius: 6px; display: block; }
+  .share-sheet-status { font-size: 12.5px; color: var(--ink-muted); margin: 0 0 12px; text-align: center; }
+  /* Hides every share/action button while html2canvas is capturing a
+     section/card, so the shared image shows the data only, not the
+     button chrome sitting on top of it. Also hides any open modal
+     (.dormant-overlay covers shareOverlay itself plus attn/dormant/top5's
+     "see all" sheets) - real bug found on the "Share full summary"
+     capture: its target is .page, and shareOverlay is opened (already
+     part of .page's DOM) before the capture runs, so the modal -
+     "Preparing image…", the two action buttons, the dimmed backdrop - was
+     getting captured INTO the image instead of just the dashboard behind
+     it. Hiding it for the capture's duration and letting it reappear
+     right after (still `display:flex` in its own inline style - this
+     rule only overrides it while .capturing is present) fixes that. */
+  .capturing .share-icon-btn, .capturing .refresh-btn, .capturing .dormant-overlay { display: none !important; }
   .rank-value { font-weight: 600; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
   /* Dormant rows' value grows once the outstanding amount/date is appended
      (added 19 Sep 2026) - let it wrap to 2 lines and cap its width instead
@@ -370,7 +410,7 @@
   <header class="top">
     <div>
       <p class="eyebrow">Petronas Lubricants · DSR Sales &amp; Collection</p>
-      <h1>Today's Sales &amp; Collection</h1>
+      <h1>Sales &amp; Collection Dashboard</h1>
     </div>
     <div class="top-meta">
       <span id="sourceLabel">Loading current sales…</span><br>
@@ -389,32 +429,67 @@
     </button>
   </div>
 
-  <div class="section-label-row">
-    <p class="section-label">Combined — Sales &amp; Collection</p>
-    <button type="button" class="share-icon-btn small" id="shareCombinedBtn" title="Share combined Sales &amp; Collection">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
-    </button>
-  </div>
-  <div class="summary" id="summary"></div>
-
-  <p class="section-label">Combined — Collection</p>
-  <div class="summary money" id="summaryMoney"></div>
-
-  <div class="section-label-row">
-    <p class="section-label">Ranking</p>
-    <button type="button" class="share-icon-btn small" id="shareRankingBtn" title="Share Ranking">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
-    </button>
-  </div>
-  <div class="leaderboard">
-    <div class="leaderboard-panel">
-      <p class="leaderboard-title">Sales — % of target</p>
-      <div id="salesRanking"></div>
+  <!-- captureSummary wraps Combined+Ratio+Ranking together, added 20 Sep
+       2026 so "Share full summary" has a bounded capture target instead
+       of the whole scrollable .page - capturing the ENTIRE page (every
+       DSR card, every Needs Attention/Inactive dealer) produced an
+       extremely tall, narrow image that WhatsApp then has to shrink so
+       much to fit a preview/screen that the text becomes unreadably
+       small (the owner's own report: "its not readable -font very low
+       small"). Combined/Ratio/Ranking together is roughly one to two
+       screens tall - legible at WhatsApp's normal preview size - and
+       still covers what "full summary" means (the company-wide numbers),
+       while every individual DSR/dealer's own card stays separately
+       shareable exactly as before via its own share button. -->
+  <div id="captureSummary">
+  <div id="captureCombined">
+    <div class="section-label-row">
+      <p class="section-label">Combined — Sales &amp; Collection</p>
+      <button type="button" class="share-icon-btn small" id="shareCombinedBtn" title="Share combined Sales &amp; Collection">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+      </button>
     </div>
-    <div class="leaderboard-panel">
-      <p class="leaderboard-title">Collection — % of target</p>
-      <div id="collectionRanking"></div>
+    <div class="summary" id="summary"></div>
+
+    <p class="section-label">Combined — Collection</p>
+    <div class="summary money" id="summaryMoney"></div>
+  </div>
+
+  <!-- Collection-to-Sales Ratio ("Collection Health"), added 20 Sep 2026
+       at the owner's request - warns when cash collected is lagging
+       sales billed in the same calendar week (Mon-Sun), before the
+       90+ day overdue bucket grows. See renderCollectionRatio_() below
+       for the week-boundary math and the Rs-value sales figure this
+       needed (salesRsTrendMap - see tally_live_watcher.py's
+       daily_rs_totals in fetch_sales()). -->
+  <div id="captureRatio">
+    <div class="section-label-row">
+      <p class="section-label">Collection Health — this week</p>
+      <button type="button" class="share-icon-btn small" id="shareRatioBtn" title="Share Collection Health">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+      </button>
     </div>
+    <div class="ratio-wrap" id="ratioWrap"></div>
+  </div>
+
+  <div id="captureRanking">
+    <div class="section-label-row">
+      <p class="section-label">Ranking</p>
+      <button type="button" class="share-icon-btn small" id="shareRankingBtn" title="Share Ranking">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+      </button>
+    </div>
+    <div class="leaderboard">
+      <div class="leaderboard-panel">
+        <p class="leaderboard-title">Sales — % of target</p>
+        <div id="salesRanking"></div>
+      </div>
+      <div class="leaderboard-panel">
+        <p class="leaderboard-title">Collection — % of target</p>
+        <div id="collectionRanking"></div>
+      </div>
+    </div>
+  </div>
   </div>
 
   <p class="section-label">Dealer lookup</p>
@@ -424,25 +499,32 @@
     <div id="lookupCardWrap"></div>
   </div>
 
-  <p class="section-label">Sales &amp; Collection trend</p>
+  <p class="section-label">Sales &amp; Collection trend — this month vs last month</p>
   <div class="trend-wrap" id="trendWrap"></div>
 
-  <div class="section-label-row">
-    <p class="section-label">Needs attention</p>
-    <button type="button" class="share-icon-btn small" id="shareAttnBtn" title="Share Needs attention">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
-    </button>
-  </div>
-  <div class="summary attn" id="attentionStats"></div>
-  <div class="cards" id="overdueByDsr" style="margin-bottom:22px;"></div>
+  <p class="section-label" id="trendBarsLabel">Daily spikes</p>
+  <div class="trend-wrap" id="trendBarsWrap"></div>
 
-  <div class="section-label-row">
-    <p class="section-label" id="dormantLabel">Inactive dealers</p>
-    <button type="button" class="share-icon-btn small" id="shareInactiveBtn" title="Share Inactive dealers">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
-    </button>
+  <div id="captureAttn">
+    <div class="section-label-row">
+      <p class="section-label">Needs attention</p>
+      <button type="button" class="share-icon-btn small" id="shareAttnBtn" title="Share Needs attention">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+      </button>
+    </div>
+    <div class="summary attn" id="attentionStats"></div>
+    <div class="cards" id="overdueByDsr" style="margin-bottom:22px;"></div>
   </div>
-  <div class="cards" id="dormantByDsr" style="margin-bottom:22px;"></div>
+
+  <div id="captureInactive">
+    <div class="section-label-row">
+      <p class="section-label" id="dormantLabel">Inactive dealers</p>
+      <button type="button" class="share-icon-btn small" id="shareInactiveBtn" title="Share Inactive dealers">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+      </button>
+    </div>
+    <div class="cards" id="dormantByDsr" style="margin-bottom:22px;"></div>
+  </div>
 
   <p class="section-label">By DSR</p>
   <div class="cards" id="cards"></div>
@@ -511,11 +593,18 @@
     </div>
   </div>
 
-  <!-- Share/export preview, added 20 Sep 2026 - one shared modal reused by
-       every share trigger on the page (header "share all", each section's
-       own share icon, each DSR card's own share icon) - whichever trigger
-       was tapped just fills in the title/text before opening it. Same
-       overlay/sheet visual language as the other modals above. -->
+  <!-- Share/export preview, rebuilt 20 Sep 2026 - one shared modal reused
+       by every share trigger on the page (header "share all", each
+       section's own share icon, each DSR card's own share icon) -
+       whichever trigger was tapped fills in the title and captures its
+       own DOM element as an image before opening it. Shows an actual
+       PREVIEW of that image (the owner's own words: "the same card what
+       i am seeing has to be shared not the summary") rather than a text
+       block; WhatsApp shares that image directly, Email downloads it as
+       a PDF and opens the default mail app with the same text this modal
+       used to show as its body (see buildShareText*() - still used, just
+       repurposed as the email body instead of the WhatsApp message).
+       Same overlay/sheet visual language as the other modals above. -->
   <div class="dormant-overlay" id="shareOverlay" style="display:none;">
     <div class="dormant-sheet">
       <div class="dormant-sheet-head">
@@ -524,15 +613,25 @@
         </div>
         <button type="button" class="dormant-close" id="shareCloseBtn" aria-label="Close">&times;</button>
       </div>
-      <pre class="share-sheet-text" id="shareSheetText"></pre>
+      <p class="share-sheet-status" id="shareSheetStatus">Preparing image…</p>
+      <div class="share-preview-wrap" id="sharePreviewWrap"></div>
       <div class="share-sheet-actions">
-        <button type="button" class="wa-btn" id="shareWaBtn">Send on WhatsApp</button>
-        <button type="button" class="copy-btn" id="shareCopyBtn">Copy</button>
+        <button type="button" class="wa-btn" id="shareWaBtn" disabled>Share on WhatsApp</button>
+        <button type="button" class="email-btn" id="shareEmailBtn" disabled>Email as PDF</button>
       </div>
     </div>
   </div>
 </div>
 
+<!-- Added 20 Sep 2026 for the image/PDF share rebuild - html2canvas turns a
+     section/card/row's live DOM into a PNG (see captureElementToBlob_),
+     jsPDF wraps that PNG into a one-page PDF for the Email button. Loaded
+     from cdnjs same as every other external script this codebase's own
+     conventions allow; both fail silently into a "couldn't prepare"
+     message in the share sheet if the CDN is unreachable, rather than
+     breaking the rest of the dashboard. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
   var ORDERS_API_URL = "https://script.google.com/macros/s/AKfycbxppCHNsSlDGVY5gWKC-N2MKJ4wrLOd97FsKC19-SXjg9NPh4myip5Ht4h5R1dDlSl4GQ/exec";
 
@@ -600,6 +699,12 @@
   var salesTrendMap = null;
   var collectionTrendMap = null;
   var trendError = false;
+  // Rs-value twin of salesTrendMap, added 20 Sep 2026 for the Collection-
+  // to-Sales Ratio ("Collection Health") - see renderCollectionRatio_()
+  // and tally_live_watcher.py's daily_rs_totals in fetch_sales(). Same
+  // {"yyyy-MM-dd": rs} shape, same this-month+last-month coverage, just
+  // Rupees billed instead of Litres sold.
+  var salesRsTrendMap = null;
 
   // Share/export, added 20 Sep 2026 - these two caches let the Needs
   // Attention/Inactive Dealers share buttons reuse numbers their own
@@ -611,6 +716,14 @@
 
   function fmt(n) { return Math.round(n).toLocaleString('en-IN'); }
   function fmtRs(n) { return '₹' + fmt(n); }
+  function escapeAttr_(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;'); }
+
+  // Shared "share" icon (3 dots + 2 lines) - was inlined separately on
+  // every share-icon-btn; pulled into one constant 20 Sep 2026 when the
+  // per-DSR-card share buttons were added to Needs Attention/Inactive
+  // Dealers (see renderNeedsAttention_()/renderDormant()'s card builders)
+  // so that new markup isn't a fourth copy of the same long SVG string.
+  var SHARE_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>';
 
   // On-pace vs behind-pace, added 18 Sep 2026 - "expected pace" = how far
   // through the current month we are (today's day / days in this month),
@@ -752,6 +865,32 @@
     return '<div class="proj-line ' + cls + '">Projected to finish month: <b>' + fmtFn(projected) + '</b> — ' + verb + '</div>';
   }
 
+  // Daily Required Run-Rate (RRR), added 20 Sep 2026 at the owner's request
+  // ("Add a 'Daily Ltr Required' metric that calculates exactly how much
+  // volume each rep needs to sell per remaining working day to hit their
+  // target"). Different question from projLineHtml_ above: that one asks
+  // "if the rest of the month goes like it has so far, where do I land" -
+  // this one asks "starting from where I actually stand right now, how
+  // much do I need EVERY remaining day to land exactly on target." Working
+  // day = any remaining calendar day (this project has no holiday/Sunday
+  // calendar to draw on, so "remaining days in the month" is the simplest
+  // correct default - worth revisiting if the owner wants Sundays excluded).
+  // balance is target-so-far (same value balanceLine already computed),
+  // only called when balance > 0 (a DSR who already hit target has no RRR
+  // to show, same gating projLineHtml_'s callers already do via `done`).
+  function dailyRunRateHtml_(balance, fmtFn, cls) {
+    if (!(balance > 0)) return '';
+    var now = new Date();
+    var daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    var dayOfMonth = now.getDate();
+    var remainingDays = daysInMonth - dayOfMonth; // days strictly AFTER today
+    if (remainingDays <= 0) {
+      return '<div class="rrr-line' + (cls ? ' ' + cls : '') + '">Last day of the month — <b>' + fmtFn(balance) + '</b> still needed today</div>';
+    }
+    var perDay = balance / remainingDays;
+    return '<div class="rrr-line' + (cls ? ' ' + cls : '') + '">Daily required: <b>' + fmtFn(perDay) + '/day</b> for the next ' + remainingDays + ' day' + (remainingDays === 1 ? '' : 's') + '</div>';
+  }
+
   function renderCards() {
     document.getElementById('cards').innerHTML = DSRS.map(function (d) {
       var salesPill, salesBody;
@@ -775,7 +914,8 @@
           '<div class="progress-track"><div class="progress-fill' + (done ? ' done' : '') + '" style="width:' + pctClamped + '%"></div></div>' +
           '<div class="progress-meta"><span class="num">' + fmt(d.monthLtr) + ' / ' + fmt(d.target) + ' Ltr this month</span>' +
           '<span class="pct num">' + Math.round(pctClamped) + '%</span></div>' + balanceLine +
-          (done ? '' : projLineHtml_(d.monthLtr, d.target, function (n) { return fmt(n) + ' Ltr'; }));
+          (done ? '' : projLineHtml_(d.monthLtr, d.target, function (n) { return fmt(n) + ' Ltr'; })) +
+          (done ? '' : dailyRunRateHtml_(balance, function (n) { return fmt(n) + ' Ltr'; }));
       }
 
       var appLine = '<div class="collection-today" style="padding-top:2px;">Logged via app ' +
@@ -803,7 +943,8 @@
             '<div class="progress-track"><div class="progress-fill money' + (cDone ? ' done' : '') + '" style="width:' + cPctClamped + '%"></div></div>' +
             '<div class="progress-meta"><span class="num">' + fmtRs(d.monthCollected) + ' / ' + fmtRs(d.collectionTarget) + ' this month</span>' +
             '<span class="pct num">' + Math.round(cPctClamped) + '%</span></div>' + cBalanceLine +
-            (cDone ? '' : projLineHtml_(d.monthCollected, d.collectionTarget, fmtRs)) + '</div>';
+            (cDone ? '' : projLineHtml_(d.monthCollected, d.collectionTarget, fmtRs)) +
+            (cDone ? '' : dailyRunRateHtml_(cBalance, fmtRs, 'money')) + '</div>';
         }
       }
 
@@ -1115,8 +1256,9 @@
         ? '<p class="card-name-hint">+' + (full.length - ATTN_CARD_LIMIT) + ' more - click name to see all ' + full.length + '</p>'
         : (full.length > 0 ? '<p class="card-name-hint">Click name for details</p>' : '');
       var nameCls = full.length > 0 ? 'card-name clickable' : 'card-name';
+      var shareBtn = '<button type="button" class="share-icon-btn small" data-share-attn-dsr="' + escapeAttr_(d.name) + '" title="Share ' + escapeAttr_(d.name) + '\'s Needs Attention card" style="margin-left:6px;">' + SHARE_ICON_SVG + '</button>';
       return '<div class="card"><div class="card-head"><div><p class="' + nameCls + '" data-dsr="' + d.name + '">' + d.name + '</p>' +
-        '<p class="card-territory">' + d.territory + '</p>' + moreHint + '</div></div>' + body + '</div>';
+        '<p class="card-territory">' + d.territory + '</p>' + moreHint + '</div>' + shareBtn + '</div>' + body + '</div>';
     }).join('');
 
     listEl.querySelectorAll('.card-name.clickable').forEach(function (el) {
@@ -1289,8 +1431,9 @@
         ? '<p class="card-name-hint">+' + (full.length - DORMANT_CARD_LIMIT) + ' more - click name to see all ' + full.length + '</p>'
         : (full.length > 0 ? '<p class="card-name-hint">Click name for details</p>' : '');
       var nameCls = full.length > 0 ? 'card-name clickable' : 'card-name';
+      var shareBtn = '<button type="button" class="share-icon-btn small" data-share-dormant-dsr="' + escapeAttr_(d.name) + '" title="Share ' + escapeAttr_(d.name) + '\'s Inactive Dealers card" style="margin-left:6px;">' + SHARE_ICON_SVG + '</button>';
       return '<div class="card"><div class="card-head"><div><p class="' + nameCls + '" data-dsr="' + d.name + '">' + d.name + '</p>' +
-        '<p class="card-territory">' + d.territory + '</p>' + moreHint + '</div></div>' + body + '</div>';
+        '<p class="card-territory">' + d.territory + '</p>' + moreHint + '</div>' + shareBtn + '</div>' + body + '</div>';
     }).join('');
 
     wrap.querySelectorAll('.card-name.clickable').forEach(function (el) {
@@ -1301,7 +1444,7 @@
     });
   }
 
-  function render() { renderSummary(); renderSummaryMoney(); renderCards(); renderLeaderboard(); renderNeedsAttention(); renderDormant(); renderTop5(); renderTrend(); renderLookupCard_(); }
+  function render() { renderSummary(); renderSummaryMoney(); renderCards(); renderLeaderboard(); renderNeedsAttention(); renderDormant(); renderTop5(); renderTrend(); renderTrendBars(); renderCollectionRatio_(); renderLookupCard_(); }
 
   // Sales + Collection trend chart, rebuilt 20 Sep 2026 on Tally-verified
   // data (see salesTrendMap's own comment near the top of this file).
@@ -1358,25 +1501,45 @@
     var maxLen = Math.max(salesThis.length, salesLast.length, collThis.length, collLast.length, 2);
     var maxSales = Math.max.apply(null, [1].concat(salesThis).concat(salesLast));
     var maxColl = Math.max.apply(null, [1].concat(collThis).concat(collLast));
-    var W = 320, H = 130, pad = 6;
+    // plotH is the drawing area for the lines themselves; H adds a band
+    // below it for the x-axis date labels (added 20 Sep 2026 at the
+    // owner's request - "both need x axis name") without squeezing the
+    // lines themselves into less vertical room.
+    var W = 320, plotH = 116, pad = 6, H = plotH + 16;
     function pathFor(arr, maxV) {
       if (arr.length < 2) return '';
       return arr.map(function (v, i) {
         var x = pad + (i / (maxLen - 1)) * (W - pad * 2);
-        var y = H - pad - (v / maxV) * (H - pad * 2);
+        var y = plotH - pad - (v / maxV) * (plotH - pad * 2);
         return (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
       }).join(' ');
+    }
+    // Sparse day-of-month labels under the x-axis - every day would be
+    // unreadable crammed into a ~350px-wide mobile card, so only day 1,
+    // the last plotted day, and every Nth day in between are shown (N
+    // widens as the month has more days plotted, so a 28-31 day month
+    // never looks more crowded than a 10-day one).
+    function xAxisLabels_() {
+      var out = '';
+      var step = maxLen > 20 ? 5 : (maxLen > 10 ? 2 : 1);
+      for (var day = 1; day <= maxLen; day++) {
+        if (day !== 1 && day !== maxLen && (day % step) !== 0) continue;
+        var x = pad + ((day - 1) / (maxLen - 1)) * (W - pad * 2);
+        out += '<text x="' + x.toFixed(1) + '" y="' + (H - 3) + '" font-size="7.5" text-anchor="middle" fill="var(--ink-muted)">' + day + '</text>';
+      }
+      return out;
     }
     var salesThisTotal = salesThis.length ? salesThis[salesThis.length - 1] : 0;
     var salesLastTotal = salesLast.length ? salesLast[salesLast.length - 1] : 0;
     var collThisTotal = collThis.length ? collThis[collThis.length - 1] : 0;
     var collLastTotal = collLast.length ? collLast[collLast.length - 1] : 0;
     wrap.innerHTML =
-      '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:150px;" preserveAspectRatio="none">' +
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:160px;" preserveAspectRatio="none">' +
         (salesLast.length > 1 ? '<path d="' + pathFor(salesLast, maxSales) + '" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>' : '') +
         (collLast.length > 1 ? '<path d="' + pathFor(collLast, maxColl) + '" fill="none" stroke="var(--money)" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>' : '') +
         (salesThis.length > 1 ? '<path d="' + pathFor(salesThis, maxSales) + '" fill="none" stroke="var(--accent)" stroke-width="2.5"/>' : '') +
         (collThis.length > 1 ? '<path d="' + pathFor(collThis, maxColl) + '" fill="none" stroke="var(--money)" stroke-width="2.5"/>' : '') +
+        xAxisLabels_() +
       '</svg>' +
       '<div class="trend-legend">' +
         '<span><i style="background:var(--accent);"></i>Sales this month (' + fmt(salesThisTotal) + ' Ltr)</span>' +
@@ -1385,6 +1548,179 @@
         '<span><i style="background:var(--money);opacity:0.5;"></i>Collection last month (' + fmtRs(collLastTotal) + ')</span>' +
       '</div>' +
       '<p class="trend-note">Tally-verified — Sales (Ltr) and Collection (Rs) each scaled to their own range so both lines stay readable together.</p>';
+  }
+
+  // "yyyy-MM" -> "September 2026", for the Daily Spikes chart's heading.
+  function monthNameLabel_(monthKey) {
+    var parts = monthKey.split('-');
+    var d = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
+    return d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  }
+
+  // Daily Spikes bar chart, added 20 Sep 2026 - the owner explicitly asked
+  // for this ALONGSIDE the month-compare line chart above ("can we do both
+  // the charts"), not instead of it: the line chart is for the month-over-
+  // month shape, this one is for spotting a single big day at a glance,
+  // which a cumulative line inherently can't show (a spike just becomes a
+  // slightly steeper slope for one segment). Grouped bars, this month
+  // only (a 4-series bar chart - two months x two metrics - was ruled out
+  // as too cluttered when this was scoped with the owner): each day gets
+  // a Sales bar (Ltr, --accent) and a Collection bar (Rs, --money) side by
+  // side, each scaled to its OWN max same as the line chart above, since
+  // the two are different units.
+  function renderTrendBars() {
+    var wrap = document.getElementById('trendBarsWrap');
+    var thisMonthKey = todayISO().slice(0, 7);
+    var labelEl = document.getElementById('trendBarsLabel');
+    if (labelEl) labelEl.textContent = 'Daily spikes — ' + monthNameLabel_(thisMonthKey);
+    if (trendError) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Couldn\'t load the daily spikes chart right now.</p>';
+      return;
+    }
+    if (salesTrendMap === null || collectionTrendMap === null) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Loading…</p>';
+      return;
+    }
+
+    // {"yyyy-MM-dd": total} -> {day: total}, this calendar month only - NOT
+    // cumulative (that's the whole point of this chart vs the line one
+    // above: each day's own number, so a single big day stands out as a
+    // visible spike instead of just a steeper slope).
+    function perDayForMonth_(map) {
+      var byDay = {};
+      Object.keys(map).forEach(function (date) {
+        if (date.slice(0, 7) !== thisMonthKey) return;
+        var day = Number(date.slice(8, 10));
+        if (!day) return;
+        byDay[day] = (byDay[day] || 0) + (map[date] || 0);
+      });
+      return byDay;
+    }
+    var salesByDay = perDayForMonth_(salesTrendMap);
+    var collByDay = perDayForMonth_(collectionTrendMap);
+    var salesDays = Object.keys(salesByDay).map(Number);
+    var collDays = Object.keys(collByDay).map(Number);
+    var maxDay = Math.max(salesDays.length ? Math.max.apply(null, salesDays) : 0, collDays.length ? Math.max.apply(null, collDays) : 0);
+
+    if (maxDay === 0) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Tally sales or collection recorded yet this month.</p>';
+      return;
+    }
+
+    var maxSales = Math.max.apply(null, [1].concat(salesDays.map(function (d) { return salesByDay[d]; })));
+    var maxColl = Math.max.apply(null, [1].concat(collDays.map(function (d) { return collByDay[d]; })));
+    var W = 320, plotH = 116, padTop = 4, padSide = 3, H = plotH + 16;
+    var groupW = (W - padSide * 2) / maxDay;
+    var barW = Math.max(1.1, groupW * 0.36);
+    var step = maxDay > 20 ? 5 : (maxDay > 10 ? 2 : 1);
+    var bars = '', labels = '';
+    for (var day = 1; day <= maxDay; day++) {
+      var gx = padSide + (day - 1) * groupW;
+      var sVal = salesByDay[day] || 0;
+      var cVal = collByDay[day] || 0;
+      var sH = (sVal / maxSales) * (plotH - padTop);
+      var cH = (cVal / maxColl) * (plotH - padTop);
+      var sX = gx + groupW * 0.12;
+      var cX = gx + groupW * 0.52;
+      bars += '<rect x="' + sX.toFixed(1) + '" y="' + (plotH - sH).toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + Math.max(0, sH).toFixed(1) + '" fill="var(--accent)" rx="1"/>';
+      bars += '<rect x="' + cX.toFixed(1) + '" y="' + (plotH - cH).toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + Math.max(0, cH).toFixed(1) + '" fill="var(--money)" rx="1"/>';
+      if (day === 1 || day === maxDay || (day % step) === 0) {
+        labels += '<text x="' + (gx + groupW / 2).toFixed(1) + '" y="' + (H - 3) + '" font-size="7.5" text-anchor="middle" fill="var(--ink-muted)">' + day + '</text>';
+      }
+    }
+    var salesTotal = salesDays.reduce(function (a, d) { return a + salesByDay[d]; }, 0);
+    var collTotal = collDays.reduce(function (a, d) { return a + collByDay[d]; }, 0);
+
+    wrap.innerHTML =
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:160px;" preserveAspectRatio="none">' + bars + labels + '</svg>' +
+      '<div class="trend-legend">' +
+        '<span><i style="background:var(--accent);"></i>Sales (' + fmt(salesTotal) + ' Ltr total)</span>' +
+        '<span><i style="background:var(--money);"></i>Collection (' + fmtRs(collTotal) + ' total)</span>' +
+      '</div>' +
+      '<p class="trend-note">Each day\'s own Sales and Collection (not running totals) — bars scaled to their own metric\'s range so both stay readable.</p>';
+  }
+
+  // Collection-to-Sales Ratio ("Collection Health"), added 20 Sep 2026 at
+  // the owner's request: "a simple percentage comparing cash collected in
+  // a given week against the sales billed in that same week" - a warning
+  // sign that Sales is spiking faster than Collection can keep up with,
+  // worth catching before it becomes 90+ day overdue debt. Week = calendar
+  // week, Monday-Sunday (the owner's choice), warns under 60% (also the
+  // owner's choice). Both Sales-in-Rs and Collection are Tally-verified,
+  // day-bucketed figures already flowing in via salesRsTrendMap/
+  // collectionTrendMap (see their own comments above) - this just sums
+  // the days that fall inside the current Mon-Sun window, no new fetch.
+  var COLLECTION_RATIO_WARN_THRESHOLD = 60; // percent
+
+  function dateToISO_(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  // [Monday, Sunday] of the calendar week containing `d`, as ["yyyy-MM-dd", "yyyy-MM-dd"].
+  function weekRangeFor_(d) {
+    var day = d.getDay(); // 0=Sun..6=Sat
+    var diffToMonday = day === 0 ? -6 : 1 - day;
+    var mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diffToMonday);
+    var sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+    return [dateToISO_(mon), dateToISO_(sun)];
+  }
+  function sumMapInRange_(map, fromISO, toISO) {
+    var total = 0;
+    Object.keys(map || {}).forEach(function (date) {
+      if (date >= fromISO && date <= toISO) total += (map[date] || 0);
+    });
+    return total;
+  }
+  function buildShareTextRatio_() {
+    var range = weekRangeFor_(new Date());
+    var weekSalesRs = sumMapInRange_(salesRsTrendMap, range[0], range[1]);
+    var weekCollRs = sumMapInRange_(collectionTrendMap, range[0], range[1]);
+    var ratio = weekSalesRs > 0 ? Math.round((weekCollRs / weekSalesRs) * 100) : null;
+    var lines = ['COLLECTION HEALTH — ' + dateHeaderLine_(), ''];
+    lines.push('Cash collected vs. sales billed, this calendar week (' + range[0] + ' to ' + range[1] + ').');
+    lines.push('');
+    lines.push('Sales billed: ' + fmtRs(weekSalesRs));
+    lines.push('Collected: ' + fmtRs(weekCollRs));
+    lines.push('Ratio: ' + (ratio === null ? 'n/a yet' : ratio + '%'));
+    if (ratio !== null && ratio < COLLECTION_RATIO_WARN_THRESHOLD) {
+      lines.push('Below the ' + COLLECTION_RATIO_WARN_THRESHOLD + '% warning line — collection is lagging sales this week.');
+    }
+    return lines.join('\n');
+  }
+  function renderCollectionRatio_() {
+    var wrap = document.getElementById('ratioWrap');
+    if (!wrap) return;
+    if (trendError) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Couldn\'t load this week\'s Collection Health right now.</p>';
+      return;
+    }
+    if (salesRsTrendMap === null || collectionTrendMap === null) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Loading…</p>';
+      return;
+    }
+    var range = weekRangeFor_(new Date());
+    var weekSalesRs = sumMapInRange_(salesRsTrendMap, range[0], range[1]);
+    var weekCollRs = sumMapInRange_(collectionTrendMap, range[0], range[1]);
+    if (weekSalesRs === 0 && weekCollRs === 0) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Tally sales or collection recorded yet this week.</p>';
+      return;
+    }
+    var ratio = weekSalesRs > 0 ? (weekCollRs / weekSalesRs) * 100 : null;
+    var isLow = ratio !== null && ratio < COLLECTION_RATIO_WARN_THRESHOLD;
+    var ratioText = ratio === null ? '—' : Math.round(ratio) + '%';
+    var bannerHtml = '';
+    if (isLow) {
+      bannerHtml = '<div class="ratio-banner warn">⚠ Collection is lagging Sales this week — worth tightening credit before overdue grows.</div>';
+    } else if (ratio !== null) {
+      bannerHtml = '<div class="ratio-banner ok">Collection is keeping pace with Sales this week.</div>';
+    }
+    wrap.innerHTML =
+      '<div class="summary">' +
+        '<div class="stat"><p class="stat-label">Sales billed, this week</p><div class="stat-value">' + fmtRs(weekSalesRs) + '</div></div>' +
+        '<div class="stat"><p class="stat-label">Collected, this week</p><div class="stat-value">' + fmtRs(weekCollRs) + '</div></div>' +
+      '</div>' +
+      '<div class="ratio-figure' + (isLow ? ' warn' : '') + '">' + ratioText + '<span class="ratio-figure-label">collected vs. billed</span></div>' +
+      bannerHtml +
+      '<p class="trend-note">Calendar week (Mon–Sun): ' + range[0] + ' to ' + range[1] + '. Warns below ' + COLLECTION_RATIO_WARN_THRESHOLD + '%.</p>';
   }
 
   // Dealer lookup, added 20 Sep 2026 - a single search box across every
@@ -1446,6 +1782,15 @@
       var d = daysSinceYyyymmdd(s);
       return s.slice(0, 4) + '-' + s.slice(4, 6) + '-' + s.slice(6, 8) + (d !== null ? ' (' + d + 'd ago)' : '');
     })() : 'No recent sale on record';
+    // Added 20 Sep 2026, alongside "Last order" above - same yyyymmdd-text
+    // shape, sourced from collectionByDealer's new lastPaymentDate field
+    // (see fetch_collection()'s lastPaymentDate fold-in and
+    // handleLiveGet_()'s collectionByDealer reader in Code.gs).
+    var lastPaymentText = (collRec && collRec.lastPaymentDate) ? (function () {
+      var s = String(collRec.lastPaymentDate);
+      var d = daysSinceYyyymmdd(s);
+      return s.slice(0, 4) + '-' + s.slice(4, 6) + '-' + s.slice(6, 8) + (d !== null ? ' (' + d + 'd ago)' : '');
+    })() : 'No recent payment on record';
 
     wrap.innerHTML = '<div class="lookup-card">' +
       '<p class="lookup-dealer-name">' + lookupSelectedDealer.name + '</p>' +
@@ -1455,6 +1800,7 @@
         '<div class="lookup-stat"><p class="lookup-stat-label">Collection this month</p><p class="lookup-stat-value">' + collText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Outstanding</p><p class="lookup-stat-value" style="color:' + outColor + ';">' + outText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Last order</p><p class="lookup-stat-value">' + lastOrderText + '</p></div>' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Last payment</p><p class="lookup-stat-value">' + lastPaymentText + '</p></div>' +
       '</div></div>';
   }
   document.getElementById('lookupInput').addEventListener('input', function (e) {
@@ -1587,39 +1933,216 @@
     return lines.join('\n');
   }
 
-  var shareOverlay = document.getElementById('shareOverlay');
-  var shareSheetText = document.getElementById('shareSheetText');
-  function openShareSheet_(title, text) {
-    document.getElementById('shareSheetTitle').textContent = title;
-    shareSheetText.textContent = text;
-    shareOverlay.style.display = 'flex';
+  // Image/PDF capture helpers, added 20 Sep 2026 replacing the original
+  // text-only share sheet - the owner's own correction: "the same card
+  // what i am seeing has to be shared not the summary". html2canvas turns
+  // the live DOM of whatever section/card/row was tapped into a PNG;
+  // jsPDF wraps that PNG into a one-page PDF for the Email button. The
+  // buildShareText*() functions above are NOT thrown away - they're now
+  // the EMAIL body text (WhatsApp gets the image only, per the owner's
+  // own split: "if click email want to convert as pdf and open outlook,
+  // whatsapp also same the image should be whatsapp").
+  function safeFileSlug_(s) {
+    return String(s || 'share').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'share';
   }
-  function closeShareSheet_() { shareOverlay.style.display = 'none'; }
+  function captureElementToBlob_(el) {
+    if (typeof html2canvas === 'undefined') return Promise.reject(new Error('html2canvas not loaded'));
+    // .capturing hides every share/action button for the duration of the
+    // shot (see the CSS rule) so the shared image shows only the data,
+    // never the buttons sitting on top of it.
+    document.body.classList.add('capturing');
+    var bg = getComputedStyle(document.body).backgroundColor || '#ffffff';
+    return html2canvas(el, { backgroundColor: bg, scale: Math.min(2, window.devicePixelRatio || 1), useCORS: true })
+      .then(function (canvas) {
+        document.body.classList.remove('capturing');
+        return new Promise(function (resolve, reject) {
+          canvas.toBlob(function (blob) { blob ? resolve(blob) : reject(new Error('toBlob failed')); }, 'image/png');
+        });
+      })
+      .catch(function (err) { document.body.classList.remove('capturing'); throw err; });
+  }
+  function downloadBlob_(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+  // PNG -> one-page PDF, sized to the image's own pixel dimensions so
+  // nothing gets cropped or padded with unrelated white space - 0.75 is
+  // the standard 96dpi(css px)->72dpi(pt) conversion, precise sizing
+  // doesn't matter here since this PDF is a picture, not a print layout.
+  function imageBlobToPdfBlob_(blob) {
+    return new Promise(function (resolve, reject) {
+      if (!window.jspdf || !window.jspdf.jsPDF) { reject(new Error('jsPDF not loaded')); return; }
+      var img = new Image();
+      var url = URL.createObjectURL(blob);
+      img.onload = function () {
+        try {
+          var jsPDF = window.jspdf.jsPDF;
+          var ptW = img.naturalWidth * 0.75, ptH = img.naturalHeight * 0.75;
+          var pdf = new jsPDF({ orientation: ptW > ptH ? 'landscape' : 'portrait', unit: 'pt', format: [ptW, ptH] });
+          pdf.addImage(img, 'PNG', 0, 0, ptW, ptH);
+          URL.revokeObjectURL(url);
+          resolve(pdf.output('blob'));
+        } catch (e) { URL.revokeObjectURL(url); reject(e); }
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('image load failed')); };
+      img.src = url;
+    });
+  }
+  // Per the owner's choice: always open the device/browser's normal share
+  // panel so he picks the team/group each time, rather than a fixed
+  // number. navigator.share with a files array IS the "share an image to
+  // WhatsApp" mechanism on phones (Android/iOS both list WhatsApp in that
+  // panel when a File is shared this way); falls back to downloading the
+  // PNG on a desktop browser that doesn't support file sharing.
+  function shareImageBlob_(blob, filename) {
+    try {
+      var file = new File([blob], filename, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        return navigator.share({ files: [file] }).catch(function (err) {
+          if (err && err.name === 'AbortError') return; // user cancelled the share sheet themselves
+          downloadBlob_(blob, filename);
+        });
+      }
+    } catch (e) { /* fall through to download */ }
+    downloadBlob_(blob, filename);
+    return Promise.resolve();
+  }
+  // A browser can't attach a file into Outlook's compose window for
+  // security reasons - the most it can do is open the mail app with a
+  // ready subject/body (confirmed with the owner as an acceptable
+  // trade-off); the PDF itself is downloaded separately just before this
+  // is called, and gets attached by hand in Outlook.
+  function openMailWithText_(subject, bodyText) {
+    window.location.href = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(bodyText);
+  }
+
+  var shareOverlay = document.getElementById('shareOverlay');
+  var sharePreviewWrap = document.getElementById('sharePreviewWrap');
+  var shareSheetStatus = document.getElementById('shareSheetStatus');
+  var shareWaBtn = document.getElementById('shareWaBtn');
+  var shareEmailBtn = document.getElementById('shareEmailBtn');
+  var currentShareBlob = null;
+  var currentShareFilenameBase = 'share';
+  var currentShareEmailSubject = '';
+  var currentShareEmailBody = '';
+
+  // captureEl is the live DOM node to screenshot - "the same card what i
+  // am seeing" - emailSubject/emailBodyText reuse the existing
+  // buildShareText*() functions as the Email button's message body.
+  // includeEmail (added after the owner's follow-up correction 20 Sep
+  // 2026: "only the full summary need to share in mail balance all only
+  // whatsapp enough no email need for all") - only the header's "Share
+  // full summary" passes true; every other trigger (Combined, Ranking,
+  // Needs Attention, Inactive Dealers, each DSR card, and the new per-
+  // DSR cards inside Needs Attention/Inactive) is WhatsApp-only, so the
+  // Email button is hidden entirely rather than just disabled for those.
+  // cleanupEl (added 20 Sep 2026, for the "full list not just 5" per-DSR
+  // card shares above) - an off-screen element built ONLY for this one
+  // capture, removed from the DOM once the capture settles (success or
+  // failure) so it never lingers. Omitted/undefined for every other
+  // share trigger, which all capture a real on-screen element that must
+  // stay exactly where it is.
+  function openShareSheet_(title, captureEl, emailSubject, emailBodyText, includeEmail, cleanupEl) {
+    document.getElementById('shareSheetTitle').textContent = title;
+    currentShareBlob = null;
+    currentShareFilenameBase = safeFileSlug_(title);
+    currentShareEmailSubject = emailSubject;
+    currentShareEmailBody = emailBodyText;
+    sharePreviewWrap.innerHTML = '';
+    shareSheetStatus.textContent = 'Preparing image…';
+    shareSheetStatus.style.display = '';
+    shareWaBtn.disabled = true;
+    shareEmailBtn.disabled = true;
+    shareEmailBtn.style.display = includeEmail ? '' : 'none';
+    shareWaBtn.style.flex = includeEmail ? '1' : '1 1 100%';
+    shareOverlay.style.display = 'flex';
+    if (!captureEl) {
+      shareSheetStatus.textContent = 'Couldn\'t find this section to capture.';
+      if (cleanupEl && cleanupEl.parentNode) cleanupEl.parentNode.removeChild(cleanupEl);
+      return;
+    }
+    captureElementToBlob_(captureEl).then(function (blob) {
+      currentShareBlob = blob;
+      var img = document.createElement('img');
+      img.className = 'share-preview-img';
+      img.src = URL.createObjectURL(blob);
+      sharePreviewWrap.innerHTML = '';
+      sharePreviewWrap.appendChild(img);
+      shareSheetStatus.style.display = 'none';
+      shareWaBtn.disabled = false;
+      shareEmailBtn.disabled = false;
+    }).catch(function () {
+      shareSheetStatus.textContent = 'Couldn\'t prepare the image — check your connection and try again.';
+    }).then(function () {
+      if (cleanupEl && cleanupEl.parentNode) cleanupEl.parentNode.removeChild(cleanupEl);
+    });
+  }
+  function closeShareSheet_() {
+    shareOverlay.style.display = 'none';
+    var img = sharePreviewWrap.querySelector('img');
+    if (img && img.src) URL.revokeObjectURL(img.src);
+    currentShareBlob = null;
+  }
   document.getElementById('shareCloseBtn').addEventListener('click', closeShareSheet_);
   shareOverlay.addEventListener('click', function (e) { if (e.target === shareOverlay) closeShareSheet_(); });
-  document.getElementById('shareWaBtn').addEventListener('click', function () {
-    window.open('https://wa.me/?text=' + encodeURIComponent(shareSheetText.textContent), '_blank', 'noopener');
+  // Both actions now auto-close the sheet once they've actually handed
+  // off to WhatsApp/the mail app (added 20 Sep 2026 per the owner:
+  // "after clicking whatsapp or email the box should automatically
+  // disappear after selecting any one") - WhatsApp closes right after
+  // handing off to the share sheet/download; Email closes only once the
+  // PDF is ready and the mail draft has actually been opened, so the
+  // "Preparing PDF…" state is still visible to the owner while it works.
+  shareWaBtn.addEventListener('click', function () {
+    if (!currentShareBlob) return;
+    shareImageBlob_(currentShareBlob, currentShareFilenameBase + '.png').then(closeShareSheet_);
   });
-  document.getElementById('shareCopyBtn').addEventListener('click', function () {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(shareSheetText.textContent).catch(function () {});
-    }
+  shareEmailBtn.addEventListener('click', function () {
+    if (!currentShareBlob) return;
+    shareEmailBtn.disabled = true;
+    shareEmailBtn.textContent = 'Preparing PDF…';
+    imageBlobToPdfBlob_(currentShareBlob).then(function (pdfBlob) {
+      downloadBlob_(pdfBlob, currentShareFilenameBase + '.pdf');
+      openMailWithText_(currentShareEmailSubject, currentShareEmailBody + '\n\n(PDF downloaded separately — attach it here before sending.)');
+    }).catch(function () {
+      // PDF step failed (e.g. jsPDF didn't load) - still open the mail
+      // draft with the text so the owner isn't blocked entirely.
+      openMailWithText_(currentShareEmailSubject, currentShareEmailBody);
+    }).then(function () {
+      shareEmailBtn.textContent = 'Email as PDF';
+      closeShareSheet_();
+    });
   });
 
   document.getElementById('shareAllBtn').addEventListener('click', function () {
-    openShareSheet_('Share full summary (all ' + DSRS.length + ' DSRs)', buildShareTextAll_());
+    // Captures #captureSummary (Combined + Collection Health + Ranking),
+    // NOT the whole .page - see the HTML comment above #captureSummary
+    // for why capturing every DSR/dealer card made the WhatsApp image
+    // unreadably small.
+    openShareSheet_('Share full summary (all ' + DSRS.length + ' DSRs)', document.getElementById('captureSummary'),
+      'DSR Sales & Collection Summary — ' + dateHeaderLine_(), buildShareTextAll_(), true);
   });
   document.getElementById('shareCombinedBtn').addEventListener('click', function () {
-    openShareSheet_('Share Combined — Sales & Collection', buildShareTextCombined_());
+    openShareSheet_('Share Combined — Sales & Collection', document.getElementById('captureCombined'),
+      'Combined — Sales & Collection — ' + dateHeaderLine_(), buildShareTextCombined_());
+  });
+  document.getElementById('shareRatioBtn').addEventListener('click', function () {
+    openShareSheet_('Share Collection Health', document.getElementById('captureRatio'),
+      'Collection Health — ' + dateHeaderLine_(), buildShareTextRatio_());
   });
   document.getElementById('shareRankingBtn').addEventListener('click', function () {
-    openShareSheet_('Share Ranking', buildShareTextRanking_());
+    openShareSheet_('Share Ranking', document.getElementById('captureRanking'),
+      'DSR Ranking — ' + dateHeaderLine_(), buildShareTextRanking_());
   });
   document.getElementById('shareAttnBtn').addEventListener('click', function () {
-    openShareSheet_('Share Needs attention', buildShareTextAttn_());
+    openShareSheet_('Share Needs attention', document.getElementById('captureAttn'),
+      'Needs Attention — ' + dateHeaderLine_(), buildShareTextAttn_());
   });
   document.getElementById('shareInactiveBtn').addEventListener('click', function () {
-    openShareSheet_('Share Inactive dealers', buildShareTextInactive_());
+    openShareSheet_('Share Inactive dealers', document.getElementById('captureInactive'),
+      'Inactive Dealers — ' + dateHeaderLine_(), buildShareTextInactive_());
   });
   // Per-card share buttons are re-rendered every refresh (renderCards()),
   // so this is delegated on the cards container rather than bound once.
@@ -1628,8 +2151,62 @@
     if (!btn) return;
     var dsrName = btn.getAttribute('data-share-dsr');
     var d = DSRS.filter(function (x) { return x.name === dsrName; })[0];
-    if (d) openShareSheet_('Share ' + d.name + '\'s results', buildShareTextCard_(d));
+    if (d) openShareSheet_('Share ' + d.name + '\'s results', btn.closest('.card'), d.name + ' — ' + dateHeaderLine_(), buildShareTextCard_(d));
   });
+  // Per-DSR-card share buttons inside Needs Attention/Inactive Dealers,
+  // added 20 Sep 2026 replacing the original per-DEALER-row icons (the
+  // owner's correction: "this single dealer sharing i dont want, i want
+  // sharing of each card fully not single single") - same pattern as the
+  // "By DSR" per-card share button above, just scoped to that DSR's own
+  // card WITHIN these two sections instead of the whole "By DSR" card.
+  // Builds an off-screen (position:absolute, left:-9999px - still fully
+  // laid out/rendered, so html2canvas can capture it) clone of a DSR's
+  // card using the FULL dealer list, not the 5-row on-screen preview -
+  // added 20 Sep 2026 after the owner flagged that sharing a card only
+  // shared the visible "5 nos" ("share the whole data ... instead of the
+  // screen 5 nos"). Matches the real card's current width so the shared
+  // image looks the same as what's on screen, just uncapped. Removed
+  // from the DOM again right after its capture (see openShareSheet_'s
+  // cleanupEl param below) - it's never actually shown to the owner.
+  function buildFullListCardEl_(referenceCardEl, dsrName, territory, fullList, rowsHtmlFn, emptyText) {
+    var width = referenceCardEl.getBoundingClientRect().width;
+    var el = document.createElement('div');
+    el.className = 'card';
+    el.style.position = 'absolute';
+    el.style.left = '-9999px';
+    el.style.top = '0';
+    el.style.width = width + 'px';
+    el.innerHTML = '<div class="card-head"><div><p class="card-name">' + dsrName + '</p>' +
+      '<p class="card-territory">' + territory + '</p></div></div>' +
+      (fullList.length ? rowsHtmlFn(fullList) : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">' + emptyText + '</p>');
+    document.body.appendChild(el);
+    return el;
+  }
+  // lastAttnSummary.byDsr/lastDormantSummary.byDsr already hold every
+  // overdue/inactive dealer for each DSR (not just the 5 shown on the
+  // card) - cached there for buildShareTextAttn_()/buildShareTextInactive_()
+  // already, reused here for the same reason.
+  document.getElementById('overdueByDsr').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-share-attn-dsr]');
+    if (!btn) return;
+    var dsrName = btn.getAttribute('data-share-attn-dsr');
+    var fullList = (lastAttnSummary && lastAttnSummary.byDsr[dsrName]) || [];
+    var d = DSRS.filter(function (x) { return x.name === dsrName; })[0];
+    var tempEl = buildFullListCardEl_(btn.closest('.card'), dsrName, d ? d.territory : '', fullList, attnRowsHtml_, 'No dealers overdue 30+ days.');
+    openShareSheet_('Share ' + dsrName + '\'s Needs Attention card (' + fullList.length + ')', tempEl,
+      dsrName + ' — Needs Attention — ' + dateHeaderLine_(), 'See attached image for ' + dsrName + '\'s overdue dealers.', false, tempEl);
+  });
+  document.getElementById('dormantByDsr').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-share-dormant-dsr]');
+    if (!btn) return;
+    var dsrName = btn.getAttribute('data-share-dormant-dsr');
+    var fullList = (lastDormantSummary && lastDormantSummary.byDsr[dsrName]) || [];
+    var d = DSRS.filter(function (x) { return x.name === dsrName; })[0];
+    var tempEl = buildFullListCardEl_(btn.closest('.card'), dsrName, d ? d.territory : '', fullList, dormantRowsHtml_, 'No inactive dealers.');
+    openShareSheet_('Share ' + dsrName + '\'s Inactive Dealers card (' + fullList.length + ')', tempEl,
+      dsrName + ' — Inactive Dealers — ' + dateHeaderLine_(), 'See attached image for ' + dsrName + '\'s inactive dealers.', false, tempEl);
+  });
+
   render();
 
   function setNote(msg, isErr) {
@@ -1723,6 +2300,7 @@
         // ?type=live response - see salesTrendMap's own comment above.
         if (res && res.ok) {
           salesTrendMap = res.salesTrend || {};
+          salesRsTrendMap = res.salesRsTrend || {};
           collectionTrendMap = res.collectionTrend || {};
           trendError = false;
         } else {
