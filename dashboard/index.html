@@ -826,11 +826,31 @@
       { label: (done ? "Combined — target reached" : "Combined balance to go") + suffix, value: fmt(Math.abs(balanceTotal)), balance: true, done: done }
     ];
 
+    // Projected to finish month + Daily required (RRR) + Last Month -
+    // Same Date, added 21 Sep 2026 at the owner's request ("i need
+    // Projected to finish month, Daily required, Last Month - Same Date,
+    // same which dsr card has for sales and collection in total Combined
+    // ... for incl all DSr's") - the exact same helper functions each DSR
+    // card already uses (projLineHtml_/dailyRunRateHtml_/
+    // lastMonthLineHtml_ below), just fed the COMBINED totals instead of
+    // one DSR's own figures. Last-month total only counts DSRs whose own
+    // lastMonthSameDateLtr has actually arrived (same "don't fake a
+    // number" rule as everything else on this strip) - shows nothing at
+    // all until at least one DSR has real last-month data, same gate
+    // lastMonthLineHtml_ already has built in.
+    var lastMonthDsrs = withData.filter(function (d) { return d.lastMonthSameDateLtr !== null && d.lastMonthSameDateLtr !== undefined; });
+    var lastMonthSameDateTotal = lastMonthDsrs.length ? lastMonthDsrs.reduce(function (a, d) { return a + d.lastMonthSameDateLtr; }, 0) : null;
+    var lastMonthFullTotal = lastMonthDsrs.length ? lastMonthDsrs.reduce(function (a, d) { return a + (d.lastMonthFullLtr || 0); }, 0) : null;
+    var extraLines = (done ? '' : projLineHtml_(monthTotal, targetTotal, function (n) { return fmt(n) + ' Ltr'; })) +
+      (done ? '' : dailyRunRateHtml_(balanceTotal, function (n) { return fmt(n) + ' Ltr'; })) +
+      lastMonthLineHtml_(lastMonthSameDateTotal, lastMonthFullTotal, monthTotal, function (n) { return fmt(n) + ' Ltr'; });
+
     document.getElementById('summary').innerHTML = stats.map(function (s) {
       var cls = "stat" + (s.balance ? " balance" : "") + (s.done ? " done" : "");
       return '<div class="' + cls + '"><p class="stat-label">' + s.label + '</p>' +
         '<div class="stat-value num">' + s.value + '<span class="unit">Ltr</span></div></div>';
-    }).join('') + (anyWaiting ? '<div style="grid-column:1/-1;background:var(--surface);padding:8px 18px 14px;font-size:12px;color:var(--ink-muted);">* one or more DSRs are still waiting on their first Tally Sales sync today — left out of these totals until then.</div>' : '');
+    }).join('') + (anyWaiting ? '<div style="grid-column:1/-1;background:var(--surface);padding:8px 18px 14px;font-size:12px;color:var(--ink-muted);">* one or more DSRs are still waiting on their first Tally Sales sync today — left out of these totals until then.</div>' : '') +
+      (extraLines ? '<div style="grid-column:1/-1;background:var(--surface);padding:10px 18px 14px;">' + extraLines + '</div>' : '');
   }
 
   // Collection combined strip, added 15 Sep 2026 - same shape as the Sales
@@ -856,11 +876,24 @@
       { label: (done ? "Combined — target reached" : "Combined balance to go") + suffix, value: done ? '+' + fmtRs(Math.abs(balanceTotal)) : fmtRs(balanceTotal), balance: true, done: done }
     ];
 
+    // Projected to finish month + Daily required (RRR) + Last Month -
+    // Same Date, added 21 Sep 2026 - see renderSummary()'s own comment
+    // above (same owner request, same pattern, just Rs instead of Ltr).
+    // Both sides of the % arrow are Tally-sourced on this dashboard
+    // (unlike the DSR apps' Sales panel), so no mixed-source caveat here.
+    var lastMonthDsrsC = withData.filter(function (d) { return d.lastMonthSameDate !== null && d.lastMonthSameDate !== undefined; });
+    var lastMonthSameDateTotalC = lastMonthDsrsC.length ? lastMonthDsrsC.reduce(function (a, d) { return a + d.lastMonthSameDate; }, 0) : null;
+    var lastMonthFullTotalC = lastMonthDsrsC.length ? lastMonthDsrsC.reduce(function (a, d) { return a + (d.lastMonthFull || 0); }, 0) : null;
+    var extraLinesC = (done ? '' : projLineHtml_(monthTotal, targetTotal, fmtRs)) +
+      (done ? '' : dailyRunRateHtml_(balanceTotal, fmtRs, 'money')) +
+      lastMonthLineHtml_(lastMonthSameDateTotalC, lastMonthFullTotalC, monthTotal, fmtRs, 'money');
+
     document.getElementById('summaryMoney').innerHTML = stats.map(function (s) {
       var cls = "stat balance money-stat" + (s.done ? " done" : "");
       return '<div class="' + cls + '"><p class="stat-label">' + s.label + '</p>' +
         '<div class="stat-value num">' + s.value + '</div></div>';
-    }).join('') + (anyWaiting ? '<div style="grid-column:1/-1;background:var(--surface);padding:8px 18px 14px;font-size:12px;color:var(--ink-muted);">* one or more DSRs are still waiting on their first Tally sync today — left out of these totals until then.</div>' : '');
+    }).join('') + (anyWaiting ? '<div style="grid-column:1/-1;background:var(--surface);padding:8px 18px 14px;font-size:12px;color:var(--ink-muted);">* one or more DSRs are still waiting on their first Tally sync today — left out of these totals until then.</div>' : '') +
+      (extraLinesC ? '<div style="grid-column:1/-1;background:var(--surface);padding:10px 18px 14px;">' + extraLinesC + '</div>' : '');
   }
 
   // Primary Sales block switched to Tally-actual (d.monthLtr/d.todayLtr)
