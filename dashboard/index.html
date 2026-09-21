@@ -355,6 +355,15 @@
   .rrr-line b { font-weight: 700; color: var(--accent); }
   .rrr-line.money b { color: var(--money); }
 
+  /* "Last month, same date" line, added 21 Sep 2026 - same styling
+     weight as .mb-line/.rrr-line above (a secondary, informational figure
+     under the main progress bar, not a target/balance-level figure). The
+     bracketed reference figure and % arrow use lighter/muted treatment so
+     the main same-date value stays the visual focus. */
+  .lastmonth-line { font-size: 12.5px; color: var(--ink-secondary); padding-top: 4px; }
+  .lastmonth-line b { font-weight: 700; color: var(--ink); }
+  .lastmonth-line .bracket { color: var(--ink-muted); font-weight: 500; }
+
   /* Share/export, added 20 Sep 2026 - reuses the same overlay/sheet
      pattern as Dormant/Needs Attention/Top 5's modals (shared CSS
      classes, own ids), plus a small icon button style reused for the
@@ -657,13 +666,23 @@
   // `todayLtr` start at null (not 0) - same "don't fake a number before
   // the first real sync" rule already used for Collection - a DSR with
   // no Tally Sales data yet shows "waiting for sync", not a false 0%.
+  // lastMonthSameDateLtr/lastMonthFullLtr (Sales) and lastMonthSameDate/
+  // lastMonthFull (Collection) added 21 Sep 2026 - same Tally-based fields
+  // already wired into Arun's own DSR app (see tally_live_watcher.py's
+  // fetch_sales()/fetch_collection() and Code.gs's handleLiveGet_()),
+  // ported here at the owner's request ("CAN THIS LAST MONTH SAME DATE
+  // FORMULA CAN BE APPLIED IN DASHOARD IN DSR CARD ALSO"). No new backend
+  // work needed - fetchLive()'s existing `sales`/`collection` per-DSR maps
+  // already carry these fields, this dashboard just wasn't reading them
+  // yet. All start null (no live data yet), same "don't fake a number"
+  // convention as monthLtr/monthCollected above.
   var DSRS = [
-    { name: "Prabha",     dsrName: "PETRONAS THENI AREA (PRABHA)",         territory: "Theni Area",        appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4200, collectionTarget: 1119523, todayCollected: 0, monthCollected: null },
-    { name: "Arun",       dsrName: "PETRONAS DINDIGUL AREA (ARUN)",        territory: "Dindigul Area",     appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4100, collectionTarget: 1302920,  todayCollected: 0, monthCollected: null },
-    { name: "Nagaraj",    dsrName: "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)", territory: "Virudhunagar Area", appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5100, collectionTarget: 2060761,  todayCollected: 0, monthCollected: null },
-    { name: "Chellamani", dsrName: "PETRONAS MDU AREA (CHELLAMANI)",       territory: "MDU Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5330, collectionTarget: 1355606,  todayCollected: 0, monthCollected: null },
-    { name: "Anandh",     dsrName: "PETRONAS TVL1 AREA (ANANDH)",          territory: "TVL1 Area",         appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 6100, collectionTarget: 2344746,  todayCollected: 0, monthCollected: null },
-    { name: "Madhu",      dsrName: "PETRONAS NKL AREA (MADHU)",            territory: "NKL Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 2500, collectionTarget: 884005,   todayCollected: 0, monthCollected: null },
+    { name: "Prabha",     dsrName: "PETRONAS THENI AREA (PRABHA)",         territory: "Theni Area",        appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4200, collectionTarget: 1119523, todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null },
+    { name: "Arun",       dsrName: "PETRONAS DINDIGUL AREA (ARUN)",        territory: "Dindigul Area",     appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4100, collectionTarget: 1302920,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null },
+    { name: "Nagaraj",    dsrName: "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)", territory: "Virudhunagar Area", appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5100, collectionTarget: 2060761,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null },
+    { name: "Chellamani", dsrName: "PETRONAS MDU AREA (CHELLAMANI)",       territory: "MDU Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5330, collectionTarget: 1355606,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null },
+    { name: "Anandh",     dsrName: "PETRONAS TVL1 AREA (ANANDH)",          territory: "TVL1 Area",         appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 6100, collectionTarget: 2344746,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null },
+    { name: "Madhu",      dsrName: "PETRONAS NKL AREA (MADHU)",            territory: "NKL Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 2500, collectionTarget: 884005,   todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null },
     // AAA Direct added 18 Sep 2026, per the owner's request. Same 6900 Ltr
     // target already baked into its own order-taking app. Collection
     // target (Rs 21,70,281) given by the owner the same day, so its
@@ -675,7 +694,7 @@
     // watcher now folds his real Tally Sales/Collection into her totals
     // instead (see _merge_saravanan_into_chellamani() in
     // tally_live_watcher.py).
-    { name: "AAA Direct", dsrName: "PETRONAS AAA DIRECT AREA SALES",       territory: "AAA Direct Area",   appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 6900, collectionTarget: 2170281,  todayCollected: 0, monthCollected: null }
+    { name: "AAA Direct", dsrName: "PETRONAS AAA DIRECT AREA SALES",       territory: "AAA Direct Area",   appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 6900, collectionTarget: 2170281,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null }
   ];
 
   // Top 5 panels' state, added 17 Sep 2026, switched to Tally-sourced
@@ -944,6 +963,31 @@
     return '<div class="mb-line money">Dealers who paid this month (MB): <strong class="num">' + mb + '</strong> · Avg <strong class="num">' + fmtRs(avg) + '</strong>/dealer</div>';
   }
 
+  // "Last month, same date" line, added 21 Sep 2026 at the owner's
+  // request, porting the exact format already built and confirmed working
+  // on Arun's own DSR app ("Last Month - Same Date - 1750 Ltr [arrow]
+  // (last month total volume)"). sameDateVal is the Tally figure covering
+  // only 1st-of-last-month through today's day-of-month (fair mid-month
+  // comparison); fullVal is the WHOLE previous calendar month, shown in
+  // brackets purely for reference, not part of the % arrow's math. The %
+  // arrow compares currentVal (this month's progress so far, same source
+  // as everywhere else on this card - Tally for both Sales and Collection
+  // on THIS dashboard, unlike the DSR apps where Sales is app-punched) -
+  // no mixed-source concern here, so the arrow is shown whenever
+  // sameDateVal > 0, same threshold Arun's app uses.
+  function lastMonthLineHtml_(sameDateVal, fullVal, currentVal, fmtFn, cls) {
+    if (sameDateVal === null || sameDateVal === undefined) return '';
+    var arrowHtml = '';
+    if (sameDateVal > 0) {
+      var pct = Math.round(((currentVal - sameDateVal) / sameDateVal) * 100);
+      var arrow = pct > 0 ? '▲' : (pct < 0 ? '▼' : '●');
+      var color = pct > 0 ? 'var(--accent)' : (pct < 0 ? 'var(--warn)' : 'var(--ink-muted)');
+      arrowHtml = ' <span style="color:' + color + ';font-weight:700;">' + arrow + ' ' + Math.abs(pct) + '%</span>';
+    }
+    var bracketHtml = (fullVal !== null && fullVal !== undefined) ? ' <span class="bracket">(' + fmtFn(fullVal) + ')</span>' : '';
+    return '<div class="lastmonth-line' + (cls ? ' ' + cls : '') + '">Last Month - Same Date - <b>' + fmtFn(sameDateVal) + '</b>' + arrowHtml + bracketHtml + '</div>';
+  }
+
   function renderCards() {
     document.getElementById('cards').innerHTML = DSRS.map(function (d) {
       var salesPill, salesBody;
@@ -969,7 +1013,8 @@
           '<span class="pct num">' + Math.round(pctClamped) + '%</span></div>' +
           mbLineHtml_(d.name, d.monthLtr) + balanceLine +
           (done ? '' : projLineHtml_(d.monthLtr, d.target, function (n) { return fmt(n) + ' Ltr'; })) +
-          (done ? '' : dailyRunRateHtml_(balance, function (n) { return fmt(n) + ' Ltr'; }));
+          (done ? '' : dailyRunRateHtml_(balance, function (n) { return fmt(n) + ' Ltr'; })) +
+          lastMonthLineHtml_(d.lastMonthSameDateLtr, d.lastMonthFullLtr, d.monthLtr, function (n) { return fmt(n) + ' Ltr'; });
       }
 
       var appLine = '<div class="collection-today" style="padding-top:2px;">Logged via app ' +
@@ -999,7 +1044,8 @@
             '<span class="pct num">' + Math.round(cPctClamped) + '%</span></div>' +
             mbCollectionLineHtml_(d.name, d.monthCollected) + cBalanceLine +
             (cDone ? '' : projLineHtml_(d.monthCollected, d.collectionTarget, fmtRs)) +
-            (cDone ? '' : dailyRunRateHtml_(cBalance, fmtRs, 'money')) + '</div>';
+            (cDone ? '' : dailyRunRateHtml_(cBalance, fmtRs, 'money')) +
+            lastMonthLineHtml_(d.lastMonthSameDate, d.lastMonthFull, d.monthCollected, fmtRs, 'money') + '</div>';
         }
       }
 
@@ -2340,6 +2386,11 @@
           if (!entry) return; // no Tally sync for this DSR yet today - leave as-is (null)
           if (entry.today !== null && entry.today !== undefined) d.todayCollected = entry.today;
           if (entry.month !== null && entry.month !== undefined) d.monthCollected = entry.month;
+          // "Last month, same date" + bracket figure, added 21 Sep 2026 -
+          // same fields Arun's own DSR app already reads from this exact
+          // `collection` map (see Code.gs's handleLiveGet_()).
+          if (entry.lastMonthSameDate !== null && entry.lastMonthSameDate !== undefined) d.lastMonthSameDate = entry.lastMonthSameDate;
+          if (entry.lastMonthFull !== null && entry.lastMonthFull !== undefined) d.lastMonthFull = entry.lastMonthFull;
         });
         // Added 17 Sep 2026 - same response, new field (see Code.gs's
         // handleLiveGet_()). Kept as the full map, not pre-sorted - top-5
@@ -2373,6 +2424,11 @@
           if (!entry) return; // no Tally Sales sync for this DSR yet - leave as-is (null)
           if (entry.today !== null && entry.today !== undefined) d.todayLtr = entry.today;
           if (entry.month !== null && entry.month !== undefined) d.monthLtr = entry.month;
+          // "Last month, same date" + bracket figure, added 21 Sep 2026 -
+          // same fields Arun's own DSR app already reads from this exact
+          // `sales` map (see Code.gs's handleLiveGet_()).
+          if (entry.lastMonthSameDateLtr !== null && entry.lastMonthSameDateLtr !== undefined) d.lastMonthSameDateLtr = entry.lastMonthSameDateLtr;
+          if (entry.lastMonthFullLtr !== null && entry.lastMonthFullLtr !== undefined) d.lastMonthFullLtr = entry.lastMonthFullLtr;
         });
         if (res && res.ok && res.salesByDealer) salesByDealer = res.salesByDealer;
         if (res && res.ok && res.salesByItem) salesByItem = res.salesByItem;

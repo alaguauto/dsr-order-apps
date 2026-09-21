@@ -2165,7 +2165,77 @@
           liveCollectionMonth = Number(newMonth);
           collectionChanged = true;
         }
+        // "MB" (dealers who paid this month), added 21 Sep 2026 - see
+        // liveCollectionMb's own comment above.
+        var newCollMb = collRec.mb;
+        if (newCollMb !== null && newCollMb !== undefined && !isNaN(newCollMb) && newCollMb !== liveCollectionMb) {
+          liveCollectionMb = Number(newCollMb);
+          collectionChanged = true;
+        }
+        // "Last Month Same Date" (1st-to-today's-date Tally figure for the
+        // previous month), added 21 Sep 2026 for Collection's own "Last
+        // month" chip (didn't exist before - owner: "do same for collection
+        // also"). Both sides of this comparison are Tally-sourced, so a %
+        // arrow is safe here (unlike Sales, see renderOrdersAndTarget()
+        // below).
+        var newCollLastMonthSD = collRec.lastMonthSameDate;
+        if (newCollLastMonthSD !== null && newCollLastMonthSD !== undefined && !isNaN(newCollLastMonthSD) && newCollLastMonthSD !== liveCollectionLastMonthSameDate) {
+          liveCollectionLastMonthSameDate = Number(newCollLastMonthSD);
+          collectionChanged = true;
+        }
+        // "Last Month Full" (the WHOLE previous calendar month, Tally),
+        // added 21 Sep 2026 for the "Last month" chip's bracket figure
+        // (owner: "show in bracket the last month total amount") - shown
+        // alongside liveCollectionLastMonthSameDate just above, not
+        // compared against it.
+        var newCollLastMonthFull = collRec.lastMonthFull;
+        if (newCollLastMonthFull !== null && newCollLastMonthFull !== undefined && !isNaN(newCollLastMonthFull) && newCollLastMonthFull !== liveCollectionLastMonthFull) {
+          liveCollectionLastMonthFull = Number(newCollLastMonthFull);
+          collectionChanged = true;
+        }
         if (collectionChanged && typeof renderCollection === "function") renderCollection();
+      }
+    }
+    // Sales' own "MB" was briefly read from data.sales HERE (Tally-based,
+    // 21 Sep 2026), then reverted the same day at the owner's own
+    // correction - the Sales panel below is entirely app-punched, so its
+    // MB now comes from ordersSummary.monthDealerCount (a plain Orders-
+    // sheet dealer count from Code.gs's doGet(), fetched alongside
+    // todayLtr/monthLtr already) instead of anything in this live-Tally
+    // overlay. Collection's own MB just above is UNCHANGED and still
+    // Tally-based, since Collection has always been Tally-live here.
+    // Sales' "Last Month Same Date" (unlike MB) DOES come from this live
+    // overlay, added 21 Sep 2026 - the owner approved a Tally-based,
+    // same-date "Last month" comparison for Sales too ("Same date last
+    // month (Recommended)"), which the app-punched Orders sheet alone
+    // can't give (August has no app data at all - the DSR apps only
+    // started in September). Purely additive/optional: if data.sales or
+    // this DSR's entry is absent, liveSalesLastMonthSameDate simply stays
+    // null and renderOrdersAndTarget() falls back to the old app-punched
+    // full-previous-month figure.
+    if (data.sales) {
+      var myDsrNameForSales = document.getElementById("dsrName").value || "";
+      if (Object.prototype.hasOwnProperty.call(data.sales, myDsrNameForSales)) {
+        var salesRec = data.sales[myDsrNameForSales] || {};
+        var salesLiveChanged = false;
+        var newSalesLastMonthSD = salesRec.lastMonthSameDateLtr;
+        if (newSalesLastMonthSD !== null && newSalesLastMonthSD !== undefined && !isNaN(newSalesLastMonthSD) && newSalesLastMonthSD !== liveSalesLastMonthSameDate) {
+          liveSalesLastMonthSameDate = Number(newSalesLastMonthSD);
+          salesLiveChanged = true;
+        }
+        // "Last Month Full" (the WHOLE previous calendar month, Tally),
+        // added 21 Sep 2026 for the "Last month" chip's bracket figure
+        // (owner: "show in bracket the last month total amount") - a
+        // Tally-based figure used INSTEAD OF the old app-punched
+        // ordersSummary.lastMonthLtr, so the bracket isn't stuck at 0 for
+        // a month too young to have real app-punched history (same reason
+        // liveSalesLastMonthSameDate itself went Tally-based).
+        var newSalesLastMonthFull = salesRec.lastMonthFullLtr;
+        if (newSalesLastMonthFull !== null && newSalesLastMonthFull !== undefined && !isNaN(newSalesLastMonthFull) && newSalesLastMonthFull !== liveSalesLastMonthFull) {
+          liveSalesLastMonthFull = Number(newSalesLastMonthFull);
+          salesLiveChanged = true;
+        }
+        if (salesLiveChanged && typeof renderOrdersAndTarget === "function") renderOrdersAndTarget();
       }
     }
     // Dormant dealers, added 18 Sep 2026 - same rule built on the manager
@@ -2683,6 +2753,63 @@
     });
   }
 
+  // MB + RRR chips, added 21 Sep 2026 at the owner's explicit request
+  // (mirrors the manager dashboard's own MB/RRR, added 20/21 Sep 2026),
+  // shown as mockup to and approved by the owner before this was wired
+  // in for real. Shared by both the Sales panel (renderOrdersAndTarget,
+  // MB from Tally via liveSalesMb, RRR from the app-logged monthTotal/
+  // MONTHLY_TARGET_LTR already shown there) and the Collection panel
+  // (renderCollection, both MB and RRR from Tally-live figures, since
+  // Collection in this app has always been Tally-live, never app-logged).
+  // wholeNumber (Rs chips pass true, so a ₹ average never shows paise-
+  // level decimals like "₹1,11,428.57" - Ltr chips pass false/omit so an
+  // average like 1866/10 still shows as "186.6", matching the manager
+  // dashboard's own MB line exactly).
+  // sourceLabel (added 21 Sep 2026, alongside switching Sales' own MB
+  // from Tally to app-punched) - "(App)" for the Sales panel's call
+  // below, "(Tally)" for Collection's, so the label itself always says
+  // where that count actually came from rather than a hardcoded "Tally"
+  // that would now be wrong for Sales.
+  function mbChipRowHtml_(mb, monthTotal, unitPrefix, unitSuffix, wholeNumber, sourceLabel) {
+    if (mb === null || mb === undefined || !(mb > 0)) return "";
+    var avg = monthTotal / mb;
+    var avgText = wholeNumber ? formatNum(Math.round(avg)) : formatNum(avg);
+    return '<div class="target-strip-row">' +
+      '<div class="target-chip">MB (' + sourceLabel + ") <b>" + mb + " dealer" + (mb === 1 ? "" : "s") + "</b></div>" +
+      '<div class="target-chip">Avg <b>' + unitPrefix + avgText + unitSuffix + "</b>/dealer</div>" +
+      "</div>";
+  }
+  function rrrChipRowHtml_(balance, unitPrefix, unitSuffix, wholeNumber) {
+    if (!(balance > 0)) return "";
+    var now = new Date();
+    var daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    var dayOfMonth = now.getDate();
+    var remainingDays = daysInMonth - dayOfMonth; // days strictly AFTER today
+    if (remainingDays <= 0) {
+      return '<div class="target-strip-row"><div class="target-chip">RRR <b>' + unitPrefix + formatNum(wholeNumber ? Math.round(balance) : balance) + unitSuffix + "</b> still needed today</div></div>";
+    }
+    var perDay = balance / remainingDays;
+    var perDayText = formatNum(wholeNumber ? Math.round(perDay) : perDay);
+    return '<div class="target-strip-row"><div class="target-chip">RRR <b>' + unitPrefix + perDayText + unitSuffix + "/day</b> (" + remainingDays + " day" + (remainingDays === 1 ? "" : "s") + " left)</div></div>";
+  }
+
+  // "Last Month Same Date" (Tally figure, 1st-of-last-month through
+  // today's day-of-month), added 21 Sep 2026 for Sales' own "Last month"
+  // chip - see applyLiveOverlay_() above for where this gets set from
+  // data.sales[myDsrName].lastMonthSameDateLtr. null until the first live
+  // sync arrives; renderOrdersAndTarget() below falls back to the old
+  // app-punched full-previous-month figure until then.
+  var liveSalesLastMonthSameDate = null;
+  // "Last Month Full" (Tally figure, the WHOLE previous calendar month),
+  // added 21 Sep 2026 for the "Last month" chip's bracket figure (owner:
+  // "show in bracket the last month total amount") - see
+  // applyLiveOverlay_() above for where this gets set from
+  // data.sales[myDsrName].lastMonthFullLtr. Shown alongside
+  // liveSalesLastMonthSameDate, not compared against it - the OLD
+  // app-punched ordersSummary.lastMonthLtr is still used as the fallback
+  // bracket figure too, on the same fallback path as the same-date value.
+  var liveSalesLastMonthFull = null;
+
   function renderOrdersAndTarget() {
     var todayTotal = ordersSummary.todayLtr || 0;
     var monthTotal = ordersSummary.monthLtr || 0;
@@ -2703,21 +2830,69 @@
     // resolves) and only once there's a genuine last-month baseline to
     // compare against (a brand new DSR/dealer relationship with nothing
     // last month would otherwise show a meaningless "+infinite%").
+    // Switched 21 Sep 2026 to a Tally-based, SAME-DATE figure
+    // (liveSalesLastMonthSameDate, e.g. 1-21 Aug when today is the 21st)
+    // once it's arrived from the live overlay, instead of the old
+    // app-punched FULL previous month (ordersSummary.lastMonthLtr) -
+    // owner-approved ("Same date last month (Recommended)"), and also
+    // fixes "last month sales in app also showing 0" (August predates
+    // this app, so the app-punched figure was always 0).
+    // Format updated the same day, right after, at the owner's explicit
+    // spec: "Last Month - Same Date - 1750 Ltr [arrow] (last month total
+    // volume)" - the % arrow compares this month's current progress
+    // (monthTotal, app-punched) against the same-date figure just shown
+    // (liveSalesLastMonthSameDate, Tally) - a fair TIME-RANGE comparison
+    // (same number of days on both sides) even though the two SOURCES
+    // differ, which the owner explicitly asked for here. The bracket
+    // afterward is a separate, non-comparative figure - the WHOLE previous
+    // month's total (liveSalesLastMonthFull, Tally-based; falls back to
+    // the old app-punched ordersSummary.lastMonthLtr if the live overlay
+    // hasn't sent it yet), shown purely for reference, not part of the
+    // arrow's math. Falls back entirely to the OLD app-punched full-month
+    // figure (value + arrow, both sides app-punched, no bracket - nothing
+    // else to add) until the first live sync arrives at all.
     var lastMonthRow = "";
     if (ordersLoaded && !ordersLoadError) {
-      var lastMonthTotal = ordersSummary.lastMonthLtr || 0;
-      if (lastMonthTotal > 0) {
-        var pct = Math.round(((monthTotal - lastMonthTotal) / lastMonthTotal) * 100);
-        var arrow = pct > 0 ? "▲" : (pct < 0 ? "▼" : "●");
-        var color = pct > 0 ? "var(--accent)" : (pct < 0 ? "var(--danger)" : "var(--text-muted)");
-        lastMonthRow = '<div class="target-chip">Last month <b>' + formatNum(lastMonthTotal) + ' Ltr <span style="color:' + color + ';font-weight:700;">' + arrow + " " + Math.abs(pct) + "%</span></b></div>";
-      } else if (monthTotal > 0) {
-        lastMonthRow = '<div class="target-chip">Last month <b>0 Ltr</b></div>';
+      if (liveSalesLastMonthSameDate !== null) {
+        var salesArrowHtml = "";
+        if (liveSalesLastMonthSameDate > 0) {
+          var salesPct = Math.round(((monthTotal - liveSalesLastMonthSameDate) / liveSalesLastMonthSameDate) * 100);
+          var salesArrow = salesPct > 0 ? "▲" : (salesPct < 0 ? "▼" : "●");
+          var salesColor = salesPct > 0 ? "var(--accent)" : (salesPct < 0 ? "var(--danger)" : "var(--text-muted)");
+          salesArrowHtml = ' <span style="color:' + salesColor + ';font-weight:700;">' + salesArrow + " " + Math.abs(salesPct) + "%</span>";
+        }
+        var salesBracketVal = (liveSalesLastMonthFull !== null) ? liveSalesLastMonthFull : (ordersSummary.lastMonthLtr || 0);
+        lastMonthRow = '<div class="target-chip">Last Month - Same Date - <b>' + formatNum(liveSalesLastMonthSameDate) + " Ltr</b>" + salesArrowHtml +
+          ' <span class="hint" style="opacity:.7;">(' + formatNum(salesBracketVal) + " Ltr)</span></div>";
+      } else {
+        var lastMonthTotal = ordersSummary.lastMonthLtr || 0;
+        if (lastMonthTotal > 0) {
+          var pct = Math.round(((monthTotal - lastMonthTotal) / lastMonthTotal) * 100);
+          var arrow = pct > 0 ? "▲" : (pct < 0 ? "▼" : "●");
+          var color = pct > 0 ? "var(--accent)" : (pct < 0 ? "var(--danger)" : "var(--text-muted)");
+          lastMonthRow = '<div class="target-chip">Last month <b>' + formatNum(lastMonthTotal) + ' Ltr <span style="color:' + color + ';font-weight:700;">' + arrow + " " + Math.abs(pct) + "%</span></b></div>";
+        } else if (monthTotal > 0) {
+          lastMonthRow = '<div class="target-chip">Last month <b>0 Ltr</b></div>';
+        }
       }
     }
+    // MB (dealers billed this month) + RRR (Daily Required Run-Rate),
+    // added 21 Sep 2026 - both from the SAME app-punched figures already
+    // shown above (monthTotal/MONTHLY_TARGET_LTR), not Tally. MB was
+    // briefly Tally-based for a few hours (liveSalesMb) before the
+    // owner's own correction: this whole panel is app-punched, so MB
+    // should be too - ordersSummary.monthDealerCount is a plain count of
+    // distinct dealers with an order this month, straight from the
+    // Orders sheet (see Code.gs's doGet()), arriving in the exact same
+    // fetch as todayLtr/monthLtr, no extra request needed. RRR only
+    // makes sense while target isn't reached yet (balance > 0 inside
+    // rrrChipRowHtml_ itself already gates this).
+    var mbRow = mbChipRowHtml_(ordersSummary.monthDealerCount, monthTotal, "", " Ltr", false, "App");
+    var rrrRow = (MONTHLY_TARGET_LTR > 0) ? rrrChipRowHtml_(MONTHLY_TARGET_LTR - monthTotal, "", " Ltr") : "";
     targetStripEl.innerHTML = '<div class="target-strip-row">' + topRow + "</div>" +
       (bottomRow ? '<div class="target-strip-row">' + bottomRow + "</div>" : "") +
-      (lastMonthRow ? '<div class="target-strip-row">' + lastMonthRow + "</div>" : "");
+      (lastMonthRow ? '<div class="target-strip-row">' + lastMonthRow + "</div>" : "") +
+      mbRow + rrrRow;
     reportBtn.disabled = !apiConfigured() || !ordersLoaded || ordersLoadError;
 
     ordersCountLabel.textContent = list.length ? "(" + list.length + ")" : "";
@@ -2755,6 +2930,27 @@
   // below) - the panel doesn't display it separately.
   var liveCollectionToday = null;
   var liveCollectionMonth = null;
+  // "MB" (dealers who paid this month, Tally-verified), added 21 Sep
+  // 2026 at the owner's explicit request - see applyLiveOverlay_() above
+  // for where this gets set from data.collection[myDsrName].mb. Sales'
+  // own MB does NOT have a matching var here - it reads straight off
+  // ordersSummary.monthDealerCount instead (see renderOrdersAndTarget()
+  // below), since it's a plain app-punched count, not a live-overlay
+  // field like everything else in this section.
+  var liveCollectionMb = null;
+  // "Last Month Same Date" (Tally figure, 1st-of-last-month through
+  // today's day-of-month), added 21 Sep 2026 for Collection's own "Last
+  // month" chip - see applyLiveOverlay_() above for where this gets set
+  // from data.collection[myDsrName].lastMonthSameDate. null until the
+  // first live sync arrives, same as every other live-overlay field here.
+  var liveCollectionLastMonthSameDate = null;
+  // "Last Month Full" (Tally figure, the WHOLE previous calendar month),
+  // added 21 Sep 2026 for the "Last month" chip's bracket figure (owner:
+  // "show in bracket the last month total amount") - see
+  // applyLiveOverlay_() above for where this gets set from
+  // data.collection[myDsrName].lastMonthFull. Shown alongside
+  // liveCollectionLastMonthSameDate, not compared against it.
+  var liveCollectionLastMonthFull = null;
 
   function renderCollection() {
     if (!collectionDetailsEl) return;
@@ -2780,8 +2976,40 @@
     bottomRow += balance <= 0
       ? '<div class="target-chip balance-met">Balance <b>Target reached (+₹' + formatNum(Math.abs(balance)) + ")</b></div>"
       : '<div class="target-chip">Balance <b>₹' + formatNum(balance) + "</b></div>";
+    // Last month (same date), added 21 Sep 2026 - owner: "do same for
+    // collection also" (extending the Sales-side same-date feature here
+    // too). Unlike Sales, BOTH sides of this comparison are Tally-sourced
+    // (Collection in this app has always been Tally-live, never
+    // app-logged), so a real % arrow is safe and shown, same pattern as
+    // the original pre-21-Sep Sales "Last month" chip. Bracket figure
+    // (liveCollectionLastMonthFull, the WHOLE previous month) added the
+    // same day, right after, at the owner's explicit spec ("show in
+    // bracket the last month total amount") - shown for reference only,
+    // not part of the % arrow's math, same pattern as Sales' own bracket
+    // in renderOrdersAndTarget() above.
+    var lastMonthRow = "";
+    if (liveCollectionLastMonthSameDate !== null) {
+      var collBracketHtml = (liveCollectionLastMonthFull !== null)
+        ? ' <span class="hint" style="opacity:.7;">(₹' + formatNum(liveCollectionLastMonthFull) + ")</span>"
+        : "";
+      if (liveCollectionLastMonthSameDate > 0) {
+        var collPct = Math.round(((liveCollectionMonth - liveCollectionLastMonthSameDate) / liveCollectionLastMonthSameDate) * 100);
+        var collArrow = collPct > 0 ? "▲" : (collPct < 0 ? "▼" : "●");
+        var collColor = collPct > 0 ? "var(--accent)" : (collPct < 0 ? "var(--danger)" : "var(--text-muted)");
+        lastMonthRow = '<div class="target-chip">Last Month - Same Date - <b>₹' + formatNum(liveCollectionLastMonthSameDate) + '</b> <span style="color:' + collColor + ';font-weight:700;">' + collArrow + " " + Math.abs(collPct) + "%</span>" + collBracketHtml + "</div>";
+      } else if (liveCollectionMonth > 0) {
+        lastMonthRow = '<div class="target-chip">Last Month - Same Date - <b>₹0</b>' + collBracketHtml + "</div>";
+      }
+    }
+    // MB + RRR, added 21 Sep 2026 - both from Tally-live figures here
+    // (unlike the Sales panel above, Collection in this app has always
+    // been Tally-live, never app-logged, so no mixed-source concern).
+    var mbRow = mbChipRowHtml_(liveCollectionMb, liveCollectionMonth, "₹", "", true, "Tally");
+    var rrrRow = rrrChipRowHtml_(balance, "₹", "", true);
     collectionStripEl.innerHTML = '<div class="target-strip-row">' + topRow + "</div>" +
-      '<div class="target-strip-row">' + bottomRow + "</div>";
+      '<div class="target-strip-row">' + bottomRow + "</div>" +
+      (lastMonthRow ? '<div class="target-strip-row">' + lastMonthRow + "</div>" : "") +
+      mbRow + rrrRow;
     collectionSummaryLabelEl.textContent = "(₹" + formatNum(liveCollectionMonth) + ")";
   }
 
