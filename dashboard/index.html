@@ -375,6 +375,7 @@
   .lookup-stat { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
   .lookup-stat-label { font-size: 11px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: .05em; margin: 0 0 4px; }
   .lookup-stat-value { font-size: 15px; font-weight: 700; }
+  .lookup-stat-sub { font-size: 11px; color: var(--ink-muted); margin: 3px 0 0; }
 
   /* Month-end pace projection, added 20 Sep 2026 - reuses the pace-tag ink
      colors already defined above so no new palette is introduced. */
@@ -397,6 +398,56 @@
   .lastmonth-line { font-size: 12.5px; color: var(--ink-secondary); padding-top: 4px; }
   .lastmonth-line b { font-weight: 700; color: var(--ink); }
   .lastmonth-line .bracket { color: var(--ink-muted); font-weight: 500; }
+
+  /* DSR-wise age-dues chart (Needs Attention), "Inactive vs Billed" table,
+     and "Catalog coverage" stat - all added 22 Sep 2026 at the owner's
+     request. Reuses the .stat/.summary visual language already on this
+     page rather than inventing new components. Age bar: one horizontal
+     stacked bar per DSR, bar LENGTH proportional to that DSR's own total
+     overdue-30+ amount (so a longer bar = a bigger problem, comparable
+     DSR-to-DSR), internal segments proportional to that DSR's OWN
+     30-59/60-89/90+ split (so composition is visible too) - blue->amber->
+     red for increasing severity, matching the color progression already
+     implied by the Needs Attention stat tiles (90+ already uses --warn). */
+  .age-chart { display: flex; flex-direction: column; gap: 10px; padding: 14px 18px 4px; }
+  .age-row-label { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 3px; }
+  .age-row-label .dsr { font-weight: 700; color: var(--ink); }
+  .age-row-label .total { color: var(--ink-muted); }
+  .age-bar-track { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--surface-2); }
+  .age-bar-seg.b30 { background: var(--live); }
+  .age-bar-seg.b60 { background: var(--accent); }
+  .age-bar-seg.b90 { background: var(--warn); }
+  .age-chart-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--ink-secondary); padding: 4px 18px 14px; }
+  .age-chart-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .age-chart-legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+
+  .ib-table { display: flex; flex-direction: column; }
+  .ib-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 18px; border-top: 1px solid var(--border); font-size: 13px; }
+  .ib-row:first-child { border-top: none; }
+  .ib-row .dsr { font-weight: 700; }
+  .ib-row .figures { display: flex; gap: 14px; font-size: 12.5px; }
+  .ib-row .figures .billed { color: var(--good); }
+  .ib-row .figures .inactive { color: var(--warn); }
+  .ib-row .figures b { font-weight: 700; }
+
+  .coverage-strip { display: flex; gap: 18px; flex-wrap: wrap; align-items: baseline; padding: 4px 18px 16px; }
+  .coverage-strip .cov-figure { font-size: 22px; font-weight: 700; color: var(--ink); }
+  .coverage-strip .cov-label { font-size: 12px; color: var(--ink-muted); margin-right: 4px; }
+  .coverage-track { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; flex: 1 1 140px; min-width: 100px; align-self: center; }
+  .coverage-track-fill { height: 100%; background: var(--good); }
+
+  .sku-panel-list { display: flex; flex-direction: column; }
+  .sku-dsr-row { padding: 9px 0; border-top: 1px solid var(--border); }
+  .sku-dsr-row:first-child { border-top: none; }
+  .sku-dsr-row .dsr-name-sm { font-weight: 700; font-size: 12.5px; margin: 0 0 3px; }
+  /* .sku-item is used in TWO places - the homescreen "Top selling SKU by
+     DSR" panel (wrapped in .sku-dsr-row) AND each DSR card's own "Top
+     selling SKU" sub-section (wrapped in .dsr-row-subsection) - selector
+     kept unscoped so it applies in both, not just the first one it was
+     written for. */
+  .sku-item { font-size: 12px; color: var(--ink-secondary); display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+  .sku-item span:first-child { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sku-item span:last-child { flex: 0 0 auto; white-space: nowrap; }
 
   /* Share/export, added 20 Sep 2026 - reuses the same overlay/sheet
      pattern as Dormant/Needs Attention/Top 5's modals (shared CSS
@@ -505,6 +556,17 @@
 
     <p class="section-label">Combined — Collection</p>
     <div class="summary money" id="summaryMoney"></div>
+
+    <!-- "Part number covered / overall how many part number stock having -
+         this month", added 22 Sep 2026 at the owner's request - how many
+         distinct catalog items (out of everything currently in live
+         Tally stock) were actually sold by at least one DSR this month.
+         Denominator = catalog items with live stock > 0 (the `stock` map
+         already flowing via ?type=live); numerator = distinct item names
+         with a real Tally month total > 0 (salesByItem, also already
+         flowing) - no new backend needed for this company-wide figure. -->
+    <p class="section-label">Items Covered — this month</p>
+    <div id="coverageWrap"></div>
   </div>
 
   <!-- Collection-to-Sales Ratio ("Collection Health"), added 20 Sep 2026
@@ -572,6 +634,26 @@
       </button>
     </div>
     <div class="summary attn" id="attentionStats"></div>
+    <!-- DSR-wise age-dues chart, added 22 Sep 2026 at the owner's request
+         ("in need attention add a chart of dsr wise age dues") - see
+         renderAgeChart_() below. -->
+    <div id="ageChartWrap"></div>
+  </div>
+
+  <!-- "Inactive dealers (this month not billed) DSR wise", added 22 Sep
+       2026 - owner clarified (after being asked) this means a COMPACT
+       count-per-DSR comparison against billed (MB) dealers on the
+       homescreen, not the full per-dealer list restored here (that stays
+       inside each DSR's own expandable row, per yesterday's restructure -
+       see renderCards() below). -->
+  <div id="captureInactiveSummary">
+    <div class="section-label-row">
+      <p class="section-label">Inactive dealers vs Billed — by DSR</p>
+      <button type="button" class="share-icon-btn small" id="shareInactiveSummaryBtn" title="Share Inactive vs Billed">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+      </button>
+    </div>
+    <div class="ib-table" id="inactiveVsBilledWrap"></div>
   </div>
 
   <p class="section-label">By DSR — tap a name to expand</p>
@@ -620,6 +702,17 @@
     <div class="leaderboard-panel">
       <div id="topCustomersCollectionHead"></div>
       <div id="topCustomersCollection"></div>
+    </div>
+    <!-- "DSR wise topp selling SKU", added 22 Sep 2026 at the owner's
+         request - each DSR's own #1 top-selling item this month (Tally-
+         actual), NOT a single company-wide top-5 like the panels above -
+         one row per DSR. Needs the new salesByDsrItem field (see
+         Code.gs's handleLiveGet_()/tally_live_watcher.py's
+         dsr_item_totals) - a DSR with no live DSR-item data yet is simply
+         left off this list. -->
+    <div class="leaderboard-panel">
+      <p class="leaderboard-title">Top selling SKU — by DSR</p>
+      <div id="topSkuByDsr"></div>
     </div>
   </div>
 
@@ -706,6 +799,48 @@
   // already carry these fields, this dashboard just wasn't reading them
   // yet. All start null (no live data yet), same "don't fake a number"
   // convention as monthLtr/monthCollected above.
+  // "Items Covered" (renamed 22 Sep 2026 from "Catalog coverage - this
+  // month", per the owner: "calculate only petronas that means under the
+  // Petronas Group India") - this office's Tally stock item master holds
+  // thousands of items across everything the office deals in (spares,
+  // accessories, other lines), of which only this ~180-item catalog is
+  // what DSRs actually order (see item-catalog.json, the source this list
+  // is generated from). Within that catalog, 10 items belong to the
+  // "PCMO - TATA GENUINE" group (Tata Motors' own OEM-branded oil, resold
+  // by the office as a side line) - not a Petronas product at all, unlike
+  // every other group here (Sprinta, Syntium, Urania, Tutela, Motolub,
+  // etc., all genuine Petronas lines). PETRONAS_ITEM_NAMES is the catalog
+  // MINUS those 10, so "Items Covered" (and the matching per-DSR "Part
+  // numbers covered" stat inside each DSR's card - see catalogSection in
+  // renderCards() below) counts only real Petronas products in both the
+  // numerator and denominator, not the raw ~8,800-item Tally-wide stock
+  // list and not the 10 Tata Genuine items either. Static snapshot, same
+  // known limitation as DEFAULT_ITEMS in every DSR app file (needs a
+  // manual refresh if the catalog itself changes - see dsr-app-
+  // registry.md) - not derived live from Tally's own stock-group
+  // hierarchy since this office's Tally setup was never confirmed to
+  // expose one under this exact name.
+  var PETRONAS_ITEM_NAMES = ["10W30 1 LIT SPRINTA F700 (20)", "0W20 4 LIT SYNTIUM 7000 SN HYBRID FULLSYN (4)", "0W30 MGDO 5.3 LIT SYNTIUM 3000SZ (2)", "0W40  4 LIT SYNTIUM 7000 SN (COOLTECH) (5)", "10W30 210 LIT SPRINTA F300 BARREL", "10W30 800 ML SPRINTA A300 (COMBO PACK - WITH GEAR OIL) (10)", "10W30 800 ML SPRINTA A300 (SPOUT PACK) (20)", "10W30 900 ML SPRINTA F300 (20)", "10W30 F100 SPRINTA 55 LIT", "10W40 1 LIT SN SPRINTA RACING (20)", "10W40 1 LIT SPRINTA F900 (MOTO GP PACK) (16)", "10W40 1 LIT SYNTIUM 800 (20)", "10W40 3 LIT SYNTIUM 800 (6)", "10W40 3.5 LIT SYNTIUM 800 SN (4)", "10W50 1 LIT SN SPRINTA RACING (20)", "15W40 1 LIT SYNTIUM 500 CH-4 DIESEL *****", "15W40 1 LIT SYNTIUM 500 CI4+ DIESEL (20)", "15W40 5 LIT SYNTIUM 500 CI4+ DIESEL", "15W40 7 LIT SYNTIUM 500 CI4+ DIESEL", "15W50 1 LIT SPRINTA F700 (20)", "15W50 2.5 LIT SPRINTA F700 (6)", "15W50 SPRINTA F700 50 LIT", "20W40 1 LIT (CF4) MOTOLUBE", "20W40 1 LIT SPRINTA F300 (20)", "20W40 210 LIT SPRINTA F300", "20W40 55 LIT SPRINTA F300", "20W40 900 ML SPRINTA F300 (20)", "20W50 1 LIT SPRINTA F300 (20)", "20W50 1 LIT SYNTIUM 300 SL (20)", "20W50 1 LTR CNG LUBE (20)", "20W50 210 LTR CNG LUBE BARREL", "20W50 3 LIT SYNTIUM 300 SL (6)", "20W50 3.5 LIT SYNTIUM 300 SL (4)", "20W50 3.5 LTR CNG LUBE (4)", "20W50 500 ML CNG LUBE (20)", "3 WHEELER LIFE ENGINE OIL 2.75 LIT PETRONAS (6)", "3 WHEELER LIFE ENGINE OIL 3 LIT PETRONAS (6)", "3 WHEELER LIFE ENGINE OIL 500 ML PETRONAS (20)", "5W30  1 LIT SYNTIUM 500 SN/CF (20)", "5W30  3 LIT SYNTIUM 500 SN/CF (6)", "5W30  3.5 LIT SYNTIUM 500 SN/CF (4)", "5W30 1 LIT SYNTIUM 3000 SN PLUS FULLY SYN (20)", "5W30 3.5 LIT SYNTIUM 3000 (SP) FULLY SYN (4)", "5W30 3.5 LIT SYNTIUM 800 SN SEMI SYNT (4)", "5W30 5 LIT SYNTIUM 500 SN/CF (4)", "5W30 50 LIT SYNTIUM 500 SN/CF", "5W30 600 ML SPRINTA A700 (SPOUT - SCOOTER PACK) (20)", "5W30 SYNTIUM 500 SN/CF 210 LIT", "5W40 4 LIT SYNTIUM 3000 SN (4)", "5W40 MGDO 3.5 LIT SYNTIUM 3000SZ (4)", "75W90 1 LTR TUTELA TRANSMISSION OIL (20)", "75W90 2.5 LTR TUTELA TRANSMISSION OIL (6)", "80W90 1 LTR TUTELA TRANSMISSION OIL", "80W90 20 LTR TUTELA TRANSMISSION OIL", "80W90 TUTELA 300 MTF TRANSMISSION OIL 7 LIT", "80W90 TUTELA TRANSMISSION OIL 2.5 LIT (6)", "80W90 TUTELA TRANSMISSION OIL 5 LIT", "85W140 1 LIT TUTELA TRANSMISSION OIL (20)", "85W140 210 LTR TUTELA TRANSMISSION OIL", "85W140 5LIT TUTELA TRANSMISSION OIL", "AGRI GOLD TRACTOR ENGINE OIL 7.5 LIT", "AGRI GOLD TRACTOR ENGINE OIL 8.5 LIT", "AGRI GOLD TRACTOR TRANSMISSION OIL 26 LIT", "AKROS 20W30 20 LIT MULTI UTTO", "AMBRA MASTER GOLD HSP 7.7 LIT", "AMBRA SUPER GOLD 10 LIT", "AMBRA SUPERTRAN 5 LIT TRANSMISSION OIL (4)", "ATUL AUTO GENUINE OIL 1 LIT (20)", "ATUL AUTO GENUINE OIL 2.5 LIT BSVI (6)", "ATUL AUTO GENUINE OIL 3 LIT (6)", "ATUL AUTO GENUINE OIL 500 ML (20)", "CF4 15W40 1 LIT URANIA 800 (20)", "CF4 15W40 10 LIT URANIA 800", "CF4 15W40 3 LIT URANIA 800(6)", "CF4 15W40 6 LIT URANIA 800", "CF4 15W40 7.5 LIT URANIA 800", "CF4 20W40 1 LIT URANIA 800", "CF4 20W40 10 LIT URANIA 800", "CF4 20W40 210 LIT URANIA 800", "CF4 20W40 6 LIT URANIA 800", "CF4 20W40 7.5 LIT URANIA 800", "CF4 20W40 8.5 LIT URANIA 800", "CH4 15W40 1 LIT URANIA 1000 (20)", "CH4 15W40 10 LIT URANIA 1000", "CH4 15W40 210 LIT URANIA 1000", "CH4 15W40 3 LIT URANIA 1000(6)", "CH4 15W40 55 LIT URANIA 1000", "CH4 15W40 7.5 LIT URANIA 1000", "CI4+ 15W 40 210 LIT URANIA 3000", "CI4+ 15W40 1 LIT URANIA 3000", "CI4+ 15W40 15 LIT URANIA 3000", "CI4+ 15W40 2.5 LIT URANIA 3000 (6)", "CI4+ 15W40 3.5 LIT SYNTIUM 500 (4)", "CI4+ 15W40 55 LIT URANIA 3000", "CI4+ 15W40 6 LIT URANIA 3000", "CI4+ 15W40 7.5 LIT URANIA 3000", "CI4+ 15W40 8.5 LIT URANIA 3000", "CK4 15W40 1 LIT URANIA 5000 IN (20)", "CK4 15W40 10 LIT URANIA 5000 IN", "CK4 15W40 15 LIT URANIA 5000 IN", "EPYX 140 1 LIT GEAR OIL TUTELA (20)", "EPYX 140 20 LIT GEAR OIL TUTELA", "EPYX 140 5 LIT GEAR OIL TUTELA  (4)", "EPYX 90 1 LIT GEAR OIL TUTELA (20)", "EPYX 90 20 LIT GEAR OIL TUTELA", "EPYX 90 5 LIT GEAR OIL TUTELA (4)", "HYDROCER 46 HYD OIL 26 LIT", "MACH5 20W50 3.5 LIT SG (4)", "MACH5 CH4 15W40 5 LIT DIESEL (4)", "MOTOLUB 15W40 10 LTR (CF4)", "MOTOLUB 15W40 7.5 LTR (CF4)", "MOTOLUB 20W40 10 LIT (CF4)", "MOTOLUB 20W40 7.5 (CF4)", "MOTOLUB CF4 15W40 0.5 LIT (20)", "MOTOLUB CF4 15W40 1 LIT (20)", "MOTOLUB CF4 15W40 3 LIT (6)", "MOTOLUB CF4 15W40 6 LIT", "NEXPRO TRANSMISSION OIL 20 LIT", "PROFAR ANTIFREEZE COOLANT OIL 1 LIT (10)", "PUMPSET OIL 3.5 LIT CF40 PETRONAS (4)", "SPRINTA 20W40 F100 55 LIT SJ DRUM", "SPRINTA 20W50 55 LIT F300", "SPRINTA F100 15W50 1.2 LIT- SL (10)", "SPRINTA F100 15W50 2.5 LIT- SL (6)", "SPRINTA F100 20W40 1 LIT- SJ (20)", "SPRINTA F100 20W40 900 ML - SJ (20)", "SPRINTA F300 20W50 1.2 L - SL (10)", "SPRINTA F900 15W50 2.5 LIT (6)", "TUTELA AKROS 80W 20 LIT UTTO F100", "TUTELA AKROS 80W 5 LIT UTTO F100 (4)", "TUTELA GREASE 1 KG (MR3) (12)", "TUTELA GREASE 2 KG (MR3) (6)", "TUTELA GREASE 3 KG  (4) (MR3)", "TUTELA GREASE 500GMS (MR3)(24)", "TUTELA LONG LIFE GREASE 1 KG (RED - NLGI 3) (12)", "TUTELA LONG LIFE GREASE 20 KG (RED - NLGI 3)", "TUTELA LONG LIFE GREASE 3 KG (RED - NLGI 3) (4)", "TUTELA LONG LIFE GREASE 500 GMS (RED - NLGI 3) (24)", "TUTELA LONG LIFE GREASE 7 KG (RED - NLGI 3)", "TUTELA MULTI UTTO 5 LIT 20W30 (AKROS) (4)", "TUTELA SUPREME LL GREASE 1 KG (GREEN-NLGI 3) (12)", "TUTELA SUPREME LL GREASE 5 KG (GREEN-NLGI 3) (2)", "TUTELA SUPREME LL GREASE 500 GM (GREEN-NLGI 3) (24)", "TVS TRU4 RACE PRO 15W50 1.7 L (OE PACK) (9)", "TVS TRU4 RACE PRO 15W50 FULLY SYN 1.2 LIT (10)", "TVS TRU4 RACE PRO 15W50 FULLY SYN 2.5 LIT (6)", "10W30 55 LIT SPRINTA F300 SL", "5W30 7 LIT SYNTIUM 500 SN/CF", "5W40 1 LIT SYNTIUM 3000 SM (FULL SYNT) COOLTECH (20", "5W40 MGDO SYNTIUM 3000SZ 210 LIT BARREL", "80W90 210 LTR TUTELA TRANSMISSION OIL", "85W140 12 LIT TUTELA 300 EP TRANSMISSION OIL", "AGRI GOLD TRACTOR ENGINE OIL 10 LIT", "AGRI GOLD UTTO TRANSMISSION OIL 26LIT (AKROS)", "AGRI GOLD UTTO TRANSMISSION OIL 5 LIT (AKROS)", "CF4 15W40 210 LIT URANIA 800", "CF4 15W40 55 LIT URANIA 800", "CF4 20W40 55 LIT URANIA 800", "CI4+ 15W40 10 LIT URANIA 3000", "CI4+ 15W40 11 LIT URANIA 3000", "CI4+ 15W40 18 LIT URANIA 3000", "EPYX 140 TUTELA 210 LIT TRANSMISSION OIL", "EPYX 90 TUTELA 210 LIT TRANSMISSION OIL", "HYDROCER 68 HYD OIL 20 LIT", "HYDROCER 68 HYD OIL 210 LIT", "HYDROCER 68 HYD OIL 26 LIT", "POWER STEERING OIL ATF D3 1 LIT (20)", "TUTELA GREASE 20 KG (MR3)", "TUTELA LONG LIFE GREASE 5 KG (RED - NLGI 3) (2)", "5W30  4.5 LIT SYNTIUM 500 SN/CF (4)"];
+  var PETRONAS_ITEM_SET = {};
+  PETRONAS_ITEM_NAMES.forEach(function (n) { PETRONAS_ITEM_SET[n] = true; });
+
+  // Shared by renderCoverage_() (homescreen) and renderCards()'s
+  // catalogSection (per-DSR card) so the "X / Y" denominator is always
+  // computed the same way in both places - added 22 Sep 2026 alongside
+  // the Petronas-only filter above (previously each spot repeated its own
+  // near-identical Object.keys(stockMap).filter(...) inline).
+  function petronasCoverage_() {
+    var totalInStock = Object.keys(stockMap).filter(function (name) {
+      var rec = stockMap[name];
+      return PETRONAS_ITEM_SET.hasOwnProperty(name) && rec && rec.stock !== null && rec.stock !== undefined && rec.stock > 0;
+    }).length;
+    var soldCount = Object.keys(salesByItem).filter(function (name) {
+      var rec = salesByItem[name];
+      return PETRONAS_ITEM_SET.hasOwnProperty(name) && rec && rec.month !== null && rec.month !== undefined && rec.month > 0;
+    }).length;
+    return { totalInStock: totalInStock, soldCount: soldCount };
+  }
+
   var DSRS = [
     { name: "Prabha",     dsrName: "PETRONAS THENI AREA (PRABHA)",         territory: "Theni Area",        appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4200, collectionTarget: 1119523, todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null },
     { name: "Arun",       dsrName: "PETRONAS DINDIGUL AREA (ARUN)",        territory: "Dindigul Area",     appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4100, collectionTarget: 1302920,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null },
@@ -736,6 +871,16 @@
   var collectionByDealer = null; // {dealerName: {today, month}} or null before first successful fetch
   var outstandingMap = null; // {dealerName: {since, balance, pendingAmount}} or null before first successful fetch, added 17 Sep 2026
   var dealerRoster = null; // {dsrName: [dealerName, ...]} - company-wide, added 8 Sep 2026 for the new-dealer auto-add
+  // stockMap added 22 Sep 2026 for "Catalog coverage - this month"
+  // (owner: "partnumber covered/overall howmany partnumber stock having")
+  // - {itemName: {stock, rate, mrp}}, the same live-Tally stock map every
+  // DSR app already reads for its own item list, just never pulled into
+  // this dashboard before. salesByDsrItemList added the same day for
+  // "Top selling SKU by DSR" and the per-DSR "part number covered" stat -
+  // a flat [{dsrName, itemName, monthLtr}, ...] array (see Code.gs's
+  // handleLiveGet_()/tally_live_watcher.py's dsr_item_totals).
+  var stockMap = null;
+  var salesByDsrItemList = null;
   // feature, read by this dashboard for the first time 18 Sep 2026 to
   // scope "Needs attention" to real dealers only - see renderNeedsAttention().
 
@@ -1062,7 +1207,34 @@
   // his particular transaction and data at one glance ... keep [the
   // company-wide sections] ... other than this change all to DSR wise a +
   // button near a DSR name and it has to expand with all the details."
+  // "More than 60 days outstanding - how much collected this month",
+  // added 22 Sep 2026 at the owner's request (ties back to the earlier
+  // Collection Health question: is cash being collected from NEW sales,
+  // or mostly chasing OLD debt) - for each DSR, sums this-month
+  // collections (collectionByDealer[name].month) from only the dealers
+  // who currently have a 60+ day overdue bill (outstandingMap, same
+  // days-overdue math as Needs Attention). Computed once here (not per
+  // DSR inside the render loop below) since it needs the same
+  // knownDealerDsrMap_() walk Needs Attention already does.
+  function sixtyPlusCollectedByDsr_() {
+    var out = {};
+    if (outstandingMap === null || collectionByDealer === null) return out;
+    var dealerDsr = knownDealerDsrMap_();
+    Object.keys(outstandingMap).forEach(function (name) {
+      var dsrName = dealerDsr[name];
+      if (!dsrName) return;
+      var rec = outstandingMap[name] || {};
+      var days = daysOverdue(rec.since);
+      if (days === null || days < 60) return;
+      var collRec = collectionByDealer[name];
+      var collectedThisMonth = (collRec && collRec.month) || 0;
+      out[dsrName] = (out[dsrName] || 0) + collectedThisMonth;
+    });
+    return out;
+  }
+
   function renderCards() {
+    var sixtyPlusCollected = sixtyPlusCollectedByDsr_();
     document.getElementById('dsrList').innerHTML = DSRS.map(function (d) {
       var salesPill, salesBody;
       if (d.salesError) {
@@ -1119,12 +1291,43 @@
             mbCollectionLineHtml_(d.name, d.monthCollected) + cBalanceLine +
             (cDone ? '' : projLineHtml_(d.monthCollected, d.collectionTarget, fmtRs)) +
             (cDone ? '' : dailyRunRateHtml_(cBalance, fmtRs, 'money')) +
-            lastMonthLineHtml_(d.lastMonthSameDate, d.lastMonthFull, d.monthCollected, fmtRs, 'money') + '</div>';
+            lastMonthLineHtml_(d.lastMonthSameDate, d.lastMonthFull, d.monthCollected, fmtRs, 'money') +
+            // "60+ days outstanding - collected this month", added 22 Sep
+            // 2026 - see sixtyPlusCollectedByDsr_() above. Only shown once
+            // outstanding/collectionByDealer data has actually arrived
+            // (sixtyPlusCollected[d.dsrName] stays undefined until then).
+            (sixtyPlusCollected[d.name] !== undefined
+              ? '<div class="lastmonth-line">From 60+ day overdue dealers, collected this month <b>' + fmtRs(sixtyPlusCollected[d.name]) + '</b></div>'
+              : '') +
+            '</div>';
         }
       }
 
       var cardShareBtn = '<button type="button" class="share-icon-btn small" data-share-dsr="' + escapeAttr_(d.name) + '" title="Share ' + escapeAttr_(d.name) + '\'s results" style="margin-left:6px;">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg></button>';
+
+      // "Part number covered/overall" + "Top selling SKU" for THIS DSR,
+      // added 22 Sep 2026 - Tally-actual (salesByDsrItemList), matching
+      // how Sales already works on this dashboard. Denominator (total
+      // catalog items in live stock) is company-wide, same for every
+      // DSR - see renderCoverage_()/petronasCoverage_() above for the
+      // identical stockMap computation; not repeated per DSR since it
+      // never varies by DSR. Numerator restricted to PETRONAS_ITEM_SET
+      // same day as renderCoverage_()'s "Items Covered" rename, so this
+      // stays "Petronas items covered" too, not inflated by any Tata
+      // Genuine sales this DSR made.
+      var catalogSection = '';
+      if (salesByDsrItemList !== null && stockMap !== null) {
+        var dsrItemRows = salesByDsrItemList.filter(function (r) { return r.dsrName === d.dsrName && PETRONAS_ITEM_SET.hasOwnProperty(r.itemName); })
+          .sort(function (a, b) { return b.monthLtr - a.monthLtr; });
+        var totalInStockForCard = petronasCoverage_().totalInStock;
+        var coverageLine = '<div class="lastmonth-line">Part numbers covered <b>' + dsrItemRows.length + ' / ' + totalInStockForCard + '</b></div>';
+        var topSkuRows = dsrItemRows.slice(0, 5);
+        var topSkuHtml = topSkuRows.length
+          ? topSkuRows.map(function (r) { return '<div class="sku-item"><span>' + r.itemName + '</span><span class="num">' + fmt(r.monthLtr) + ' Ltr</span></div>'; }).join('')
+          : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Tally sales recorded yet this month.</p>';
+        catalogSection = '<div class="dsr-row-subsection"><p class="section-label" style="margin:0 0 8px;">Top selling SKU</p>' + coverageLine + topSkuHtml + '</div>';
+      }
 
       // This DSR's own overdue dealers (moved in from the old standalone
       // Needs Attention per-DSR cards grid, 22 Sep 2026) - same 5-row cap
@@ -1164,7 +1367,7 @@
         '<span class="dsr-row-headtext"><span class="card-name">' + d.name + '</span>' +
         '<span class="card-territory">' + d.territory + '</span></span>' +
         '<span class="dsr-row-headright">' + salesPill + cardShareBtn + '</span></summary>' +
-        '<div class="dsr-row-body">' + salesBody + appLine + collectionBlock + attnSection + dormSection + '</div></details>';
+        '<div class="dsr-row-body">' + salesBody + appLine + collectionBlock + catalogSection + attnSection + dormSection + '</div></details>';
     }).join('');
 
     document.querySelectorAll('[data-view-attn]').forEach(function (el) {
@@ -1420,6 +1623,7 @@
         '<div class="stat"><p class="stat-label">60+ days overdue</p><div class="stat-value">—</div></div>' +
         '<div class="stat warn"><p class="stat-label">90+ days overdue</p><div class="stat-value">—</div></div>';
       lastAttnSummary = null;
+      document.getElementById('ageChartWrap').innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);padding:0 18px 14px;">Waiting for the next Tally sync…</p>';
       return;
     }
 
@@ -1429,7 +1633,19 @@
       .map(function (name) {
         var rec = outstandingMap[name] || {};
         var raw = (rec.pendingAmount !== null && rec.pendingAmount !== undefined) ? rec.pendingAmount : rec.balance;
-        return { name: name, dsrName: dealerDsr[name], days: daysOverdue(rec.since), raw: raw };
+        // band3059/band6089/band90plus added 22 Sep 2026 - the TRUE
+        // per-bill age split from tally_live_watcher.py's
+        // fetch_outstanding() (see its docstring), carried through so the
+        // band totals below sum real per-bill amounts instead of
+        // attributing a dealer's WHOLE `raw` to one bucket based only on
+        // `days` (the oldest bill's age) - the bug the owner flagged with
+        // a real dealer (BS Enterprises: 3 open bills of very different
+        // ages, but the old logic showed the FULL amount as if it were
+        // all as old as the oldest bill).
+        return {
+          name: name, dsrName: dealerDsr[name], days: daysOverdue(rec.since), raw: raw,
+          band3059: rec.band3059 || 0, band6089: rec.band6089 || 0, band90plus: rec.band90plus || 0
+        };
       })
       .filter(function (r) { return r.raw !== null && r.raw !== undefined && r.raw < 0; }); // only genuinely-owed (debit) balances
 
@@ -1445,13 +1661,23 @@
     // day debt, which isn't in any band below) - the footnote makes that
     // explicit so the three bands are never mistaken for a full partition
     // of Total.
+    //
+    // c30/c60/c90 (dealer COUNTS) still classify each dealer into exactly
+    // one band by their OLDEST bill's age (`days`) - that's a legitimate,
+    // unchanged read ("N dealers have debt at least this old"). What
+    // changed 22 Sep 2026 is sum30/sum60/sum90 (the RUPEE totals): these
+    // now sum each dealer's own real band3059/band6089/band90plus (true
+    // per-bill amounts) instead of dumping a dealer's WHOLE `raw` into
+    // whichever single band their oldest bill happened to fall in - see
+    // this function's block comment above and fetch_outstanding()'s
+    // docstring for the bug this fixes.
     var overdue = rows.filter(function (r) { return r.days !== null && r.days >= 30; }); // also the per-DSR list's population below
     var band3059 = overdue.filter(function (r) { return r.days < 60; });
     var band6089 = overdue.filter(function (r) { return r.days >= 60 && r.days < 90; });
     var band90 = overdue.filter(function (r) { return r.days >= 90; });
     var c30 = band3059.length, c60 = band6089.length, c90 = band90.length;
-    var sumAbs = function (list) { return list.reduce(function (a, r) { return a + Math.abs(r.raw); }, 0); };
-    var sum30 = sumAbs(band3059), sum60 = sumAbs(band6089), sum90 = sumAbs(band90);
+    var sumField = function (list, field) { return list.reduce(function (a, r) { return a + Math.abs(r[field]); }, 0); };
+    var sum30 = sumField(overdue, 'band3059'), sum60 = sumField(overdue, 'band6089'), sum90 = sumField(overdue, 'band90plus');
 
     attnEl.innerHTML =
       '<div class="stat"><p class="stat-label">Total outstanding</p><div class="stat-value">' + fmtRs(totalOwed) + '</div></div>' +
@@ -1473,6 +1699,65 @@
     // added 20 Sep 2026, repurposed 22 Sep 2026 when the per-DSR cards
     // that used to live in this section moved into the DSR list instead.
     lastAttnSummary = { totalOwed: totalOwed, c30: c30, c60: c60, c90: c90, sum30: sum30, sum60: sum60, sum90: sum90, byDsr: byDsr };
+
+    renderAgeChart_(byDsr);
+  }
+
+  // DSR-wise age-dues chart, added 22 Sep 2026 ("in need attention add a
+  // chart of dsr wise age dues") - one stacked horizontal bar per DSR
+  // (only DSRs with at least one 30+ day overdue dealer are shown), bar
+  // LENGTH proportional to that DSR's own total 30+ overdue amount
+  // (scaled against whichever DSR owes the most, so bar length is
+  // comparable DSR-to-DSR at a glance), internal segments proportional to
+  // that DSR's own 30-59/60-89/90+ split. Reuses `byDsr` from
+  // renderNeedsAttention() just above - same rows, just grouped into the
+  // 3 bands per DSR instead of one flat sorted list.
+  //
+  // Segments sum each dealer's own real band3059/band6089/band90plus
+  // (true per-bill amounts, see renderNeedsAttention()'s block comment)
+  // instead of dumping a dealer's whole amount into one band by their
+  // oldest bill's age - fixed 22 Sep 2026, same bug/fix as the stat tiles
+  // just above.
+  function renderAgeChart_(byDsr) {
+    var wrap = document.getElementById('ageChartWrap');
+    var dsrNames = Object.keys(byDsr).filter(function (n) { return byDsr[n].length > 0; });
+    if (!dsrNames.length) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);padding:0 18px 14px;">No dealers overdue 30+ days.</p>';
+      return;
+    }
+    var sums = dsrNames.map(function (dsrName) {
+      var rows = byDsr[dsrName];
+      var b30 = 0, b60 = 0, b90 = 0;
+      rows.forEach(function (r) {
+        b30 += Math.abs(r.band3059 || 0);
+        b60 += Math.abs(r.band6089 || 0);
+        b90 += Math.abs(r.band90plus || 0);
+      });
+      return { dsrName: dsrName, b30: b30, b60: b60, b90: b90, total: b30 + b60 + b90 };
+    }).sort(function (a, b) { return b.total - a.total; }); // worst DSR first
+
+    var maxTotal = Math.max.apply(null, sums.map(function (s) { return s.total; }));
+
+    var rowsHtml = sums.map(function (s) {
+      var barPct = maxTotal > 0 ? (s.total / maxTotal) * 100 : 0;
+      var seg30 = s.total > 0 ? (s.b30 / s.total) * 100 : 0;
+      var seg60 = s.total > 0 ? (s.b60 / s.total) * 100 : 0;
+      var seg90 = s.total > 0 ? (s.b90 / s.total) * 100 : 0;
+      return '<div class="age-row">' +
+        '<div class="age-row-label"><span class="dsr">' + s.dsrName + '</span><span class="total">' + fmtRs(s.total) + '</span></div>' +
+        '<div class="age-bar-track" style="width:' + Math.max(barPct, 6).toFixed(1) + '%;">' +
+        (seg30 > 0 ? '<div class="age-bar-seg b30" style="width:' + seg30.toFixed(1) + '%;" title="30-59 days: ' + fmtRs(s.b30) + '"></div>' : '') +
+        (seg60 > 0 ? '<div class="age-bar-seg b60" style="width:' + seg60.toFixed(1) + '%;" title="60-89 days: ' + fmtRs(s.b60) + '"></div>' : '') +
+        (seg90 > 0 ? '<div class="age-bar-seg b90" style="width:' + seg90.toFixed(1) + '%;" title="90+ days: ' + fmtRs(s.b90) + '"></div>' : '') +
+        '</div></div>';
+    }).join('');
+
+    wrap.innerHTML = '<div class="age-chart">' + rowsHtml + '</div>' +
+      '<div class="age-chart-legend">' +
+      '<span><i style="background:var(--live);"></i>30-59 days</span>' +
+      '<span><i style="background:var(--accent);"></i>60-89 days</span>' +
+      '<span><i style="background:var(--warn);"></i>90+ days</span>' +
+      '</div>';
   }
 
   // Needs Attention's own expand modal, added 19 Sep 2026 - originally
@@ -1632,11 +1917,96 @@
     lastDormantSummary = { totalCount: totalCount, byDsr: byDsr };
   }
 
+  // "Inactive dealers (this month not billed) DSR wise", added 22 Sep
+  // 2026 - owner clarified this means a COMPACT count-per-DSR comparison
+  // on the homescreen ("ONLY INACTIVE DEALERS COUNT IN DASHBOARD VS
+  // BILLED DEALERS"), not the full per-dealer list (that stays inside
+  // each DSR's own row, per the 22 Sep restructure). "Billed" reuses the
+  // exact same MB count (countMB_) already shown in each DSR's own
+  // Sales MB chip - same dealer-count definition, just surfaced here
+  // company-wide for a quick per-DSR comparison. Must run AFTER both
+  // renderNeedsAttention()... no, after renderDormant() (needs
+  // lastDormantSummary.byDsr) - see render() below.
+  function renderInactiveVsBilled_() {
+    var wrap = document.getElementById('inactiveVsBilledWrap');
+    if (lastDormantSummary === null || salesByDealer === null) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);padding:14px 18px;">Waiting for the next Tally sync…</p>';
+      return;
+    }
+    wrap.innerHTML = DSRS.map(function (d) {
+      var inactiveCount = (lastDormantSummary.byDsr[d.name] || []).length;
+      var billedCount = countMB_(d.name, salesByDealer);
+      return '<div class="ib-row"><span class="dsr">' + d.name + '</span>' +
+        '<span class="figures"><span class="billed">Billed <b>' + billedCount + '</b></span>' +
+        '<span class="inactive">Inactive <b>' + inactiveCount + '</b></span></span></div>';
+    }).join('');
+  }
+
+  // "Part number covered / overall how many part number stock having -
+  // this month", added 22 Sep 2026 - denominator = catalog items with
+  // live Tally stock > 0 (stockMap, the same map every DSR app already
+  // reads for its own item list); numerator = distinct items with a real
+  // Tally month total > 0 (salesByItem, already flowing to this
+  // dashboard for the Top 5 "Items sold" panel) - both company-wide,
+  // both already-fetched, no new backend needed for this one. Renamed
+  // "Items Covered" and restricted to Petronas-only items same day, per
+  // the owner - see PETRONAS_ITEM_NAMES/petronasCoverage_() above.
+  function renderCoverage_() {
+    var wrap = document.getElementById('coverageWrap');
+    if (stockMap === null || salesByItem === null) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);padding:0 18px 14px;">Waiting for the next Tally sync…</p>';
+      return;
+    }
+    var cov = petronasCoverage_();
+    var totalInStock = cov.totalInStock, soldCount = cov.soldCount;
+    var pct = totalInStock > 0 ? Math.min(100, (soldCount / totalInStock) * 100) : 0;
+    wrap.innerHTML = '<div class="coverage-strip">' +
+      '<span><span class="cov-label">Part numbers sold this month</span><span class="cov-figure">' + soldCount + ' / ' + totalInStock + '</span></span>' +
+      '<div class="coverage-track"><div class="coverage-track-fill" style="width:' + pct.toFixed(0) + '%;"></div></div>' +
+      '<span class="cov-figure" style="font-size:15px;">' + Math.round(pct) + '%</span>' +
+      '</div>';
+  }
+
+  // "DSR wise topp selling SKU" (bottom Top 5 area), added 22 Sep 2026 -
+  // each DSR's own top 5 best-selling items this month (Tally-actual, NOT
+  // app-punched, matching how this dashboard's Sales already works),
+  // using the new salesByDsrItemList (see stockMap/salesByDsrItemList's
+  // own comment above, and Code.gs's handleLiveGet_()). A DSR with no
+  // live DSR-item data synced yet simply has nothing under its name.
+  function renderTopSkuByDsr_() {
+    var wrap = document.getElementById('topSkuByDsr');
+    if (salesByDsrItemList === null) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Waiting for the next Tally sync…</p>';
+      return;
+    }
+    var byDsr = {};
+    salesByDsrItemList.forEach(function (row) {
+      (byDsr[row.dsrName] = byDsr[row.dsrName] || []).push(row);
+    });
+    var TOP_SKU_LIMIT = 5;
+    var sections = DSRS.map(function (d) {
+      var rows = (byDsr[d.dsrName] || []).slice().sort(function (a, b) { return b.monthLtr - a.monthLtr; }).slice(0, TOP_SKU_LIMIT);
+      if (!rows.length) return '';
+      var itemsHtml = rows.map(function (r) {
+        return '<div class="sku-item"><span>' + r.itemName + '</span><span class="num">' + fmt(r.monthLtr) + ' Ltr</span></div>';
+      }).join('');
+      return '<div class="sku-dsr-row"><p class="dsr-name-sm">' + d.name + '</p>' + itemsHtml + '</div>';
+    }).join('');
+    wrap.innerHTML = sections || '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Tally sales recorded yet this month.</p>';
+  }
+
   // renderNeedsAttention()/renderDormant() moved BEFORE renderCards() 22
   // Sep 2026 - renderCards() now reads lastAttnSummary.byDsr/
   // lastDormantSummary.byDsr into each DSR's expandable row, so both need
-  // to have already run that same refresh cycle.
-  function render() { renderSummary(); renderSummaryMoney(); renderNeedsAttention(); renderDormant(); renderCards(); renderLeaderboard(); renderTop5(); renderTrend(); renderTrendBars(); renderCollectionRatio_(); renderLookupCard_(); }
+  // to have already run that same refresh cycle. renderInactiveVsBilled_()/
+  // renderCoverage_()/renderTopSkuByDsr_() added the same day, right
+  // after the data they each depend on is ready.
+  function render() {
+    renderSummary(); renderSummaryMoney(); renderNeedsAttention(); renderDormant();
+    renderInactiveVsBilled_(); renderCoverage_(); renderCards(); renderLeaderboard();
+    renderTop5(); renderTopSkuByDsr_(); renderTrend(); renderTrendBars();
+    renderCollectionRatio_(); renderLookupCard_();
+  }
 
   // Sales + Collection trend chart, rebuilt 20 Sep 2026 on Tally-verified
   // data (see salesTrendMap's own comment near the top of this file).
@@ -1967,8 +2337,49 @@
       var raw = (outRec.pendingAmount !== null && outRec.pendingAmount !== undefined) ? outRec.pendingAmount : outRec.balance;
       if (raw !== null && raw !== undefined && raw < 0) { owed = Math.abs(raw); since = outRec.since; }
     }
-    var outText = owed !== null ? fmtRs(owed) + (since ? ' (' + daysOverdue(since) + 'd)' : '') : 'No dues on record';
+    // Fixed 22 Sep 2026 - this used to show the FULL owed amount tagged
+    // with a single "(Xd)" taken from `since` (the OLDEST open bill's
+    // date), which misrepresents a dealer with more than one open bill:
+    // the owner flagged a real example (BS Enterprises, screenshot from
+    // Tally's own "Ledger Voucher Outstanding") with a ₹33,336 bill raised
+    // TODAY, a ₹13,955 bill 59 days old, and a ₹3,000 bill 73 days old -
+    // this card showed "₹50,291 (73d)", implying the WHOLE amount was 73
+    // days overdue. Now the headline is just the plain owed amount, and a
+    // real per-band breakdown (from tally_live_watcher.py's
+    // fetch_outstanding() band3059/band6089/band90plus - true per-bill
+    // splits, see its docstring) renders underneath, oldest band first,
+    // only for the genuinely 30+ day portion - a dealer with nothing 30+
+    // days old (like the ₹33,336 bill above, raised today) correctly gets
+    // no age tag at all, instead of a misleading "(0d)"/"(Xd)" on the
+    // whole balance.
+    var outText = owed !== null ? fmtRs(owed) : 'No dues on record';
     var outColor = owed !== null ? 'var(--warn)' : 'var(--ink)';
+    var outAgeBreakdown = '';
+    if (outRec) {
+      var ob90 = Math.abs(outRec.band90plus || 0);
+      var ob60 = Math.abs(outRec.band6089 || 0);
+      var ob30 = Math.abs(outRec.band3059 || 0);
+      var ageParts = [];
+      if (ob90 > 0) ageParts.push('90+d ' + fmtRs(ob90));
+      if (ob60 > 0) ageParts.push('60-89d ' + fmtRs(ob60));
+      if (ob30 > 0) ageParts.push('30-59d ' + fmtRs(ob30));
+      if (ageParts.length) {
+        outAgeBreakdown = '<p class="lookup-stat-sub">' + ageParts.join(' · ') + '</p>';
+      }
+    }
+    // "Total Outstanding", added 22 Sep 2026 at the owner's request - the
+    // dealer's FULL ledger closing balance (outRec.balance), distinct
+    // from "Outstanding" above (which prefers the narrower BILLCL-based
+    // pendingAmount when it's available - see LIVE_OUTSTANDING_HEADERS'
+    // own history in Code.gs). The two normally read close to each other,
+    // but aren't always identical, so both are shown rather than picking
+    // one.
+    var totalOwed = null;
+    if (outRec && outRec.balance !== null && outRec.balance !== undefined && outRec.balance < 0) {
+      totalOwed = Math.abs(outRec.balance);
+    }
+    var totalOutText = totalOwed !== null ? fmtRs(totalOwed) : 'No dues on record';
+    var totalOutColor = totalOwed !== null ? 'var(--warn)' : 'var(--ink)';
     var lastOrderText = (salesRec && salesRec.lastSaleDate) ? (function () {
       var s = String(salesRec.lastSaleDate);
       var d = daysSinceYyyymmdd(s);
@@ -1995,7 +2406,8 @@
       '<div class="lookup-grid">' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Sales this month</p><p class="lookup-stat-value">' + salesText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Collection this month</p><p class="lookup-stat-value">' + collText + '</p></div>' +
-        '<div class="lookup-stat"><p class="lookup-stat-label">Outstanding</p><p class="lookup-stat-value" style="color:' + outColor + ';">' + outText + '</p></div>' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Outstanding</p><p class="lookup-stat-value" style="color:' + outColor + ';">' + outText + '</p>' + outAgeBreakdown + '</div>' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Total Outstanding</p><p class="lookup-stat-value" style="color:' + totalOutColor + ';">' + totalOutText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Last order</p><p class="lookup-stat-value">' + lastOrderText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Last payment</p><p class="lookup-stat-value">' + lastPaymentText + '</p></div>' +
       '</div></div>';
@@ -2099,6 +2511,21 @@
   // buildShareTextInactive_() removed 22 Sep 2026 along with the
   // standalone Inactive Dealers section and its share button - see the
   // "By DSR" restructure note above renderCards().
+
+  // Added 22 Sep 2026 for the new "Inactive dealers vs Billed - by DSR"
+  // compact summary section (see renderInactiveVsBilled_() above).
+  function buildShareTextInactiveVsBilled_() {
+    var lines = ['INACTIVE DEALERS VS BILLED — ' + dateHeaderLine_(), ''];
+    lines.push('Each DSR\'s billed-dealer count (MB, this month) alongside how many of their dealers haven\'t ordered yet this month but bought within the last ' + DORMANT_MAX_DAYS + ' days.');
+    lines.push('');
+    if (!lastDormantSummary || !salesByDealer) { lines.push('(Waiting for the next Tally sync…)'); return lines.join('\n'); }
+    DSRS.forEach(function (d) {
+      var inactiveCount = (lastDormantSummary.byDsr[d.name] || []).length;
+      var billedCount = countMB_(d.name, salesByDealer);
+      lines.push(d.name + ': Billed ' + billedCount + ', Inactive ' + inactiveCount);
+    });
+    return lines.join('\n');
+  }
 
   function buildShareTextCard_(d) {
     var lines = [d.name.toUpperCase() + ' — ' + dateHeaderLine_(), ''];
@@ -2349,6 +2776,12 @@
     openShareSheet_('Share Needs attention', document.getElementById('captureAttn'),
       'Needs Attention — ' + dateHeaderLine_(), buildShareTextAttn_());
   });
+  // "Share Inactive vs Billed", added 22 Sep 2026 for the new compact
+  // DSR-wise summary section (see renderInactiveVsBilled_() above).
+  document.getElementById('shareInactiveSummaryBtn').addEventListener('click', function () {
+    openShareSheet_('Share Inactive vs Billed', document.getElementById('captureInactiveSummary'),
+      'Inactive vs Billed — ' + dateHeaderLine_(), buildShareTextInactiveVsBilled_());
+  });
   // "Share Inactive dealers" (whole-company) removed 22 Sep 2026 along
   // with the standalone Inactive Dealers section itself - inactive-dealer
   // detail is now per-DSR, inside each DSR's own expandable row, and
@@ -2478,6 +2911,10 @@
         });
         if (res && res.ok && res.salesByDealer) salesByDealer = res.salesByDealer;
         if (res && res.ok && res.salesByItem) salesByItem = res.salesByItem;
+        // stockMap/salesByDsrItemList added 22 Sep 2026 - see their own
+        // comments near the var declarations above.
+        if (res && res.ok && res.stock) stockMap = res.stock;
+        if (res && res.ok && res.salesByDsrItem) salesByDsrItemList = res.salesByDsrItem;
 
         // Sales + Collection trend, rebuilt 20 Sep 2026 on the same
         // ?type=live response - see salesTrendMap's own comment above.

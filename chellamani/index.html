@@ -660,6 +660,18 @@
   .target-chip b { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--text); }
   .target-chip.balance-met { border-color: var(--qty); }
   .target-chip.balance-met b { color: var(--qty); }
+  /* "Top selling SKU" list, added 22 Sep 2026 for the app-punched
+     "part number covered"/top-5-SKU feature - a small card matching the
+     existing .target-chip's surface/border language, just tall enough
+     for a short list instead of one baseline stat. */
+  .sku-box {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px;
+    padding: 8px 10px; font-size: 12.5px; color: var(--text-muted);
+  }
+  .sku-box .sku-box-title { font-weight: 600; color: var(--text); margin-bottom: 5px; }
+  .sku-box .sku-item { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+  .sku-box .sku-item span:first-child { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sku-box .sku-item span:last-child { flex: 0 0 auto; font-family: "IBM Plex Mono", monospace; color: var(--text); white-space: nowrap; }
   .report-btn {
     flex: 0 0 auto;
     display: flex;
@@ -2889,10 +2901,36 @@
     // rrrChipRowHtml_ itself already gates this).
     var mbRow = mbChipRowHtml_(ordersSummary.monthDealerCount, monthTotal, "", " Ltr", false, "App");
     var rrrRow = (MONTHLY_TARGET_LTR > 0) ? rrrChipRowHtml_(MONTHLY_TARGET_LTR - monthTotal, "", " Ltr") : "";
+    // "Part number covered" + "Top selling 5 SKU", added 22 Sep 2026 at
+    // the owner's request ("partnumber covered/overall howmany partnumber
+    // stock having - this month and top selling 5 sku") - app-punched
+    // (this DSR's own ordersSummary.monthItemTotals from Code.gs's
+    // doGet(), summed from the Items JSON column of every order THIS DSR
+    // punched this month), matching this whole panel's existing
+    // app-punched convention (unlike the dashboard's Tally-based version
+    // of the same two metrics). Denominator = catalog items with CURRENT
+    // live stock > 0 in this app's own `items` array (already patched by
+    // applyLiveOverlay_() from Tally) - same "stock having" concept the
+    // dashboard uses, just read from this app's own item list.
+    var skuSection = "";
+    if (ordersLoaded && !ordersLoadError && ordersSummary.monthItemTotals) {
+      var itemEntries = Object.keys(ordersSummary.monthItemTotals)
+        .map(function (name) { return { name: name, ltr: ordersSummary.monthItemTotals[name] }; })
+        .filter(function (e) { return e.ltr > 0; })
+        .sort(function (a, b) { return b.ltr - a.ltr; });
+      var totalInStock = items.filter(function (it) { return it.stock !== null && it.stock !== undefined && it.stock > 0; }).length;
+      var topRowsHtml = itemEntries.slice(0, 5).map(function (e) {
+        return '<div class="sku-item"><span>' + escapeHtml(e.name) + '</span><span>' + formatNum(e.ltr) + ' Ltr</span></div>';
+      }).join('');
+      skuSection = '<div class="target-strip-row"><div class="sku-box" style="flex:1 1 100%;">' +
+        '<div class="sku-box-title">Top selling SKU <span style="font-weight:400;color:var(--text-muted);">(' + itemEntries.length + ' / ' + totalInStock + ' part numbers covered)</span></div>' +
+        (topRowsHtml || '<div class="hint">No sales punched yet this month.</div>') +
+        '</div></div>';
+    }
     targetStripEl.innerHTML = '<div class="target-strip-row">' + topRow + "</div>" +
       (bottomRow ? '<div class="target-strip-row">' + bottomRow + "</div>" : "") +
       (lastMonthRow ? '<div class="target-strip-row">' + lastMonthRow + "</div>" : "") +
-      mbRow + rrrRow;
+      mbRow + rrrRow + skuSection;
     reportBtn.disabled = !apiConfigured() || !ordersLoaded || ordersLoadError;
 
     ordersCountLabel.textContent = list.length ? "(" + list.length + ")" : "";
