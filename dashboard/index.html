@@ -341,7 +341,8 @@
   .trend-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
   .trend-note { font-size: 11.5px; color: var(--ink-muted); margin: 8px 0 0; font-style: italic; }
 
-  /* Collection-to-Sales Ratio ("Collection Health"), added 20 Sep 2026 -
+  /* Collection-to-Sales Ratio ("Collection Health"), added 20 Sep 2026,
+     changed from a weekly to a calendar-month window 22 Sep 2026 -
      .ratio-wrap reuses .trend-wrap's card styling (background/border/
      padding/shadow) so it sits visually consistent with the trend
      charts right above it. */
@@ -571,14 +572,15 @@
 
   <!-- Collection-to-Sales Ratio ("Collection Health"), added 20 Sep 2026
        at the owner's request - warns when cash collected is lagging
-       sales billed in the same calendar week (Mon-Sun), before the
-       90+ day overdue bucket grows. See renderCollectionRatio_() below
-       for the week-boundary math and the Rs-value sales figure this
-       needed (salesRsTrendMap - see tally_live_watcher.py's
-       daily_rs_totals in fetch_sales()). -->
+       sales billed in the same calendar month (1st to today), before the
+       90+ day overdue bucket grows. Changed from a weekly (Mon-Sun) to a
+       monthly window 22 Sep 2026, same request. See
+       renderCollectionRatio_() below for the month-boundary math and the
+       Rs-value sales figure this needed (salesRsTrendMap - see
+       tally_live_watcher.py's daily_rs_totals in fetch_sales()). -->
   <div id="captureRatio">
     <div class="section-label-row">
-      <p class="section-label">Collection Health — this week</p>
+      <p class="section-label">Collection Health — this month</p>
       <button type="button" class="share-icon-btn small" id="shareRatioBtn" title="Share Collection Health">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
       </button>
@@ -2206,24 +2208,30 @@
   // the owner's request: "a simple percentage comparing cash collected in
   // a given week against the sales billed in that same week" - a warning
   // sign that Sales is spiking faster than Collection can keep up with,
-  // worth catching before it becomes 90+ day overdue debt. Week = calendar
-  // week, Monday-Sunday (the owner's choice), warns under 60% (also the
-  // owner's choice). Both Sales-in-Rs and Collection are Tally-verified,
-  // day-bucketed figures already flowing in via salesRsTrendMap/
-  // collectionTrendMap (see their own comments above) - this just sums
-  // the days that fall inside the current Mon-Sun window, no new fetch.
+  // worth catching before it becomes 90+ day overdue debt. **Changed from
+  // a weekly to a calendar-month window 22 Sep 2026, same owner's
+  // request** ("change collection health this week to month
+  // calculations") - month = calendar month, 1st of the month through
+  // today (month-to-date, same convention as every other "this month"
+  // figure on this dashboard - Sales/Collection panels, Ranking, etc.),
+  // warns under 60% (unchanged, the owner's original choice - only the
+  // period changed, not the threshold). Both Sales-in-Rs and Collection
+  // are Tally-verified, day-bucketed figures already flowing in via
+  // salesRsTrendMap/collectionTrendMap (see their own comments above) -
+  // this just sums the days that fall inside the current month-to-date
+  // window instead of the old Mon-Sun window, no new fetch.
   var COLLECTION_RATIO_WARN_THRESHOLD = 60; // percent
 
   function dateToISO_(d) {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
-  // [Monday, Sunday] of the calendar week containing `d`, as ["yyyy-MM-dd", "yyyy-MM-dd"].
-  function weekRangeFor_(d) {
-    var day = d.getDay(); // 0=Sun..6=Sat
-    var diffToMonday = day === 0 ? -6 : 1 - day;
-    var mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diffToMonday);
-    var sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
-    return [dateToISO_(mon), dateToISO_(sun)];
+  // [1st of month, today] of the calendar month containing `d`, as
+  // ["yyyy-MM-dd", "yyyy-MM-dd"] - month-to-date, not the whole month
+  // (there's no data past today anyway, but this keeps the range
+  // explicit and matches every other "this month" figure's own convention).
+  function monthRangeFor_(d) {
+    var first = new Date(d.getFullYear(), d.getMonth(), 1);
+    return [dateToISO_(first), dateToISO_(d)];
   }
   function sumMapInRange_(map, fromISO, toISO) {
     var total = 0;
@@ -2233,18 +2241,18 @@
     return total;
   }
   function buildShareTextRatio_() {
-    var range = weekRangeFor_(new Date());
-    var weekSalesRs = sumMapInRange_(salesRsTrendMap, range[0], range[1]);
-    var weekCollRs = sumMapInRange_(collectionTrendMap, range[0], range[1]);
-    var ratio = weekSalesRs > 0 ? Math.round((weekCollRs / weekSalesRs) * 100) : null;
+    var range = monthRangeFor_(new Date());
+    var monthSalesRs = sumMapInRange_(salesRsTrendMap, range[0], range[1]);
+    var monthCollRs = sumMapInRange_(collectionTrendMap, range[0], range[1]);
+    var ratio = monthSalesRs > 0 ? Math.round((monthCollRs / monthSalesRs) * 100) : null;
     var lines = ['COLLECTION HEALTH — ' + dateHeaderLine_(), ''];
-    lines.push('Cash collected vs. sales billed, this calendar week (' + range[0] + ' to ' + range[1] + ').');
+    lines.push('Cash collected vs. sales billed, this calendar month so far (' + range[0] + ' to ' + range[1] + ').');
     lines.push('');
-    lines.push('Sales billed: ' + fmtRs(weekSalesRs));
-    lines.push('Collected: ' + fmtRs(weekCollRs));
+    lines.push('Sales billed: ' + fmtRs(monthSalesRs));
+    lines.push('Collected: ' + fmtRs(monthCollRs));
     lines.push('Ratio: ' + (ratio === null ? 'n/a yet' : ratio + '%'));
     if (ratio !== null && ratio < COLLECTION_RATIO_WARN_THRESHOLD) {
-      lines.push('Below the ' + COLLECTION_RATIO_WARN_THRESHOLD + '% warning line — collection is lagging sales this week.');
+      lines.push('Below the ' + COLLECTION_RATIO_WARN_THRESHOLD + '% warning line — collection is lagging sales this month.');
     }
     return lines.join('\n');
   }
@@ -2252,37 +2260,37 @@
     var wrap = document.getElementById('ratioWrap');
     if (!wrap) return;
     if (trendError) {
-      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Couldn\'t load this week\'s Collection Health right now.</p>';
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Couldn\'t load this month\'s Collection Health right now.</p>';
       return;
     }
     if (salesRsTrendMap === null || collectionTrendMap === null) {
       wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Loading…</p>';
       return;
     }
-    var range = weekRangeFor_(new Date());
-    var weekSalesRs = sumMapInRange_(salesRsTrendMap, range[0], range[1]);
-    var weekCollRs = sumMapInRange_(collectionTrendMap, range[0], range[1]);
-    if (weekSalesRs === 0 && weekCollRs === 0) {
-      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Tally sales or collection recorded yet this week.</p>';
+    var range = monthRangeFor_(new Date());
+    var monthSalesRs = sumMapInRange_(salesRsTrendMap, range[0], range[1]);
+    var monthCollRs = sumMapInRange_(collectionTrendMap, range[0], range[1]);
+    if (monthSalesRs === 0 && monthCollRs === 0) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Tally sales or collection recorded yet this month.</p>';
       return;
     }
-    var ratio = weekSalesRs > 0 ? (weekCollRs / weekSalesRs) * 100 : null;
+    var ratio = monthSalesRs > 0 ? (monthCollRs / monthSalesRs) * 100 : null;
     var isLow = ratio !== null && ratio < COLLECTION_RATIO_WARN_THRESHOLD;
     var ratioText = ratio === null ? '—' : Math.round(ratio) + '%';
     var bannerHtml = '';
     if (isLow) {
-      bannerHtml = '<div class="ratio-banner warn">⚠ Collection is lagging Sales this week — worth tightening credit before overdue grows.</div>';
+      bannerHtml = '<div class="ratio-banner warn">⚠ Collection is lagging Sales this month — worth tightening credit before overdue grows.</div>';
     } else if (ratio !== null) {
-      bannerHtml = '<div class="ratio-banner ok">Collection is keeping pace with Sales this week.</div>';
+      bannerHtml = '<div class="ratio-banner ok">Collection is keeping pace with Sales this month.</div>';
     }
     wrap.innerHTML =
       '<div class="summary">' +
-        '<div class="stat"><p class="stat-label">Sales billed, this week</p><div class="stat-value">' + fmtRs(weekSalesRs) + '</div></div>' +
-        '<div class="stat"><p class="stat-label">Collected, this week</p><div class="stat-value">' + fmtRs(weekCollRs) + '</div></div>' +
+        '<div class="stat"><p class="stat-label">Sales billed, this month</p><div class="stat-value">' + fmtRs(monthSalesRs) + '</div></div>' +
+        '<div class="stat"><p class="stat-label">Collected, this month</p><div class="stat-value">' + fmtRs(monthCollRs) + '</div></div>' +
       '</div>' +
       '<div class="ratio-figure' + (isLow ? ' warn' : '') + '">' + ratioText + '<span class="ratio-figure-label">collected vs. billed</span></div>' +
       bannerHtml +
-      '<p class="trend-note">Calendar week (Mon–Sun): ' + range[0] + ' to ' + range[1] + '. Warns below ' + COLLECTION_RATIO_WARN_THRESHOLD + '%.</p>';
+      '<p class="trend-note">Calendar month, month-to-date: ' + range[0] + ' to ' + range[1] + '. Warns below ' + COLLECTION_RATIO_WARN_THRESHOLD + '%.</p>';
   }
 
   // Dealer lookup, added 20 Sep 2026 - a single search box across every

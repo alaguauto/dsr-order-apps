@@ -672,6 +672,19 @@
   .sku-box .sku-item { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
   .sku-box .sku-item span:first-child { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sku-box .sku-item span:last-child { flex: 0 0 auto; font-family: "IBM Plex Mono", monospace; color: var(--text); white-space: nowrap; }
+  /* Collection Health ("Sales billed vs Collected, this month"), added
+     23 Sep 2026 at the owner's request ("make this health calculations
+     in dsr app also for them area") - a per-DSR twin of the manager
+     dashboard's own Collection Health panel (see
+     claude/live-tally-sync-notes.md), same warn-under-60% concept, scoped
+     to just this DSR's own area instead of company-wide. The two figure
+     chips and the ratio chip reuse .target-chip/.balance-met above as-is;
+     this small banner is the one new class, styled with the same
+     --danger/--qty tokens already used throughout this file (e.g.
+     .item-row.over-stock/.target-chip.balance-met). */
+  .health-banner { font-size: 12px; padding: 7px 10px; border-radius: 7px; margin-top: 2px; }
+  .health-banner.warn { background: var(--danger-soft); color: var(--danger); }
+  .health-banner.ok { background: var(--surface-2); color: var(--qty); }
   .report-btn {
     flex: 0 0 auto;
     display: flex;
@@ -922,11 +935,24 @@
     </details>
   </section>
 
+  <!-- Collection Health ("Sales billed vs Collected, this month"), added
+       23 Sep 2026 - see renderCollectionHealth() below for the math and
+       the .health-banner CSS comment above for the styling reasoning. -->
+  <section style="padding-bottom:0;">
+    <details class="manage" id="collectionHealthDetails">
+      <summary>Collection Health <span id="collectionHealthSummaryLabel" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">Cash collected vs. sales billed, this month so far in your own area — live from Tally, nothing to enter here.</p>
+        <div class="target-strip" id="collectionHealthStrip"></div>
+      </div>
+    </details>
+  </section>
+
   <section style="padding-bottom:0;">
     <details class="manage" id="newDealersDetails">
       <summary>New dealers <span id="newDealersSummaryLabel" class="num" style="font-weight:500;"></span></summary>
       <div class="manage-body">
-        <p class="hint">First order landed this month — worth a follow-up to keep them ordering. Live from your own order log, nothing to enter here.</p>
+        <p class="hint">First appeared in Tally’s own dealer records this month — worth a follow-up to keep them ordering. Checked once a day from Tally, nothing to enter here.</p>
         <div id="newDealersListEl"></div>
       </div>
     </details>
@@ -1270,6 +1296,10 @@
   var collectionStripEl = document.getElementById("collectionStrip");
   var collectionSummaryLabelEl = document.getElementById("collectionSummaryLabel");
   var collectionDetailsEl = document.getElementById("collectionDetails");
+  // Collection Health elements, added 23 Sep 2026 - see renderCollectionHealth() below.
+  var collectionHealthStripEl = document.getElementById("collectionHealthStrip");
+  var collectionHealthSummaryLabelEl = document.getElementById("collectionHealthSummaryLabel");
+  var collectionHealthDetailsEl = document.getElementById("collectionHealthDetails");
   var dormantSummaryLabelEl = document.getElementById("dormantSummaryLabel");
   var dormantListEl = document.getElementById("dormantListEl");
   var dormantDetailsEl = document.getElementById("dormantDetails");
@@ -2206,6 +2236,10 @@
           collectionChanged = true;
         }
         if (collectionChanged && typeof renderCollection === "function") renderCollection();
+        // Collection Health's ratio depends on liveCollectionMonth too
+        // (see renderCollectionHealth() below), not just the Sales side -
+        // added 23 Sep 2026.
+        if (collectionChanged && typeof renderCollectionHealth === "function") renderCollectionHealth();
       }
     }
     // Sales' own "MB" was briefly read from data.sales HERE (Tally-based,
@@ -2247,7 +2281,19 @@
           liveSalesLastMonthFull = Number(newSalesLastMonthFull);
           salesLiveChanged = true;
         }
+        // "Month Sold Rs" added 23 Sep 2026 for Collection Health - see
+        // liveSalesMonthRs' own comment above renderCollectionHealth()
+        // below. This is the one Rupee figure in an otherwise all-Ltr
+        // Sales panel, read separately so it never touches
+        // renderOrdersAndTarget()'s own Ltr-only math above.
+        var newSalesMonthRs = salesRec.monthSoldRs;
+        var healthChanged = false;
+        if (newSalesMonthRs !== null && newSalesMonthRs !== undefined && !isNaN(newSalesMonthRs) && newSalesMonthRs !== liveSalesMonthRs) {
+          liveSalesMonthRs = Number(newSalesMonthRs);
+          healthChanged = true;
+        }
         if (salesLiveChanged && typeof renderOrdersAndTarget === "function") renderOrdersAndTarget();
+        if ((salesLiveChanged || healthChanged) && typeof renderCollectionHealth === "function") renderCollectionHealth();
       }
     }
     // Dormant dealers, added 18 Sep 2026 - same rule built on the manager
@@ -3051,6 +3097,63 @@
     collectionSummaryLabelEl.textContent = "(₹" + formatNum(liveCollectionMonth) + ")";
   }
 
+  // Collection Health ("Sales billed vs Collected, this month, this DSR's
+  // own area"), added 23 Sep 2026 at the owner's request ("Change
+  // collection health this week to month calculations and make this
+  // health calculations in dsr app also for them area") - a per-DSR twin
+  // of the manager dashboard's own Collection Health panel (see
+  // claude/live-tally-sync-notes.md for the dashboard's own history),
+  // same calendar-month-to-date window and same warn-under-60% threshold,
+  // just scoped to this one DSR's own dealers instead of company-wide.
+  // Needs Sales BILLED IN RUPEES - liveSalesMonthRs below, set in
+  // applyLiveOverlay_() above from data.sales[myDsrName].monthSoldRs -
+  // the one Rupee figure in this app's otherwise all-Ltr Sales panel,
+  // added specifically for this feature (see tally_live_watcher.py's
+  // fetch_sales() for how it's computed). Collection is already Rupees -
+  // liveCollectionMonth, declared just above, same figure the Collection
+  // panel itself already shows - so no new Collection field was needed,
+  // only Sales gained a Rupee twin.
+  var liveSalesMonthRs = null;
+  var COLLECTION_HEALTH_WARN_THRESHOLD = 60; // percent - matches the dashboard's own threshold
+
+  function renderCollectionHealth() {
+    if (!collectionHealthDetailsEl) return;
+    if (COLLECTION_TARGET_RS <= 0) {
+      // AAA Direct's Collection panel is hidden entirely (pre-existing,
+      // COLLECTION_TARGET_RS = 0 - that app doesn't track a Collection
+      // target) - Collection Health needs a real Collection figure to
+      // compare against, so it hides the same way for the same reason.
+      collectionHealthDetailsEl.hidden = true;
+      return;
+    }
+    if (liveSalesMonthRs === null || liveCollectionMonth === null) {
+      collectionHealthStripEl.innerHTML = '<p class="empty-note">Waiting for the next Tally sync…</p>';
+      collectionHealthSummaryLabelEl.textContent = "";
+      return;
+    }
+    if (liveSalesMonthRs === 0 && liveCollectionMonth === 0) {
+      collectionHealthStripEl.innerHTML = '<p class="empty-note">No Tally sales or collection recorded yet this month.</p>';
+      collectionHealthSummaryLabelEl.textContent = "";
+      return;
+    }
+    var ratio = liveSalesMonthRs > 0 ? (liveCollectionMonth / liveSalesMonthRs) * 100 : null;
+    var isLow = ratio !== null && ratio < COLLECTION_HEALTH_WARN_THRESHOLD;
+    var ratioText = ratio === null ? "—" : Math.round(ratio) + "%";
+    var topRow = '<div class="target-chip">Sales billed <b>₹' + formatNum(liveSalesMonthRs) + "</b></div>";
+    topRow += '<div class="target-chip">Collected <b>₹' + formatNum(liveCollectionMonth) + "</b></div>";
+    var ratioRow = '<div class="target-chip' + (isLow ? "" : " balance-met") + '">Ratio <b>' + ratioText + "</b></div>";
+    var bannerHtml = "";
+    if (isLow) {
+      bannerHtml = '<div class="health-banner warn">⚠ Collection is lagging Sales this month — worth tightening credit before overdue grows.</div>';
+    } else if (ratio !== null) {
+      bannerHtml = '<div class="health-banner ok">Collection is keeping pace with Sales this month.</div>';
+    }
+    collectionHealthStripEl.innerHTML = '<div class="target-strip-row">' + topRow + "</div>" +
+      '<div class="target-strip-row">' + ratioRow + "</div>" +
+      bannerHtml;
+    collectionHealthSummaryLabelEl.textContent = ratio === null ? "" : "(" + Math.round(ratio) + "%)";
+  }
+
   // Dormant dealers list rendering, added 18 Sep 2026 - see the
   // computation in applyLiveOverlay_() above for the rule itself.
   var dormantDealers = [];
@@ -3412,6 +3515,7 @@
   renderSummary();
   renderOrdersAndTarget();
   renderCollection();
+  renderCollectionHealth();
   renderDormant();
   initOrders();
   checkReportBlock();
