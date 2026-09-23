@@ -968,6 +968,28 @@
     </details>
   </section>
 
+  <!-- Dealer review ("this month vs your own 6-month avg"), added 23 Sep
+       2026 at the owner's explicit request ("i need to review a dsr i need
+       inside dsr tab live tally this month sales vs 6 month avg sales
+       dealer wise and collections also same that") - the SAME comparison
+       is also surfaced dealer-wise under each DSR's own row on the manager
+       dashboard now (see dashboard's dealerReviewByDsr_()), but the owner
+       said this panel here "also looks good" and to keep it. Uses the
+       avg6moLtr/avg6moCollectedRs fields already flowing in via
+       data.salesByDealer/data.collectionByDealer (see
+       tally_live_watcher.py's fetch_sales()/fetch_collection()
+       docstrings) - no new network call, scoped to this app's own
+       `dealers` list only (unlike the dashboard's company-wide version). -->
+  <section style="padding-bottom:0;">
+    <details class="manage" id="dealerReviewDetails">
+      <summary>Dealer review <span id="dealerReviewSummaryLabel" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">This month vs your own 6-month average, dealer-wise — live from Tally, nothing to enter here.</p>
+        <div id="dealerReviewListEl"></div>
+      </div>
+    </details>
+  </section>
+
   <section style="padding-bottom:0;">
     <details class="manage" id="pastOrdersDetails">
       <summary>Past orders</summary>
@@ -1305,6 +1327,8 @@
   var dormantDetailsEl = document.getElementById("dormantDetails");
   var newDealersSummaryLabelEl = document.getElementById("newDealersSummaryLabel");
   var newDealersListEl = document.getElementById("newDealersListEl");
+  var dealerReviewSummaryLabelEl = document.getElementById("dealerReviewSummaryLabel");
+  var dealerReviewListEl = document.getElementById("dealerReviewListEl");
   var newDealersDetailsEl = document.getElementById("newDealersDetails");
   var reportBtn = document.getElementById("reportBtn");
   var ordersListEl = document.getElementById("ordersList");
@@ -2333,6 +2357,43 @@
       dormantDealers = newDormant;
       if (typeof renderDormant === "function") renderDormant();
     }
+    // Dealer review ("this month vs your own 6-month avg"), added 23 Sep
+    // 2026 - see the <details id="dealerReviewDetails"> comment above for
+    // why. Same worst-first sort and 70%-threshold pct tag as the
+    // dashboard's own dealerReviewByDsr_()/pctTagHtml_(), just scoped to
+    // this app's own `dealers` list (not every dealer company-wide) and
+    // rendered with this app's .manage-row list style instead of the
+    // dashboard's rank-row/modal pattern. Purely additive: if the backend
+    // hasn't been upgraded yet, avg6moLtr/avg6moCollectedRs are simply
+    // absent and every dealer is skipped (no 6-month history shown).
+    if (data.salesByDealer || data.collectionByDealer) {
+      var newDealerReview = [];
+      for (var dr = 0; dr < dealers.length; dr++) {
+        var drName = dealers[dr].name;
+        var drSalesRec = data.salesByDealer ? data.salesByDealer[drName] : null;
+        var drCollRec = data.collectionByDealer ? data.collectionByDealer[drName] : null;
+        var drSalesAvg = drSalesRec ? drSalesRec.avg6moLtr : null;
+        var drCollAvg = drCollRec ? drCollRec.avg6moCollectedRs : null;
+        if ((drSalesAvg === null || drSalesAvg === undefined) && (drCollAvg === null || drCollAvg === undefined)) continue; // no 6-month history at all
+        var drSalesMonth = (drSalesRec && drSalesRec.month) || 0;
+        var drCollMonth = (drCollRec && drCollRec.month) || 0;
+        var drSalesPct = (drSalesAvg !== null && drSalesAvg !== undefined && drSalesAvg > 0) ? (drSalesMonth / drSalesAvg) * 100 : null;
+        var drCollPct = (drCollAvg !== null && drCollAvg !== undefined && drCollAvg > 0) ? (drCollMonth / drCollAvg) * 100 : null;
+        var drPcts = [drSalesPct, drCollPct].filter(function (p) { return p !== null; });
+        var drWorstPct = drPcts.length ? Math.min.apply(null, drPcts) : null;
+        newDealerReview.push({
+          name: drName, salesMonth: drSalesMonth, salesAvg: drSalesAvg, salesPct: drSalesPct,
+          collMonth: drCollMonth, collAvg: drCollAvg, collPct: drCollPct, worstPct: drWorstPct
+        });
+      }
+      newDealerReview.sort(function (a, b) {
+        var aw = a.worstPct === null ? Infinity : a.worstPct;
+        var bw = b.worstPct === null ? Infinity : b.worstPct;
+        return aw - bw; // worst (furthest below its own average) first
+      });
+      dealerReviewRows = newDealerReview;
+      if (typeof renderDealerReview === "function") renderDealerReview();
+    }
     if (stockChanged && typeof renderItemList === "function") renderItemList();
     if (dealersChanged) {
       if (typeof renderDealerNote === "function") renderDealerNote();
@@ -2800,7 +2861,7 @@
       var dateLabel = r.firstSeenDate || "";
       try { if (r.firstSeenDate) dateLabel = formatDateDisplay(r.firstSeenDate); } catch (e) { /* ignore */ }
       return '<div class="manage-row"><span class="manage-row-name clickable" data-dealer-name="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + "</span>" +
-        '<span class="manage-row-fields-static">First seen ' + escapeHtml(dateLabel) + "</span></div>";
+        '<span class="manage-row-fields-static">First order taken on ' + escapeHtml(dateLabel) + "</span></div>";
     }).join("");
   }
   if (newDealersListEl) {
@@ -3187,6 +3248,43 @@
     }).join("");
   }
   dormantListEl.addEventListener("click", function (e) {
+    var nameEl = e.target.closest(".manage-row-name.clickable");
+    if (!nameEl) return;
+    selectDealerForOrder_(nameEl.getAttribute("data-dealer-name"));
+  });
+
+  // Dealer review list rendering, added 23 Sep 2026 - see the computation
+  // in applyLiveOverlay_() above. DEALER_REVIEW_WARN_PCT matches the
+  // threshold proven on this same panel before, now also used by the
+  // dashboard's own dealer-wise version.
+  var dealerReviewRows = [];
+  var DEALER_REVIEW_WARN_PCT = 70;
+  function dealerReviewPctTagHtml_(pct) {
+    if (pct === null || pct === undefined) return "";
+    var rounded = Math.round(pct);
+    var arrow = rounded >= 100 ? "▲" : (rounded < DEALER_REVIEW_WARN_PCT ? "▼" : "●");
+    var color = rounded >= 100 ? "var(--accent)" : (rounded < DEALER_REVIEW_WARN_PCT ? "var(--danger)" : "var(--text-muted)");
+    return ' <b style="color:' + color + ';">' + arrow + " " + rounded + "%</b>";
+  }
+  function renderDealerReview() {
+    if (!dealerReviewListEl) return;
+    dealerReviewSummaryLabelEl.textContent = dealerReviewRows.length ? "(" + dealerReviewRows.length + ")" : "";
+    if (!dealerReviewRows.length) {
+      dealerReviewListEl.innerHTML = '<p class="empty-note" style="padding:10px 0;">No dealers with 6 months of Tally history yet.</p>';
+      return;
+    }
+    dealerReviewListEl.innerHTML = dealerReviewRows.map(function (r) {
+      var salesLine = (r.salesAvg !== null && r.salesAvg !== undefined)
+        ? "Sales " + formatNum(r.salesMonth) + " / " + formatNum(r.salesAvg) + " Ltr avg" + dealerReviewPctTagHtml_(r.salesPct)
+        : "Sales — no 6-mo history";
+      var collLine = (r.collAvg !== null && r.collAvg !== undefined)
+        ? "Coll. ₹" + formatBalance_(r.collMonth) + " / ₹" + formatBalance_(r.collAvg) + " avg" + dealerReviewPctTagHtml_(r.collPct)
+        : "Collection — no 6-mo history";
+      return '<div class="manage-row"><span class="manage-row-name clickable" data-dealer-name="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + "</span>" +
+        '<span class="manage-row-fields-static">' + salesLine + "<br>" + collLine + "</span></div>";
+    }).join("");
+  }
+  dealerReviewListEl.addEventListener("click", function (e) {
     var nameEl = e.target.closest(".manage-row-name.clickable");
     if (!nameEl) return;
     selectDealerForOrder_(nameEl.getAttribute("data-dealer-name"));

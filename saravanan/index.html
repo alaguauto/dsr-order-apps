@@ -2721,7 +2721,7 @@
       var dateLabel = r.firstSeenDate || "";
       try { if (r.firstSeenDate) dateLabel = formatDateDisplay(r.firstSeenDate); } catch (e) { /* ignore */ }
       return '<div class="manage-row"><span class="manage-row-name clickable" data-dealer-name="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + "</span>" +
-        '<span class="manage-row-fields-static">First seen ' + escapeHtml(dateLabel) + "</span></div>";
+        '<span class="manage-row-fields-static">First order taken on ' + escapeHtml(dateLabel) + "</span></div>";
     }).join("");
   }
   if (newDealersListEl) {

@@ -323,6 +323,14 @@
   .rank-row:first-child { border-top: none; }
   .rank-num { font-family: 'Archivo', system-ui, sans-serif; font-weight: 800; font-size: 13px; color: var(--ink-muted); width: 18px; flex-shrink: 0; text-align: center; }
   .rank-row.top .rank-num { color: var(--accent); }
+  /* Total row, added 23 Sep 2026 at the owner's request ("i want total of
+     that in the same heading") - a summary row appended under the same
+     dealer-wise lists (60+ baseline, Dealer review), same column position
+     as every other row's value, just bolder with a heavier divider so it
+     reads as a sum, not one more dealer. */
+  .rank-row.total-row { border-top: 2px solid var(--border); margin-top: 2px; }
+  .rank-row.total-row .rank-name { font-weight: 800; }
+  .rank-row.total-row .rank-value { font-weight: 800; color: var(--ink); }
   .rank-name { flex: 1.1; min-width: 0; font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rank-bar-wrap { flex: 1.3; min-width: 50px; }
   .progress-track.mini { height: 6px; }
@@ -400,27 +408,23 @@
   .lastmonth-line b { font-weight: 700; color: var(--ink); }
   .lastmonth-line .bracket { color: var(--ink-muted); font-weight: 500; }
 
-  /* DSR-wise age-dues chart (Needs Attention), "Inactive vs Billed" table,
-     and "Catalog coverage" stat - all added 22 Sep 2026 at the owner's
-     request. Reuses the .stat/.summary visual language already on this
-     page rather than inventing new components. Age bar: one horizontal
-     stacked bar per DSR, bar LENGTH proportional to that DSR's own total
-     overdue-30+ amount (so a longer bar = a bigger problem, comparable
-     DSR-to-DSR), internal segments proportional to that DSR's OWN
-     30-59/60-89/90+ split (so composition is visible too) - blue->amber->
-     red for increasing severity, matching the color progression already
-     implied by the Needs Attention stat tiles (90+ already uses --warn). */
-  .age-chart { display: flex; flex-direction: column; gap: 10px; padding: 14px 18px 4px; }
-  .age-row-label { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 3px; }
-  .age-row-label .dsr { font-weight: 700; color: var(--ink); }
-  .age-row-label .total { color: var(--ink-muted); }
-  .age-bar-track { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--surface-2); }
-  .age-bar-seg.b30 { background: var(--live); }
-  .age-bar-seg.b60 { background: var(--accent); }
-  .age-bar-seg.b90 { background: var(--warn); }
-  .age-chart-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--ink-secondary); padding: 4px 18px 14px; }
-  .age-chart-legend span { display: inline-flex; align-items: center; gap: 5px; }
-  .age-chart-legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  /* DSR-wise age-dues TABLE (Needs Attention), "Inactive vs Billed" table,
+     and "Catalog coverage" stat - table added 22 Sep 2026, REPLACED with a
+     real table 23 Sep 2026 at the owner's explicit request ("this dont
+     need graph i need real data 0-30, 31-59, 60-89, 90+ outstanding, top
+     dsr name, side days - amount") - a real mockup table (day-bands down
+     the side, DSR names across the top) rather than a stacked bar chart.
+     Reuses the .stat/.summary visual language already on this page rather
+     than inventing new components; horizontally scrollable on narrow
+     screens since a wide DSR roster makes for a wide table. */
+  .age-table-scroll { overflow-x: auto; padding: 14px 18px 18px; -webkit-overflow-scrolling: touch; }
+  .age-table { border-collapse: collapse; width: 100%; min-width: 480px; font-size: 12.5px; }
+  .age-table th, .age-table td { padding: 7px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
+  .age-table th:first-child, .age-table td:first-child { text-align: left; font-weight: 600; color: var(--ink-secondary); position: sticky; left: 0; background: var(--surface); }
+  .age-table thead th { font-weight: 700; color: var(--ink); border-bottom: 2px solid var(--border); }
+  .age-table td.num { font-variant-numeric: tabular-nums; }
+  .age-table tr.age-table-total td { font-weight: 700; color: var(--ink); border-top: 2px solid var(--border); border-bottom: none; }
+  .age-table td.zero { color: var(--ink-muted); }
 
   .ib-table { display: flex; flex-direction: column; }
   .ib-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 18px; border-top: 1px solid var(--border); font-size: 13px; }
@@ -636,9 +640,10 @@
       </button>
     </div>
     <div class="summary attn" id="attentionStats"></div>
-    <!-- DSR-wise age-dues chart, added 22 Sep 2026 at the owner's request
-         ("in need attention add a chart of dsr wise age dues") - see
-         renderAgeChart_() below. -->
+    <!-- DSR-wise age-dues TABLE, added 22 Sep 2026 as a chart, REPLACED
+         with a real table 23 Sep 2026 at the owner's explicit request
+         ("this dont need graph i need real data") - see renderAgeTable_()
+         below. -->
     <div id="ageChartWrap"></div>
   </div>
 
@@ -688,6 +693,40 @@
         <button type="button" class="dormant-close" id="dormantCloseBtn" aria-label="Close">&times;</button>
       </div>
       <div id="dormantSheetList"></div>
+    </div>
+  </div>
+
+  <!-- 60+ day overdue, bill-level baseline modal, added 23 Sep 2026 - same
+       overlay/sheet styling as Needs Attention/Dormant above, opened from
+       each DSR row's own dealer-wise 60+ list (see sixtyPlusRowsHtml_()/
+       openSixtyPlusSheet_() below). -->
+  <div class="dormant-overlay" id="sixtyPlusOverlay" style="display:none;">
+    <div class="dormant-sheet">
+      <div class="dormant-sheet-head">
+        <div>
+          <p class="dormant-sheet-title" id="sixtyPlusSheetTitle"></p>
+          <p class="dormant-sheet-sub" id="sixtyPlusSheetSub"></p>
+        </div>
+        <button type="button" class="dormant-close" id="sixtyPlusCloseBtn" aria-label="Close">&times;</button>
+      </div>
+      <div id="sixtyPlusSheetList"></div>
+    </div>
+  </div>
+
+  <!-- Dealer review (this month vs 6-month avg) modal, added 23 Sep 2026 -
+       same overlay/sheet styling as the others above, opened from each DSR
+       row's own dealer review list (see dealerReviewRowsHtml_()/
+       openDealerReviewSheet_() below). -->
+  <div class="dormant-overlay" id="dealerReviewOverlay" style="display:none;">
+    <div class="dormant-sheet">
+      <div class="dormant-sheet-head">
+        <div>
+          <p class="dormant-sheet-title" id="dealerReviewSheetTitle"></p>
+          <p class="dormant-sheet-sub" id="dealerReviewSheetSub"></p>
+        </div>
+        <button type="button" class="dormant-close" id="dealerReviewCloseBtn" aria-label="Close">&times;</button>
+      </div>
+      <div id="dealerReviewSheetList"></div>
     </div>
   </div>
 
@@ -883,6 +922,14 @@
   // handleLiveGet_()/tally_live_watcher.py's dsr_item_totals).
   var stockMap = null;
   var salesByDsrItemList = null;
+  // sixtyPlusByDealer added 23 Sep 2026 for the fixed, bill-level "60+
+  // days overdue, collected this month" stat - {dealerName: {baseline,
+  // collected, billCount}}, straight from ?type=live (see Code.gs's
+  // handleLiveGet_()/tally_live_watcher.py's snapshot_or_get_sixtyplus_baseline()
+  // docstring). Replaces the old daily-recomputed sixtyPlusCollectedByDsr_()
+  // approach, which derived a dealer's 60+ status fresh every poll instead
+  // of tracking specific frozen bills.
+  var sixtyPlusByDealer = null;
   // feature, read by this dashboard for the first time 18 Sep 2026 to
   // scope "Needs attention" to real dealers only - see renderNeedsAttention().
 
@@ -1209,34 +1256,205 @@
   // his particular transaction and data at one glance ... keep [the
   // company-wide sections] ... other than this change all to DSR wise a +
   // button near a DSR name and it has to expand with all the details."
-  // "More than 60 days outstanding - how much collected this month",
-  // added 22 Sep 2026 at the owner's request (ties back to the earlier
-  // Collection Health question: is cash being collected from NEW sales,
-  // or mostly chasing OLD debt) - for each DSR, sums this-month
-  // collections (collectionByDealer[name].month) from only the dealers
-  // who currently have a 60+ day overdue bill (outstandingMap, same
-  // days-overdue math as Needs Attention). Computed once here (not per
-  // DSR inside the render loop below) since it needs the same
-  // knownDealerDsrMap_() walk Needs Attention already does.
-  function sixtyPlusCollectedByDsr_() {
+  // 60+ days overdue, bill-level monthly baseline - REPLACES the old
+  // sixtyPlusCollectedByDsr_() (22 Sep 2026), which recomputed which
+  // bills counted as "60+" fresh on every poll - a real flaw the owner
+  // flagged 23 Sep 2026 ("daily 60 days outstanding amount will differ"),
+  // since the 60+ pool itself drifted day to day. Fixed backend-side by
+  // freezing the specific 60+ bills as of each month's start
+  // (tally_live_watcher.py's snapshot_or_get_sixtyplus_baseline()/
+  // compute_sixtyplus_collected_by_dealer()) and tracking collection
+  // against only those frozen bills - sixtyPlusByDealer (see its own var
+  // comment above) already carries this per dealer, straight from
+  // ?type=live.
+  //
+  // Also rebuilt DEALER-WISE, not just a single rolled-up DSR figure -
+  // the owner's own correction 23 Sep 2026 ("60 days in dashboard need
+  // dealer wise like [Needs attention/Inactive dealers]"): each DSR's own
+  // expandable row now shows its own capped, sorted (worst/highest-
+  // baseline-first) dealer list via sixtyPlusRowsHtml_() below, same
+  // "+N more - tap to see all" pattern as Needs Attention/Inactive
+  // Dealers, instead of one aggregate number.
+  function sixtyPlusByDsrDealerwise_() {
     var out = {};
-    if (outstandingMap === null || collectionByDealer === null) return out;
+    if (!sixtyPlusByDealer) return out;
     var dealerDsr = knownDealerDsrMap_();
-    Object.keys(outstandingMap).forEach(function (name) {
+    Object.keys(sixtyPlusByDealer).forEach(function (name) {
       var dsrName = dealerDsr[name];
       if (!dsrName) return;
-      var rec = outstandingMap[name] || {};
-      var days = daysOverdue(rec.since);
-      if (days === null || days < 60) return;
-      var collRec = collectionByDealer[name];
-      var collectedThisMonth = (collRec && collRec.month) || 0;
-      out[dsrName] = (out[dsrName] || 0) + collectedThisMonth;
+      var rec = sixtyPlusByDealer[name] || {};
+      if (rec.baseline === null || rec.baseline === undefined || rec.baseline <= 0) return;
+      (out[dsrName] = out[dsrName] || []).push({
+        name: name,
+        baseline: rec.baseline,
+        collected: rec.collected || 0,
+        billCount: rec.billCount || 0
+      });
+    });
+    Object.keys(out).forEach(function (dsrName) {
+      out[dsrName].sort(function (a, b) { return b.baseline - a.baseline; }); // worst (biggest frozen debt) first
     });
     return out;
   }
 
+  var SIXTYPLUS_CARD_LIMIT = 5;
+
+  function sixtyPlusRowsHtml_(list) {
+    return list.map(function (r, i) {
+      var pct = r.baseline > 0 ? Math.round((r.collected / r.baseline) * 100) : 0;
+      return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
+        '<span class="rank-name">' + r.name + '</span>' +
+        '<span class="rank-value num">' + fmtRs(r.collected) + ' / ' + fmtRs(r.baseline) + ' (' + pct + '%)</span></div>';
+    }).join('');
+  }
+
+  // Total row, added 23 Sep 2026 - sums the WHOLE list (every dealer in
+  // this DSR's 60+ baseline, not just the capped rows shown above it), so
+  // the total is correct whether or not "+N more" has been expanded.
+  // Same column position as every row's own value (name column blank
+  // except the "Total" label, value column holds the sum), same pct math.
+  function sixtyPlusTotalRowHtml_(list) {
+    if (!list.length) return '';
+    var totalCollected = 0, totalBaseline = 0;
+    list.forEach(function (r) { totalCollected += r.collected; totalBaseline += r.baseline; });
+    var pct = totalBaseline > 0 ? Math.round((totalCollected / totalBaseline) * 100) : 0;
+    return '<div class="rank-row total-row"><span class="rank-num"></span>' +
+      '<span class="rank-name">Total</span>' +
+      '<span class="rank-value num">' + fmtRs(totalCollected) + ' / ' + fmtRs(totalBaseline) + ' (' + pct + '%)</span></div>';
+  }
+
+  function openSixtyPlusSheet_(dsrDisplayName, fullList) {
+    document.getElementById('sixtyPlusSheetTitle').textContent = dsrDisplayName;
+    document.getElementById('sixtyPlusSheetSub').textContent = fullList.length + ' dealer' + (fullList.length === 1 ? '' : 's') + ' in this month\'s 60+ day baseline';
+    document.getElementById('sixtyPlusSheetList').innerHTML = sixtyPlusRowsHtml_(fullList) + sixtyPlusTotalRowHtml_(fullList);
+    document.getElementById('sixtyPlusOverlay').style.display = 'flex';
+  }
+  function closeSixtyPlusSheet_() {
+    document.getElementById('sixtyPlusOverlay').style.display = 'none';
+  }
+  document.getElementById('sixtyPlusCloseBtn').addEventListener('click', closeSixtyPlusSheet_);
+  document.getElementById('sixtyPlusOverlay').addEventListener('click', function (e) {
+    if (e.target.id === 'sixtyPlusOverlay') closeSixtyPlusSheet_();
+  });
+
+  // Dealer review - this month vs 6-month avg, added 23 Sep 2026 at the
+  // owner's request ("i need to review a dsr i need inside dsr tab live
+  // tally this month sales vs 6 month avg sales dealer wise and
+  // collections also same that"), then CORRECTED the same day to also
+  // live here on the dashboard, under each DSR's own row ("i said in dsr
+  // card near dealer review in dashboard") - it already exists inside
+  // Arun's own DSR app too (kept, per the owner: "that also looks good"),
+  // this is the same comparison surfaced here as well. Uses the
+  // avg6moLtr/avg6moCollectedRs fields already flowing in via
+  // salesByDealer/collectionByDealer (see tally_live_watcher.py's
+  // fetch_sales()/fetch_collection() docstrings) - no new network call.
+  // Sorted worst-first by whichever of sales%/collection% is lower (a
+  // dealer badly behind on EITHER metric surfaces near the top), same
+  // "worst needs the most attention first" convention as Needs Attention/
+  // 60+ baseline above.
+  function dealerReviewByDsr_() {
+    var out = {};
+    if (!salesByDealer && !collectionByDealer) return out;
+    var dealerDsr = knownDealerDsrMap_();
+    Object.keys(dealerDsr).forEach(function (name) {
+      var dsrName = dealerDsr[name];
+      var salesRec = salesByDealer ? salesByDealer[name] : null;
+      var collRec = collectionByDealer ? collectionByDealer[name] : null;
+      var salesAvg = salesRec ? salesRec.avg6moLtr : null;
+      var collAvg = collRec ? collRec.avg6moCollectedRs : null;
+      if ((salesAvg === null || salesAvg === undefined) && (collAvg === null || collAvg === undefined)) return; // no 6-month history at all for this dealer
+      var salesMonth = (salesRec && salesRec.month) || 0;
+      var collMonth = (collRec && collRec.month) || 0;
+      var salesPct = (salesAvg !== null && salesAvg !== undefined && salesAvg > 0) ? (salesMonth / salesAvg) * 100 : null;
+      var collPct = (collAvg !== null && collAvg !== undefined && collAvg > 0) ? (collMonth / collAvg) * 100 : null;
+      var pcts = [salesPct, collPct].filter(function (p) { return p !== null; });
+      var worstPct = pcts.length ? Math.min.apply(null, pcts) : null;
+      (out[dsrName] = out[dsrName] || []).push({
+        name: name, salesMonth: salesMonth, salesAvg: salesAvg, salesPct: salesPct,
+        collMonth: collMonth, collAvg: collAvg, collPct: collPct, worstPct: worstPct
+      });
+    });
+    Object.keys(out).forEach(function (dsrName) {
+      out[dsrName].sort(function (a, b) {
+        var aw = a.worstPct === null ? Infinity : a.worstPct;
+        var bw = b.worstPct === null ? Infinity : b.worstPct;
+        return aw - bw; // worst (furthest below its own average) first
+      });
+    });
+    return out;
+  }
+
+  var DEALER_REVIEW_CARD_LIMIT = 5;
+  var DEALER_REVIEW_WARN_PCT = 70; // matches the threshold already proven on Arun's own DSR app panel
+
+  function pctTagHtml_(pct) {
+    if (pct === null || pct === undefined) return '';
+    var rounded = Math.round(pct);
+    var arrow = rounded >= 100 ? '▲' : (rounded < DEALER_REVIEW_WARN_PCT ? '▼' : '●');
+    var color = rounded >= 100 ? 'var(--accent)' : (rounded < DEALER_REVIEW_WARN_PCT ? 'var(--warn)' : 'var(--ink-muted)');
+    return ' <b style="color:' + color + ';">' + arrow + ' ' + rounded + '%</b>';
+  }
+
+  function dealerReviewRowsHtml_(list) {
+    return list.map(function (r, i) {
+      var salesLine = (r.salesAvg !== null && r.salesAvg !== undefined)
+        ? 'Sales ' + fmt(r.salesMonth) + ' / ' + fmt(r.salesAvg) + ' Ltr avg' + pctTagHtml_(r.salesPct)
+        : 'Sales — no 6-mo history';
+      var collLine = (r.collAvg !== null && r.collAvg !== undefined)
+        ? 'Coll. ' + fmtRs(r.collMonth) + ' / ' + fmtRs(r.collAvg) + ' avg' + pctTagHtml_(r.collPct)
+        : 'Collection — no 6-mo history';
+      return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
+        '<span class="rank-name">' + r.name + '</span>' +
+        '<span class="rank-value wrap num">' + salesLine + '<br>' + collLine + '</span></div>';
+    }).join('');
+  }
+
+  // Total row, added 23 Sep 2026 - sums the WHOLE list (every dealer with
+  // 6-month history for this DSR, not just the capped rows shown above
+  // it), so the total is correct whether or not "+N more" has been
+  // expanded. Sums this month's actual against the sum of each dealer's
+  // own 6-month average (only over dealers that HAVE that average, so a
+  // dealer missing Sales history doesn't drag the Sales total to zero) -
+  // the resulting group % is "this month's total vs. what these dealers'
+  // own history would predict," same idea as each individual row's %.
+  function dealerReviewTotalRowHtml_(list) {
+    if (!list.length) return '';
+    var salesMonthSum = 0, salesAvgSum = 0, hasSales = false;
+    var collMonthSum = 0, collAvgSum = 0, hasColl = false;
+    list.forEach(function (r) {
+      if (r.salesAvg !== null && r.salesAvg !== undefined) { salesMonthSum += r.salesMonth; salesAvgSum += r.salesAvg; hasSales = true; }
+      if (r.collAvg !== null && r.collAvg !== undefined) { collMonthSum += r.collMonth; collAvgSum += r.collAvg; hasColl = true; }
+    });
+    var salesPct = hasSales && salesAvgSum > 0 ? (salesMonthSum / salesAvgSum) * 100 : null;
+    var collPct = hasColl && collAvgSum > 0 ? (collMonthSum / collAvgSum) * 100 : null;
+    var salesLine = hasSales
+      ? 'Sales ' + fmt(salesMonthSum) + ' / ' + fmt(salesAvgSum) + ' Ltr avg' + pctTagHtml_(salesPct)
+      : 'Sales — no 6-mo history';
+    var collLine = hasColl
+      ? 'Coll. ' + fmtRs(collMonthSum) + ' / ' + fmtRs(collAvgSum) + ' avg' + pctTagHtml_(collPct)
+      : 'Collection — no 6-mo history';
+    return '<div class="rank-row total-row"><span class="rank-num"></span>' +
+      '<span class="rank-name">Total</span>' +
+      '<span class="rank-value wrap num">' + salesLine + '<br>' + collLine + '</span></div>';
+  }
+
+  function openDealerReviewSheet_(dsrDisplayName, fullList) {
+    document.getElementById('dealerReviewSheetTitle').textContent = dsrDisplayName;
+    document.getElementById('dealerReviewSheetSub').textContent = fullList.length + ' dealer' + (fullList.length === 1 ? '' : 's') + ' with 6-month history';
+    document.getElementById('dealerReviewSheetList').innerHTML = dealerReviewRowsHtml_(fullList) + dealerReviewTotalRowHtml_(fullList);
+    document.getElementById('dealerReviewOverlay').style.display = 'flex';
+  }
+  function closeDealerReviewSheet_() {
+    document.getElementById('dealerReviewOverlay').style.display = 'none';
+  }
+  document.getElementById('dealerReviewCloseBtn').addEventListener('click', closeDealerReviewSheet_);
+  document.getElementById('dealerReviewOverlay').addEventListener('click', function (e) {
+    if (e.target.id === 'dealerReviewOverlay') closeDealerReviewSheet_();
+  });
+
   function renderCards() {
-    var sixtyPlusCollected = sixtyPlusCollectedByDsr_();
+    var sixtyPlusByDsr = sixtyPlusByDsrDealerwise_();
+    var dealerReviewByDsr = dealerReviewByDsr_();
     document.getElementById('dsrList').innerHTML = DSRS.map(function (d) {
       var salesPill, salesBody;
       if (d.salesError) {
@@ -1294,13 +1512,6 @@
             (cDone ? '' : projLineHtml_(d.monthCollected, d.collectionTarget, fmtRs)) +
             (cDone ? '' : dailyRunRateHtml_(cBalance, fmtRs, 'money')) +
             lastMonthLineHtml_(d.lastMonthSameDate, d.lastMonthFull, d.monthCollected, fmtRs, 'money') +
-            // "60+ days outstanding - collected this month", added 22 Sep
-            // 2026 - see sixtyPlusCollectedByDsr_() above. Only shown once
-            // outstanding/collectionByDealer data has actually arrived
-            // (sixtyPlusCollected[d.dsrName] stays undefined until then).
-            (sixtyPlusCollected[d.name] !== undefined
-              ? '<div class="lastmonth-line">From 60+ day overdue dealers, collected this month <b>' + fmtRs(sixtyPlusCollected[d.name]) + '</b></div>'
-              : '') +
             '</div>';
         }
       }
@@ -1329,6 +1540,38 @@
           ? topSkuRows.map(function (r) { return '<div class="sku-item"><span>' + r.itemName + '</span><span class="num">' + fmt(r.monthLtr) + ' Ltr</span></div>'; }).join('')
           : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Tally sales recorded yet this month.</p>';
         catalogSection = '<div class="dsr-row-subsection"><p class="section-label" style="margin:0 0 8px;">Top selling SKU</p>' + coverageLine + topSkuHtml + '</div>';
+      }
+
+      // Dealer review - this month vs 6-month avg, added 23 Sep 2026 -
+      // see dealerReviewByDsr_() above.
+      var dealerReviewSection = '';
+      if (salesByDealer !== null || collectionByDealer !== null) {
+        var drFull = dealerReviewByDsr[d.name] || [];
+        var drShown = drFull.slice(0, DEALER_REVIEW_CARD_LIMIT);
+        var drBody = drShown.length
+          ? dealerReviewRowsHtml_(drShown) + dealerReviewTotalRowHtml_(drFull)
+          : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No dealers with 6 months of Tally history yet.</p>';
+        var drMore = drFull.length > DEALER_REVIEW_CARD_LIMIT
+          ? '<p class="card-name-hint clickable" data-view-dealerreview="' + escapeAttr_(d.name) + '">+' + (drFull.length - DEALER_REVIEW_CARD_LIMIT) + ' more — tap to see all ' + drFull.length + '</p>'
+          : '';
+        dealerReviewSection = '<div class="dsr-row-subsection"><p class="section-label" style="margin:0 0 8px;">Dealer review — this month vs 6-mo avg</p>' + drBody + drMore + '</div>';
+      }
+
+      // 60+ days overdue, dealer-wise (this month, against the frozen
+      // monthly baseline) - added 23 Sep 2026, replacing the old
+      // single-line rolled-up stat that used to live inside collectionBlock
+      // above - see sixtyPlusByDsrDealerwise_() above.
+      var sixtyPlusSection = '';
+      if (sixtyPlusByDealer !== null) {
+        var spFull = sixtyPlusByDsr[d.name] || [];
+        var spShown = spFull.slice(0, SIXTYPLUS_CARD_LIMIT);
+        var spBody = spShown.length
+          ? sixtyPlusRowsHtml_(spShown) + sixtyPlusTotalRowHtml_(spFull)
+          : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No dealers in this month\'s 60+ day baseline.</p>';
+        var spMore = spFull.length > SIXTYPLUS_CARD_LIMIT
+          ? '<p class="card-name-hint clickable" data-view-sixtyplus="' + escapeAttr_(d.name) + '">+' + (spFull.length - SIXTYPLUS_CARD_LIMIT) + ' more — tap to see all ' + spFull.length + '</p>'
+          : '';
+        sixtyPlusSection = '<div class="dsr-row-subsection"><p class="section-label" style="margin:0 0 8px;">60+ days overdue — collected this month</p>' + spBody + spMore + '</div>';
       }
 
       // This DSR's own overdue dealers (moved in from the old standalone
@@ -1369,7 +1612,7 @@
         '<span class="dsr-row-headtext"><span class="card-name">' + d.name + '</span>' +
         '<span class="card-territory">' + d.territory + '</span></span>' +
         '<span class="dsr-row-headright">' + salesPill + cardShareBtn + '</span></summary>' +
-        '<div class="dsr-row-body">' + salesBody + appLine + collectionBlock + catalogSection + attnSection + dormSection + '</div></details>';
+        '<div class="dsr-row-body">' + salesBody + appLine + collectionBlock + catalogSection + dealerReviewSection + sixtyPlusSection + attnSection + dormSection + '</div></details>';
     }).join('');
 
     document.querySelectorAll('[data-view-attn]').forEach(function (el) {
@@ -1382,6 +1625,18 @@
       el.addEventListener('click', function () {
         var dsrName = el.getAttribute('data-view-dormant');
         openDormantSheet_(dsrName, (lastDormantSummary && lastDormantSummary.byDsr[dsrName]) || []);
+      });
+    });
+    document.querySelectorAll('[data-view-sixtyplus]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var dsrName = el.getAttribute('data-view-sixtyplus');
+        openSixtyPlusSheet_(dsrName, sixtyPlusByDsr[dsrName] || []);
+      });
+    });
+    document.querySelectorAll('[data-view-dealerreview]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var dsrName = el.getAttribute('data-view-dealerreview');
+        openDealerReviewSheet_(dsrName, dealerReviewByDsr[dsrName] || []);
       });
     });
   }
@@ -1644,9 +1899,13 @@
         // a real dealer (BS Enterprises: 3 open bills of very different
         // ages, but the old logic showed the FULL amount as if it were
         // all as old as the oldest bill).
+        // band0_29 added 23 Sep 2026 for the DSR-wise aging TABLE (see
+        // renderAgeTable_() below) - completes the picture alongside the
+        // 30-59/60-89/90+ bands, which on their own only ever covered
+        // 30+ day debt.
         return {
           name: name, dsrName: dealerDsr[name], days: daysOverdue(rec.since), raw: raw,
-          band3059: rec.band3059 || 0, band6089: rec.band6089 || 0, band90plus: rec.band90plus || 0
+          band0_29: rec.band0_29 || 0, band3059: rec.band3059 || 0, band6089: rec.band6089 || 0, band90plus: rec.band90plus || 0
         };
       })
       .filter(function (r) { return r.raw !== null && r.raw !== undefined && r.raw < 0; }); // only genuinely-owed (debit) balances
@@ -1696,70 +1955,74 @@
       });
     });
 
+    // allByDsr, added 23 Sep 2026 for the DSR-wise aging TABLE below -
+    // unlike `byDsr` above (30+ days only, for the per-DSR "Needs
+    // attention" lists inside each DSR's own row), the table needs EVERY
+    // genuinely-owed dealer, including under-30-day debt (the new 0-29
+    // column), so it's grouped from `rows` (unfiltered by days) instead
+    // of `overdue`.
+    var allByDsr = {};
+    rows.forEach(function (r) { (allByDsr[r.dsrName] = allByDsr[r.dsrName] || []).push(r); });
+
     // Cached for the Share button (buildShareTextAttn_ below) AND for
     // renderCards() below to read each DSR's own overdue list from -
     // added 20 Sep 2026, repurposed 22 Sep 2026 when the per-DSR cards
     // that used to live in this section moved into the DSR list instead.
     lastAttnSummary = { totalOwed: totalOwed, c30: c30, c60: c60, c90: c90, sum30: sum30, sum60: sum60, sum90: sum90, byDsr: byDsr };
 
-    renderAgeChart_(byDsr);
+    renderAgeTable_(allByDsr);
   }
 
-  // DSR-wise age-dues chart, added 22 Sep 2026 ("in need attention add a
-  // chart of dsr wise age dues") - one stacked horizontal bar per DSR
-  // (only DSRs with at least one 30+ day overdue dealer are shown), bar
-  // LENGTH proportional to that DSR's own total 30+ overdue amount
-  // (scaled against whichever DSR owes the most, so bar length is
-  // comparable DSR-to-DSR at a glance), internal segments proportional to
-  // that DSR's own 30-59/60-89/90+ split. Reuses `byDsr` from
-  // renderNeedsAttention() just above - same rows, just grouped into the
-  // 3 bands per DSR instead of one flat sorted list.
-  //
-  // Segments sum each dealer's own real band3059/band6089/band90plus
-  // (true per-bill amounts, see renderNeedsAttention()'s block comment)
-  // instead of dumping a dealer's whole amount into one band by their
-  // oldest bill's age - fixed 22 Sep 2026, same bug/fix as the stat tiles
-  // just above.
-  function renderAgeChart_(byDsr) {
+  // DSR-wise age-dues TABLE, added 22 Sep 2026 as a stacked-bar chart,
+  // REPLACED 23 Sep 2026 with a real table at the owner's explicit
+  // request (two images: a chart he didn't want, and a mockup table with
+  // day-bands down the side, DSR names across the top) - "this dont need
+  // graph i need real data 0-30, 31-59, 60-89, 90+ outstanding, top dsr
+  // name, side days - amount". One column per DSR (worst-total-first,
+  // left to right), one row per band (0-29/30-59/60-89/90+, plus a Total
+  // row) - real per-bill amounts (band0_29/band3059/band6089/band90plus,
+  // see fetch_outstanding()'s docstring), not a chart. Reuses `allByDsr`
+  // from renderNeedsAttention() just above, grouped from EVERY
+  // genuinely-owed dealer (not just 30+), since the table's 0-29 column
+  // needs under-30-day debt too.
+  function renderAgeTable_(allByDsr) {
     var wrap = document.getElementById('ageChartWrap');
-    var dsrNames = Object.keys(byDsr).filter(function (n) { return byDsr[n].length > 0; });
+    var dsrNames = Object.keys(allByDsr).filter(function (n) { return allByDsr[n].length > 0; });
     if (!dsrNames.length) {
-      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);padding:0 18px 14px;">No dealers overdue 30+ days.</p>';
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);padding:0 18px 14px;">No dealers currently owe money.</p>';
       return;
     }
     var sums = dsrNames.map(function (dsrName) {
-      var rows = byDsr[dsrName];
-      var b30 = 0, b60 = 0, b90 = 0;
+      var rows = allByDsr[dsrName];
+      var b0 = 0, b30 = 0, b60 = 0, b90 = 0;
       rows.forEach(function (r) {
+        b0 += Math.abs(r.band0_29 || 0);
         b30 += Math.abs(r.band3059 || 0);
         b60 += Math.abs(r.band6089 || 0);
         b90 += Math.abs(r.band90plus || 0);
       });
-      return { dsrName: dsrName, b30: b30, b60: b60, b90: b90, total: b30 + b60 + b90 };
-    }).sort(function (a, b) { return b.total - a.total; }); // worst DSR first
+      return { dsrName: dsrName, b0: b0, b30: b30, b60: b60, b90: b90, total: b0 + b30 + b60 + b90 };
+    }).sort(function (a, b) { return b.total - a.total; }); // worst DSR first (left to right)
 
-    var maxTotal = Math.max.apply(null, sums.map(function (s) { return s.total; }));
+    var cellHtml = function (val) {
+      return val > 0 ? '<td class="num">' + fmtRs(val) + '</td>' : '<td class="num zero">—</td>';
+    };
 
-    var rowsHtml = sums.map(function (s) {
-      var barPct = maxTotal > 0 ? (s.total / maxTotal) * 100 : 0;
-      var seg30 = s.total > 0 ? (s.b30 / s.total) * 100 : 0;
-      var seg60 = s.total > 0 ? (s.b60 / s.total) * 100 : 0;
-      var seg90 = s.total > 0 ? (s.b90 / s.total) * 100 : 0;
-      return '<div class="age-row">' +
-        '<div class="age-row-label"><span class="dsr">' + s.dsrName + '</span><span class="total">' + fmtRs(s.total) + '</span></div>' +
-        '<div class="age-bar-track" style="width:' + Math.max(barPct, 6).toFixed(1) + '%;">' +
-        (seg30 > 0 ? '<div class="age-bar-seg b30" style="width:' + seg30.toFixed(1) + '%;" title="30-59 days: ' + fmtRs(s.b30) + '"></div>' : '') +
-        (seg60 > 0 ? '<div class="age-bar-seg b60" style="width:' + seg60.toFixed(1) + '%;" title="60-89 days: ' + fmtRs(s.b60) + '"></div>' : '') +
-        (seg90 > 0 ? '<div class="age-bar-seg b90" style="width:' + seg90.toFixed(1) + '%;" title="90+ days: ' + fmtRs(s.b90) + '"></div>' : '') +
-        '</div></div>';
-    }).join('');
+    var headHtml = '<tr><th>Days</th>' + sums.map(function (s) { return '<th>' + s.dsrName + '</th>'; }).join('') + '</tr>';
+    var bandRow = function (label, field) {
+      return '<tr><td>' + label + '</td>' + sums.map(function (s) { return cellHtml(s[field]); }).join('') + '</tr>';
+    };
+    var totalRow = '<tr class="age-table-total"><td>Total</td>' + sums.map(function (s) { return cellHtml(s.total); }).join('') + '</tr>';
 
-    wrap.innerHTML = '<div class="age-chart">' + rowsHtml + '</div>' +
-      '<div class="age-chart-legend">' +
-      '<span><i style="background:var(--live);"></i>30-59 days</span>' +
-      '<span><i style="background:var(--accent);"></i>60-89 days</span>' +
-      '<span><i style="background:var(--warn);"></i>90+ days</span>' +
-      '</div>';
+    wrap.innerHTML = '<div class="age-table-scroll"><table class="age-table">' +
+      '<thead>' + headHtml + '</thead>' +
+      '<tbody>' +
+      bandRow('0-29', 'b0') +
+      bandRow('30-59', 'b30') +
+      bandRow('60-89', 'b60') +
+      bandRow('90+', 'b90') +
+      totalRow +
+      '</tbody></table></div>';
   }
 
   // Needs Attention's own expand modal, added 19 Sep 2026 - originally
@@ -2923,6 +3186,9 @@
         // comments near the var declarations above.
         if (res && res.ok && res.stock) stockMap = res.stock;
         if (res && res.ok && res.salesByDsrItem) salesByDsrItemList = res.salesByDsrItem;
+        // Added 23 Sep 2026 - see sixtyPlusByDealer's own comment near the
+        // var declaration above.
+        if (res && res.ok && res.sixtyPlusByDealer) sixtyPlusByDealer = res.sixtyPlusByDealer;
 
         // Sales + Collection trend, rebuilt 20 Sep 2026 on the same
         // ?type=live response - see salesTrendMap's own comment above.
