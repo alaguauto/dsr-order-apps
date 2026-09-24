@@ -419,21 +419,30 @@
      screens since a wide DSR roster makes for a wide table. */
   .age-table-scroll { overflow-x: auto; padding: 14px 18px 18px; -webkit-overflow-scrolling: touch; }
   .age-table { border-collapse: collapse; width: 100%; min-width: 480px; font-size: 12.5px; }
-  .age-table th, .age-table td { padding: 7px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
-  .age-table th:first-child, .age-table td:first-child { text-align: left; font-weight: 600; color: var(--ink-secondary); position: sticky; left: 0; background: var(--surface); }
+  .age-table th, .age-table td { padding: 7px 10px; text-align: center; white-space: nowrap; border-bottom: 1px solid var(--border); }
+  .age-table th:first-child, .age-table td:first-child { text-align: center; font-weight: 600; color: var(--ink-secondary); position: sticky; left: 0; background: var(--surface); }
   .age-table thead th { font-weight: 700; color: var(--ink); border-bottom: 2px solid var(--border); }
   .age-table td.num { font-variant-numeric: tabular-nums; }
   .age-table tr.age-table-total td { font-weight: 700; color: var(--ink); border-top: 2px solid var(--border); border-bottom: none; }
   .age-table td.zero { color: var(--ink-muted); }
+  /* Total column (after the last DSR) + two extra rows (Total Outstanding,
+     Items Covered), added 23 Sep 2026 at the owner's request. */
+  .age-table td.total-col, .age-table th.total-col { border-left: 2px solid var(--border); font-weight: 700; }
+  .age-table tr.age-table-outstanding td, .age-table tr.age-table-items td { color: var(--ink-secondary); border-bottom: none; }
+  .age-table tr.age-table-outstanding td:first-child, .age-table tr.age-table-items td:first-child { font-weight: 600; color: var(--ink-secondary); }
+  .age-table tr.age-table-outstanding td { border-top: 1px solid var(--border); }
+  /* Group-separator only (no color/weight change) - added 23 Sep 2026 for
+     the Dealer activity table's "New Dealers Billed" row, which is a
+     headline metric like Billed/Inactive above it, just visually grouped
+     apart from them - unlike age-table-outstanding's muted-secondary
+     styling (right for a footnote row like Total Outstanding, wrong here). */
+  .age-table tr.age-table-group-start td { border-top: 1px solid var(--border); }
 
-  .ib-table { display: flex; flex-direction: column; }
-  .ib-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 18px; border-top: 1px solid var(--border); font-size: 13px; }
-  .ib-row:first-child { border-top: none; }
-  .ib-row .dsr { font-weight: 700; }
-  .ib-row .figures { display: flex; gap: 14px; font-size: 12.5px; }
-  .ib-row .figures .billed { color: var(--good); }
-  .ib-row .figures .inactive { color: var(--warn); }
-  .ib-row .figures b { font-weight: 700; }
+  /* .ib-table/.ib-row removed 23 Sep 2026 - the "Inactive dealers vs
+     Billed" section they styled is now the columnar Dealer activity
+     table above (reuses .age-table), at the owner's request to make it
+     DSR-wise/columnar and fold Billed/Inactive into the same table as
+     New Dealers Billed/Reactivated. */
 
   .coverage-strip { display: flex; gap: 18px; flex-wrap: wrap; align-items: baseline; padding: 4px 18px 16px; }
   .coverage-strip .cov-figure { font-size: 22px; font-weight: 700; color: var(--ink); }
@@ -655,12 +664,12 @@
        see renderCards() below). -->
   <div id="captureInactiveSummary">
     <div class="section-label-row">
-      <p class="section-label">Inactive dealers vs Billed — by DSR</p>
-      <button type="button" class="share-icon-btn small" id="shareInactiveSummaryBtn" title="Share Inactive vs Billed">
+      <p class="section-label">Dealer activity — by DSR</p>
+      <button type="button" class="share-icon-btn small" id="shareInactiveSummaryBtn" title="Share Dealer activity">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
       </button>
     </div>
-    <div class="ib-table" id="inactiveVsBilledWrap"></div>
+    <div id="inactiveVsBilledWrap"></div>
   </div>
 
   <p class="section-label">By DSR — tap a name to expand</p>
@@ -727,6 +736,22 @@
         <button type="button" class="dormant-close" id="dealerReviewCloseBtn" aria-label="Close">&times;</button>
       </div>
       <div id="dealerReviewSheetList"></div>
+    </div>
+  </div>
+
+  <!-- Items Covered list modal, added 23 Sep 2026 - see renderCoverage_()/
+       openCoverageSheet_() above. Same overlay/sheet styling as the
+       others above. -->
+  <div class="dormant-overlay" id="coverageOverlay" style="display:none;">
+    <div class="dormant-sheet">
+      <div class="dormant-sheet-head">
+        <div>
+          <p class="dormant-sheet-title">Items covered this month</p>
+          <p class="dormant-sheet-sub" id="coverageSheetSub"></p>
+        </div>
+        <button type="button" class="dormant-close" id="coverageCloseBtn" aria-label="Close">&times;</button>
+      </div>
+      <div id="coverageSheetList"></div>
     </div>
   </div>
 
@@ -875,11 +900,19 @@
       var rec = stockMap[name];
       return PETRONAS_ITEM_SET.hasOwnProperty(name) && rec && rec.stock !== null && rec.stock !== undefined && rec.stock > 0;
     }).length;
-    var soldCount = Object.keys(salesByItem).filter(function (name) {
+    // coveredItems, added 23 Sep 2026 - the actual item names/Ltr behind
+    // soldCount, so the homescreen "Items Covered" strip (which only ever
+    // showed the bare count) can offer a "tap to see the list" view - see
+    // renderCoverage_()/openCoverageSheet_() below. Same Petronas-only +
+    // month>0 filter as soldCount, just keeping the matched names instead
+    // of only counting them; sorted highest-Ltr-first.
+    var coveredItems = Object.keys(salesByItem).filter(function (name) {
       var rec = salesByItem[name];
       return PETRONAS_ITEM_SET.hasOwnProperty(name) && rec && rec.month !== null && rec.month !== undefined && rec.month > 0;
-    }).length;
-    return { totalInStock: totalInStock, soldCount: soldCount };
+    }).map(function (name) {
+      return { name: name, month: salesByItem[name].month };
+    }).sort(function (a, b) { return b.month - a.month; });
+    return { totalInStock: totalInStock, soldCount: coveredItems.length, coveredItems: coveredItems };
   }
 
   var DSRS = [
@@ -912,6 +945,13 @@
   var collectionByDealer = null; // {dealerName: {today, month}} or null before first successful fetch
   var outstandingMap = null; // {dealerName: {since, balance, pendingAmount}} or null before first successful fetch, added 17 Sep 2026
   var dealerRoster = null; // {dsrName: [dealerName, ...]} - company-wide, added 8 Sep 2026 for the new-dealer auto-add
+  // newDealers added 23 Sep 2026 for the "New Dealers Billed This Month"
+  // stat - {dsrName: [{name, firstSeenDate}, ...]}, straight from
+  // ?type=live (see Code.gs's handleLiveGet_()/tally_live_watcher.py's
+  // maybe_push_dealer_roster()'s "New dealers" diff docstring). This is
+  // every dealer EVER flagged new (all-time), not scoped to this month -
+  // newDealersBilledByDsr_() below does that filtering by firstSeenDate.
+  var newDealers = null;
   // stockMap added 22 Sep 2026 for "Catalog coverage - this month"
   // (owner: "partnumber covered/overall howmany partnumber stock having")
   // - {itemName: {stock, rate, mrp}}, the same live-Tally stock map every
@@ -1964,13 +2004,32 @@
     var allByDsr = {};
     rows.forEach(function (r) { (allByDsr[r.dsrName] = allByDsr[r.dsrName] || []).push(r); });
 
+    // Total Outstanding by DSR, added 23 Sep 2026 for the DSR-wise aging
+    // table's new "Total Outstanding" row - each DSR's dealers' FULL
+    // ledger closing balance summed (outstandingMap's own `balance`
+    // field), distinct from the table's existing "Total" row (which sums
+    // the narrower BILLCL-based age bands - band0_29/band3059/band6089/
+    // band90plus). Same "Total Outstanding" concept as Dealer Lookup's own
+    // stat tile (see renderLookupCard_() below), just aggregated per DSR
+    // here instead of shown per dealer. The two totals normally read
+    // close but aren't always identical - same reasoning as Dealer
+    // Lookup showing both rather than picking one.
+    var totalOutstandingByDsr = {};
+    Object.keys(outstandingMap).forEach(function (name) {
+      if (!dealerDsr.hasOwnProperty(name)) return;
+      var rec = outstandingMap[name] || {};
+      if (rec.balance === null || rec.balance === undefined || rec.balance >= 0) return;
+      var dsrName = dealerDsr[name];
+      totalOutstandingByDsr[dsrName] = (totalOutstandingByDsr[dsrName] || 0) + Math.abs(rec.balance);
+    });
+
     // Cached for the Share button (buildShareTextAttn_ below) AND for
     // renderCards() below to read each DSR's own overdue list from -
     // added 20 Sep 2026, repurposed 22 Sep 2026 when the per-DSR cards
     // that used to live in this section moved into the DSR list instead.
     lastAttnSummary = { totalOwed: totalOwed, c30: c30, c60: c60, c90: c90, sum30: sum30, sum60: sum60, sum90: sum90, byDsr: byDsr };
 
-    renderAgeTable_(allByDsr);
+    renderAgeTable_(allByDsr, totalOutstandingByDsr);
   }
 
   // DSR-wise age-dues TABLE, added 22 Sep 2026 as a stacked-bar chart,
@@ -1985,7 +2044,7 @@
   // from renderNeedsAttention() just above, grouped from EVERY
   // genuinely-owed dealer (not just 30+), since the table's 0-29 column
   // needs under-30-day debt too.
-  function renderAgeTable_(allByDsr) {
+  function renderAgeTable_(allByDsr, totalOutstandingByDsr) {
     var wrap = document.getElementById('ageChartWrap');
     var dsrNames = Object.keys(allByDsr).filter(function (n) { return allByDsr[n].length > 0; });
     if (!dsrNames.length) {
@@ -2004,15 +2063,65 @@
       return { dsrName: dsrName, b0: b0, b30: b30, b60: b60, b90: b90, total: b0 + b30 + b60 + b90 };
     }).sort(function (a, b) { return b.total - a.total; }); // worst DSR first (left to right)
 
+    // Total column (after the rightmost DSR) + grand totals per band,
+    // added 23 Sep 2026 at the owner's request ("need days line total in
+    // side after madhu coloumn") - a straight row-wise sum across every
+    // DSR shown, so the table reads its own totals without needing the
+    // stat tiles above it.
+    var grand = { b0: 0, b30: 0, b60: 0, b90: 0, total: 0 };
+    sums.forEach(function (s) {
+      grand.b0 += s.b0; grand.b30 += s.b30; grand.b60 += s.b60; grand.b90 += s.b90; grand.total += s.total;
+    });
+
+    // Total Outstanding row, added 23 Sep 2026 - see the computation in
+    // renderNeedsAttention() above (totalOutstandingByDsr) for why this
+    // differs from the "Total" row just above it.
+    var totalOutstandingGrand = 0;
+    sums.forEach(function (s) {
+      s.totalOutstanding = (totalOutstandingByDsr && totalOutstandingByDsr[s.dsrName]) || 0;
+      totalOutstandingGrand += s.totalOutstanding;
+    });
+
+    // Items Covered row, added 23 Sep 2026 ("include last did items
+    // covered section also in this") - reuses the exact same per-DSR
+    // computation as each DSR's own "Top selling SKU" card (see
+    // renderCards()'s catalogSection above: salesByDsrItemList filtered to
+    // this DSR + PETRONAS_ITEM_SET, same company-wide totalInStock
+    // denominator for every DSR). The Total column here is NOT a sum of
+    // the per-DSR counts (an item sold by more than one DSR would be
+    // double-counted) - it's the same company-wide "X / Y" figure the
+    // homescreen's own Items Covered section shows, from
+    // petronasCoverage_().
+    var cov = (salesByDsrItemList !== null && stockMap !== null && salesByItem !== null) ? petronasCoverage_() : null;
+    if (cov) {
+      var dsrNameByDisplay = {};
+      DSRS.forEach(function (d) { dsrNameByDisplay[d.name] = d.dsrName; });
+      sums.forEach(function (s) {
+        var longName = dsrNameByDisplay[s.dsrName];
+        s.itemsCovered = salesByDsrItemList.filter(function (r) {
+          return r.dsrName === longName && PETRONAS_ITEM_SET.hasOwnProperty(r.itemName);
+        }).length;
+      });
+    }
+
     var cellHtml = function (val) {
       return val > 0 ? '<td class="num">' + fmtRs(val) + '</td>' : '<td class="num zero">—</td>';
     };
-
-    var headHtml = '<tr><th>Days</th>' + sums.map(function (s) { return '<th>' + s.dsrName + '</th>'; }).join('') + '</tr>';
-    var bandRow = function (label, field) {
-      return '<tr><td>' + label + '</td>' + sums.map(function (s) { return cellHtml(s[field]); }).join('') + '</tr>';
+    var totalColCellHtml = function (val) {
+      return val > 0 ? '<td class="num total-col">' + fmtRs(val) + '</td>' : '<td class="num zero total-col">—</td>';
     };
-    var totalRow = '<tr class="age-table-total"><td>Total</td>' + sums.map(function (s) { return cellHtml(s.total); }).join('') + '</tr>';
+
+    var headHtml = '<tr><th>Days</th>' + sums.map(function (s) { return '<th>' + s.dsrName + '</th>'; }).join('') + '<th class="total-col">Total</th></tr>';
+    var bandRow = function (label, field) {
+      return '<tr><td>' + label + '</td>' + sums.map(function (s) { return cellHtml(s[field]); }).join('') + totalColCellHtml(grand[field]) + '</tr>';
+    };
+    var totalRow = '<tr class="age-table-total"><td>Total</td>' + sums.map(function (s) { return cellHtml(s.total); }).join('') + totalColCellHtml(grand.total) + '</tr>';
+    var totalOutstandingRow = '<tr class="age-table-outstanding"><td>Total Outstanding</td>' +
+      sums.map(function (s) { return cellHtml(s.totalOutstanding); }).join('') +
+      totalColCellHtml(totalOutstandingGrand) + '</tr>';
+    var itemsCoveredRow = cov ? ('<tr class="age-table-items"><td>Items Covered</td>' +
+      sums.map(function (s) { return '<td class="num">' + s.itemsCovered + ' / ' + cov.totalInStock + '</td>'; }).join('') +
+      '<td class="num total-col">' + cov.soldCount + ' / ' + cov.totalInStock + '</td></tr>') : '';
 
     wrap.innerHTML = '<div class="age-table-scroll"><table class="age-table">' +
       '<thead>' + headHtml + '</thead>' +
@@ -2022,6 +2131,8 @@
       bandRow('60-89', 'b60') +
       bandRow('90+', 'b90') +
       totalRow +
+      totalOutstandingRow +
+      itemsCoveredRow +
       '</tbody></table></div>';
   }
 
@@ -2182,29 +2293,133 @@
     lastDormantSummary = { totalCount: totalCount, byDsr: byDsr };
   }
 
-  // "Inactive dealers (this month not billed) DSR wise", added 22 Sep
-  // 2026 - owner clarified this means a COMPACT count-per-DSR comparison
-  // on the homescreen ("ONLY INACTIVE DEALERS COUNT IN DASHBOARD VS
-  // BILLED DEALERS"), not the full per-dealer list (that stays inside
-  // each DSR's own row, per the 22 Sep restructure). "Billed" reuses the
-  // exact same MB count (countMB_) already shown in each DSR's own
-  // Sales MB chip - same dealer-count definition, just surfaced here
-  // company-wide for a quick per-DSR comparison. Must run AFTER both
-  // renderNeedsAttention()... no, after renderDormant() (needs
-  // lastDormantSummary.byDsr) - see render() below.
+  // "yyyy-MM" for the current calendar month - shared by
+  // newDealersBilledByDsr_() below to scope newDealers (all-time) down to
+  // "first seen this month".
+  function currentYyyyMm_() {
+    var now = new Date();
+    var mm = String(now.getMonth() + 1);
+    if (mm.length < 2) mm = '0' + mm;
+    return now.getFullYear() + '-' + mm;
+  }
+
+  // "New Dealers Billed This Month", added 23 Sep 2026 at the owner's
+  // request ("New Dealer Acquisition... 'New Dealers Billed This
+  // Month'"). newDealers (see the var declaration above) already flags
+  // every dealer Tally has EVER shown for the first time, with a
+  // firstSeenDate - this narrows that down to dealers first seen THIS
+  // calendar month who have also actually billed this month
+  // (salesByDealer[name].month > 0), so a dealer who was newly onboarded
+  // but hasn't ordered yet doesn't inflate the count. Same
+  // Saravanan-into-Chellamani folding as knownDealerDsrMap_()/
+  // dealerRoster, since newDealers is keyed the same way (by Tally's own
+  // DSR group name, not the dashboard's 7 display names).
+  function newDealersBilledByDsr_() {
+    var out = {};
+    if (!newDealers || !salesByDealer) return out;
+    var ym = currentYyyyMm_();
+    DSRS.forEach(function (d) {
+      var list = (newDealers[d.dsrName] || []).slice();
+      if (d.name === 'Chellamani' && newDealers['PETRONAS MDU AREA (SARAVANAN)']) {
+        list = list.concat(newDealers['PETRONAS MDU AREA (SARAVANAN)']);
+      }
+      out[d.name] = list.filter(function (r) {
+        if (!r.firstSeenDate || r.firstSeenDate.slice(0, 7) !== ym) return false;
+        var rec = salesByDealer[r.name];
+        return !!(rec && rec.month > 0);
+      }).length;
+    });
+    return out;
+  }
+
+  // "Dealers Reactivated This Month", added 23 Sep 2026 at the owner's
+  // request ("Dormant Dealer Reactivation... 'Dealers Reactivated This
+  // Month'"). A dealer counts as reactivated if they've billed this month
+  // (same monthLtr > 0 check as Dormant/MB) AND their last sale BEFORE
+  // this month (salesByDealer[name].lastSaleBeforeMonth - see
+  // tally_live_watcher.py's fetch_sales()) was at least DORMANT_MAX_DAYS
+  // before the 1st of this month - i.e. they'd have shown up on the
+  // Dormant panel had this month's sale not happened. A dealer with NO
+  // prior sale on record (lastSaleBeforeMonth null) is deliberately
+  // excluded - that's a brand-new dealer's first-ever sale, which belongs
+  // to "New Dealers Billed" above, not here.
+  function daysBetweenYyyymmddAndDate_(s, refDate) {
+    if (!s || s.length !== 8) return null;
+    var y = Number(s.slice(0, 4)), m = Number(s.slice(4, 6)), day = Number(s.slice(6, 8));
+    var then = new Date(y, m - 1, day);
+    if (isNaN(then.getTime())) return null;
+    return Math.round((refDate - then) / 86400000);
+  }
+  function reactivatedByDsr_() {
+    var out = {};
+    if (salesByDealer === null || dealerRoster === null) return out;
+    var dealerDsr = knownDealerDsrMap_();
+    var now = new Date();
+    var monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    Object.keys(salesByDealer).forEach(function (name) {
+      var dsrName = dealerDsr[name];
+      if (!dsrName) return;
+      var rec = salesByDealer[name] || {};
+      if (!(rec.month > 0)) return; // must have billed this month
+      var gap = daysBetweenYyyymmddAndDate_(rec.lastSaleBeforeMonth, monthStart);
+      if (gap === null || gap < DORMANT_MAX_DAYS) return;
+      out[dsrName] = (out[dsrName] || 0) + 1;
+    });
+    return out;
+  }
+
+  // "Dealer activity — by DSR", restructured 23 Sep 2026 from the old
+  // compact "Inactive dealers vs Billed" row list (owner: "balance 2 need
+  // dsr wise i[n] a col[umn] wise, move the billed inactive also into
+  // this table") into a columnar table, same visual pattern as the
+  // Needs Attention aging table (renderAgeTable_ above, reusing its
+  // .age-table/.total-col CSS) - four rows (Billed, Inactive, New
+  // Dealers Billed, Reactivated), one column per DSR plus a Total column.
+  // "Billed"/"Inactive" are unchanged in meaning from the old table just
+  // shown differently; "New Dealers Billed"/"Reactivated" are the two new
+  // owner-requested metrics (see newDealersBilledByDsr_()/
+  // reactivatedByDsr_() above). No double-counting risk in the Total
+  // column here (unlike the aging table's Items Covered row) since every
+  // dealer belongs to exactly one DSR, so Total is a straight sum.
+  // Must run AFTER renderDormant() (needs lastDormantSummary.byDsr) -
+  // see render() below.
   function renderInactiveVsBilled_() {
     var wrap = document.getElementById('inactiveVsBilledWrap');
     if (lastDormantSummary === null || salesByDealer === null) {
       wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);padding:14px 18px;">Waiting for the next Tally sync…</p>';
       return;
     }
-    wrap.innerHTML = DSRS.map(function (d) {
-      var inactiveCount = (lastDormantSummary.byDsr[d.name] || []).length;
-      var billedCount = countMB_(d.name, salesByDealer);
-      return '<div class="ib-row"><span class="dsr">' + d.name + '</span>' +
-        '<span class="figures"><span class="billed">Billed <b>' + billedCount + '</b></span>' +
-        '<span class="inactive">Inactive <b>' + inactiveCount + '</b></span></span></div>';
-    }).join('');
+    var newDealersByDsr = newDealersBilledByDsr_();
+    var reactByDsr = reactivatedByDsr_();
+    var rows = DSRS.map(function (d) {
+      return {
+        dsrName: d.name,
+        billed: countMB_(d.name, salesByDealer),
+        inactive: (lastDormantSummary.byDsr[d.name] || []).length,
+        newBilled: newDealersByDsr[d.name] || 0,
+        reactivated: reactByDsr[d.name] || 0
+      };
+    });
+    var grand = { billed: 0, inactive: 0, newBilled: 0, reactivated: 0 };
+    rows.forEach(function (r) {
+      grand.billed += r.billed; grand.inactive += r.inactive;
+      grand.newBilled += r.newBilled; grand.reactivated += r.reactivated;
+    });
+    var cell = function (val) { return '<td class="num">' + val + '</td>'; };
+    var totalCell = function (val) { return '<td class="num total-col">' + val + '</td>'; };
+    var headHtml = '<tr><th>DSR</th>' + rows.map(function (r) { return '<th>' + r.dsrName + '</th>'; }).join('') + '<th class="total-col">Total</th></tr>';
+    var metricRow = function (label, field, extraCls) {
+      return '<tr' + (extraCls ? ' class="' + extraCls + '"' : '') + '><td>' + label + '</td>' +
+        rows.map(function (r) { return cell(r[field]); }).join('') + totalCell(grand[field]) + '</tr>';
+    };
+    wrap.innerHTML = '<div class="age-table-scroll"><table class="age-table">' +
+      '<thead>' + headHtml + '</thead>' +
+      '<tbody>' +
+      metricRow('Billed', 'billed') +
+      metricRow('Inactive', 'inactive') +
+      metricRow('New Dealers Billed', 'newBilled', 'age-table-group-start') +
+      metricRow('Reactivated', 'reactivated') +
+      '</tbody></table></div>';
   }
 
   // "Part number covered / overall how many part number stock having -
@@ -2225,12 +2440,41 @@
     var cov = petronasCoverage_();
     var totalInStock = cov.totalInStock, soldCount = cov.soldCount;
     var pct = totalInStock > 0 ? Math.min(100, (soldCount / totalInStock) * 100) : 0;
+    lastCoveredItems = cov.coveredItems; // cached for openCoverageSheet_() below
     wrap.innerHTML = '<div class="coverage-strip">' +
       '<span><span class="cov-label">Part numbers sold this month</span><span class="cov-figure">' + soldCount + ' / ' + totalInStock + '</span></span>' +
       '<div class="coverage-track"><div class="coverage-track-fill" style="width:' + pct.toFixed(0) + '%;"></div></div>' +
       '<span class="cov-figure" style="font-size:15px;">' + Math.round(pct) + '%</span>' +
-      '</div>';
+      '</div>' +
+      (soldCount > 0 ? '<p class="card-name-hint clickable" id="coverageViewLink" style="padding:0 18px 14px;">Tap to see the ' + soldCount + ' item' + (soldCount === 1 ? '' : 's') + '</p>' : '');
+    var link = document.getElementById('coverageViewLink');
+    if (link) link.addEventListener('click', openCoverageSheet_);
   }
+
+  // Items Covered list modal, added 23 Sep 2026 - the strip above only
+  // ever showed a bare count; this shows the actual covered item names
+  // (highest-Ltr-first, from petronasCoverage_()'s coveredItems), same
+  // overlay/sheet styling as Needs Attention/Dormant/60+/Dealer Review.
+  var lastCoveredItems = [];
+  function coverageItemRowsHtml_(list) {
+    return list.map(function (r, i) {
+      return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
+        '<span class="rank-name">' + r.name + '</span>' +
+        '<span class="rank-value num">' + fmt(r.month) + ' Ltr</span></div>';
+    }).join('');
+  }
+  function openCoverageSheet_() {
+    document.getElementById('coverageSheetSub').textContent = lastCoveredItems.length + ' item' + (lastCoveredItems.length === 1 ? '' : 's') + ' sold this month, out of the Petronas catalog';
+    document.getElementById('coverageSheetList').innerHTML = coverageItemRowsHtml_(lastCoveredItems);
+    document.getElementById('coverageOverlay').style.display = 'flex';
+  }
+  function closeCoverageSheet_() {
+    document.getElementById('coverageOverlay').style.display = 'none';
+  }
+  document.getElementById('coverageCloseBtn').addEventListener('click', closeCoverageSheet_);
+  document.getElementById('coverageOverlay').addEventListener('click', function (e) {
+    if (e.target.id === 'coverageOverlay') closeCoverageSheet_();
+  });
 
   // "DSR wise topp selling SKU" (bottom Top 5 area), added 22 Sep 2026 -
   // each DSR's own top 5 best-selling items this month (Tally-actual, NOT
@@ -2783,17 +3027,22 @@
   // standalone Inactive Dealers section and its share button - see the
   // "By DSR" restructure note above renderCards().
 
-  // Added 22 Sep 2026 for the new "Inactive dealers vs Billed - by DSR"
-  // compact summary section (see renderInactiveVsBilled_() above).
+  // Added 22 Sep 2026 for the "Inactive dealers vs Billed - by DSR"
+  // compact summary section, extended 23 Sep 2026 alongside the section's
+  // own restructure into a columnar table (see renderInactiveVsBilled_()
+  // above) to also cover New Dealers Billed/Reactivated.
   function buildShareTextInactiveVsBilled_() {
-    var lines = ['INACTIVE DEALERS VS BILLED — ' + dateHeaderLine_(), ''];
-    lines.push('Each DSR\'s billed-dealer count (MB, this month) alongside how many of their dealers haven\'t ordered yet this month but bought within the last ' + DORMANT_MAX_DAYS + ' days.');
+    var lines = ['DEALER ACTIVITY — ' + dateHeaderLine_(), ''];
+    lines.push('Each DSR\'s billed-dealer count (MB, this month), how many haven\'t ordered yet this month but bought within the last ' + DORMANT_MAX_DAYS + ' days, how many brand-new dealers have already billed this month, and how many previously-quiet (' + DORMANT_MAX_DAYS + '+ day) dealers have ordered again this month.');
     lines.push('');
     if (!lastDormantSummary || !salesByDealer) { lines.push('(Waiting for the next Tally sync…)'); return lines.join('\n'); }
+    var newDealersByDsr = newDealersBilledByDsr_();
+    var reactByDsr = reactivatedByDsr_();
     DSRS.forEach(function (d) {
       var inactiveCount = (lastDormantSummary.byDsr[d.name] || []).length;
       var billedCount = countMB_(d.name, salesByDealer);
-      lines.push(d.name + ': Billed ' + billedCount + ', Inactive ' + inactiveCount);
+      lines.push(d.name + ': Billed ' + billedCount + ', Inactive ' + inactiveCount +
+        ', New dealers billed ' + (newDealersByDsr[d.name] || 0) + ', Reactivated ' + (reactByDsr[d.name] || 0));
     });
     return lines.join('\n');
   }
@@ -3157,6 +3406,7 @@
         // claude/dsr-app-registry.md).
         if (res && res.ok && res.outstanding) outstandingMap = res.outstanding;
         if (res && res.ok && res.dealerRoster) dealerRoster = res.dealerRoster;
+        if (res && res.ok && res.newDealers) newDealers = res.newDealers;
 
         // Added 18 Sep 2026 - actually-billed Sales, from Tally's own
         // Sales vouchers (see Code.gs's handleLiveGet_()/
