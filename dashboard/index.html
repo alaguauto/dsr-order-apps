@@ -1414,11 +1414,23 @@
         collMonth: collMonth, collAvg: collAvg, collPct: collPct, worstPct: worstPct
       });
     });
+    // Sort changed 24 Sep 2026 at the owner's request: was worst-first (by
+    // worstPct, this month vs each dealer's own average - a RATIO that
+    // reshuffles daily as this month's sales/collection come in), now
+    // highest-sales-average-first (by salesAvg, the dealer's 6-month Ltr
+    // average - a number that's fixed all month since it only looks at
+    // PRIOR months). Owner: "this should be fix in all month no changes
+    // becz then only i can see the high avg sales customers given order or
+    // not" - a stable ranking is the point, so his highest-volume dealers
+    // sit at a consistent spot to check against, not one that moves as the
+    // month's own sales trickle in. A dealer with no Sales history at all
+    // (salesAvg null - Collection-only) sorts to the very bottom rather
+    // than the top.
     Object.keys(out).forEach(function (dsrName) {
       out[dsrName].sort(function (a, b) {
-        var aw = a.worstPct === null ? Infinity : a.worstPct;
-        var bw = b.worstPct === null ? Infinity : b.worstPct;
-        return aw - bw; // worst (furthest below its own average) first
+        var aAvg = (a.salesAvg === null || a.salesAvg === undefined) ? -Infinity : a.salesAvg;
+        var bAvg = (b.salesAvg === null || b.salesAvg === undefined) ? -Infinity : b.salesAvg;
+        return bAvg - aAvg; // highest sales average first
       });
     });
     return out;

@@ -216,6 +216,47 @@
   .combo-option:hover, .combo-option.active { background: var(--surface-2); }
   .combo-empty { padding: 9px 12px; font-size: 12.5px; color: var(--text-muted); }
   .combo-option-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+  /* Dealer lookup, added 24 Sep 2026 - see the <section id="lookupDetails">
+     comment further down for why. Reuses .combo-wrap/.combo-list above for
+     the search dropdown (same pattern as the Dealer Name field) - only the
+     input and result-card styling below are new, modeled on the manager
+     dashboard's own Dealer Lookup card (dashboard_index.html's .lookup-*
+     classes) but using this app's own color tokens. */
+  .lookup-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .lookup-input::placeholder { color: var(--text-muted); opacity: 0.7; }
+  .lookup-card { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+  .lookup-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .lookup-dealer-name { font-family: "Archivo", sans-serif; font-weight: 700; font-size: 15px; margin: 0; }
+  .lookup-clear-btn {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .lookup-clear-btn:active { opacity: 0.7; }
+  .lookup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .lookup-stat { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+  .lookup-stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin: 0 0 4px; }
+  .lookup-stat-value { font-size: 14.5px; font-weight: 700; }
+  .lookup-stat-sub { font-size: 11px; color: var(--text-muted); margin: 3px 0 0; }
+
   .outstanding-badge {
     display: inline-block;
     flex-shrink: 0;
@@ -955,6 +996,58 @@
     </details>
   </section>
 
+  <!-- Dealer review ("this month vs your own 6-month avg"), added 23 Sep
+       2026 at the owner's explicit request ("i need to review a dsr i need
+       inside dsr tab live tally this month sales vs 6 month avg sales
+       dealer wise and collections also same that") - the SAME comparison
+       is also surfaced dealer-wise under each DSR's own row on the manager
+       dashboard now (see dashboard's dealerReviewByDsr_()), but the owner
+       said this panel here "also looks good" and to keep it. Uses the
+       avg6moLtr/avg6moCollectedRs fields already flowing in via
+       data.salesByDealer/data.collectionByDealer (see
+       tally_live_watcher.py's fetch_sales()/fetch_collection()
+       docstrings) - no new network call, scoped to this app's own
+       `dealers` list only (unlike the dashboard's company-wide version).
+       Proved first on Arun's app (23 Sep 2026), rolled out to all DSR
+       apps the same day. -->
+  <section style="padding-bottom:0;">
+    <details class="manage" id="dealerReviewDetails">
+      <summary>Dealer review <span id="dealerReviewSummaryLabel" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">This month vs your own 6-month average, dealer-wise — live from Tally, nothing to enter here.</p>
+        <div id="dealerReviewListEl"></div>
+      </div>
+    </details>
+  </section>
+
+  <!-- Dealer lookup, added 24 Sep 2026 at the owner's request ("can u add
+       dealer lookup in dsr app also") - same idea as the manager
+       dashboard's own Dealer Lookup card (dashboard_index.html), scoped to
+       this app's own `dealers` list rather than company-wide, since a DSR
+       only ever needs to look up one of their own dealers. Sales/
+       Collection/Last order/Last payment reuse the exact same live-Tally
+       fields the Dealer review/Dormant panels above already read
+       (data.salesByDealer/data.collectionByDealer, remembered whole in
+       lastLiveSalesByDealer_/lastLiveCollectionByDealer_ - see
+       applyLiveOverlay_() above); Outstanding/Total Outstanding reuse this
+       app's own dealers[].pendingAmount/agedPendingAmount/balance
+       (already kept live by the outstanding block above, same fields
+       balanceBadgeHtml_()/remindBtnHtml_() already use). No new network
+       call either way. -->
+  <section style="padding-bottom:0;">
+    <details class="manage" id="lookupDetails">
+      <summary>Dealer lookup</summary>
+      <div class="manage-body">
+        <p class="hint">Search any of your dealers for their Sales, Collection, Outstanding, Last order and Last payment at a glance.</p>
+        <div class="combo-wrap">
+          <input type="text" class="lookup-input" id="lookupInput" placeholder="Search your dealers by name…" autocomplete="off">
+          <div class="combo-list" id="lookupDropdown" hidden></div>
+        </div>
+        <div id="lookupCardWrap"></div>
+      </div>
+    </details>
+  </section>
+
   <section style="padding-bottom:0;">
     <details class="manage" id="pastOrdersDetails">
       <summary>Past orders</summary>
@@ -1292,7 +1385,13 @@
   var dormantDetailsEl = document.getElementById("dormantDetails");
   var newDealersSummaryLabelEl = document.getElementById("newDealersSummaryLabel");
   var newDealersListEl = document.getElementById("newDealersListEl");
+  var dealerReviewSummaryLabelEl = document.getElementById("dealerReviewSummaryLabel");
+  var dealerReviewListEl = document.getElementById("dealerReviewListEl");
   var newDealersDetailsEl = document.getElementById("newDealersDetails");
+  // Dealer lookup elements, added 24 Sep 2026 - see renderLookupCard_() below.
+  var lookupInputEl = document.getElementById("lookupInput");
+  var lookupDropdownEl = document.getElementById("lookupDropdown");
+  var lookupCardWrapEl = document.getElementById("lookupCardWrap");
   var reportBtn = document.getElementById("reportBtn");
   var ordersListEl = document.getElementById("ordersList");
   var ordersCountLabel = document.getElementById("ordersCountLabel");
@@ -2049,6 +2148,18 @@
   // having an open bill (see tally_live_watcher.py's fetch_outstanding()).
   var LIVE_OVERLAY_POLL_MS = 10 * 60 * 1000; // 10 min - matches the watcher's own poll cadence
 
+  // Dealer lookup, added 24 Sep 2026 - see the <section id="lookupDetails">
+  // markup above and renderLookupCard_() below. lastLiveSalesByDealer_/
+  // lastLiveCollectionByDealer_ remember the WHOLE raw data.salesByDealer/
+  // data.collectionByDealer maps from the most recent poll (company-wide
+  // shape, same as the dashboard reads) so the lookup card can read any
+  // dealer's Sales/Collection on demand without a new network call -
+  // Dormant/Dealer review above only ever read these maps inline, never
+  // kept them around.
+  var lastLiveSalesByDealer_ = null;
+  var lastLiveCollectionByDealer_ = null;
+  var lookupSelectedDealer_ = null; // dealer name string, or null
+
   function applyLiveOverlay_(data) {
     if (!data) return;
     var stockChanged = false;
@@ -2253,6 +2364,66 @@
       newDormant.sort(function (a, b) { return b.days - a.days; }); // longest-quiet first
       dormantDealers = newDormant;
       if (typeof renderDormant === "function") renderDormant();
+    }
+    // Dealer review ("this month vs your own 6-month avg"), added 23 Sep
+    // 2026 - see the <details id="dealerReviewDetails"> comment above for
+    // why. Same worst-first sort and 70%-threshold pct tag as the
+    // dashboard's own dealerReviewByDsr_()/pctTagHtml_(), just scoped to
+    // this app's own `dealers` list (not every dealer company-wide) and
+    // rendered with this app's .manage-row list style instead of the
+    // dashboard's rank-row/modal pattern. Purely additive: if the backend
+    // hasn't been upgraded yet, avg6moLtr/avg6moCollectedRs are simply
+    // absent and every dealer is skipped (no 6-month history shown).
+    if (data.salesByDealer || data.collectionByDealer) {
+      var newDealerReview = [];
+      for (var dr = 0; dr < dealers.length; dr++) {
+        var drName = dealers[dr].name;
+        var drSalesRec = data.salesByDealer ? data.salesByDealer[drName] : null;
+        var drCollRec = data.collectionByDealer ? data.collectionByDealer[drName] : null;
+        var drSalesAvg = drSalesRec ? drSalesRec.avg6moLtr : null;
+        var drCollAvg = drCollRec ? drCollRec.avg6moCollectedRs : null;
+        if ((drSalesAvg === null || drSalesAvg === undefined) && (drCollAvg === null || drCollAvg === undefined)) continue; // no 6-month history at all
+        var drSalesMonth = (drSalesRec && drSalesRec.month) || 0;
+        var drCollMonth = (drCollRec && drCollRec.month) || 0;
+        var drSalesPct = (drSalesAvg !== null && drSalesAvg !== undefined && drSalesAvg > 0) ? (drSalesMonth / drSalesAvg) * 100 : null;
+        var drCollPct = (drCollAvg !== null && drCollAvg !== undefined && drCollAvg > 0) ? (drCollMonth / drCollAvg) * 100 : null;
+        var drPcts = [drSalesPct, drCollPct].filter(function (p) { return p !== null; });
+        var drWorstPct = drPcts.length ? Math.min.apply(null, drPcts) : null;
+        newDealerReview.push({
+          name: drName, salesMonth: drSalesMonth, salesAvg: drSalesAvg, salesPct: drSalesPct,
+          collMonth: drCollMonth, collAvg: drCollAvg, collPct: drCollPct, worstPct: drWorstPct
+        });
+      }
+      // Sort changed 24 Sep 2026 at the owner's request: was worst-first
+      // (by worstPct, this month vs each dealer's own average - a RATIO
+      // that reshuffles daily as this month's sales/collection come in),
+      // now highest-sales-average-first (by salesAvg, the dealer's 6-month
+      // Ltr average - a number that's fixed all month since it only looks
+      // at PRIOR months). Owner: "this should be fix in all month no
+      // changes becz then only i can see the high avg sales customers
+      // given order or not" - a stable ranking is the point, so his
+      // highest-volume dealers sit at a consistent spot to check against,
+      // not one that moves as the month's own sales trickle in. A dealer
+      // with no Sales history at all (salesAvg null - Collection-only)
+      // sorts to the very bottom rather than the top. Same change made the
+      // same day on the dashboard's own dealerReviewByDsr_().
+      newDealerReview.sort(function (a, b) {
+        var aAvg = (a.salesAvg === null || a.salesAvg === undefined) ? -Infinity : a.salesAvg;
+        var bAvg = (b.salesAvg === null || b.salesAvg === undefined) ? -Infinity : b.salesAvg;
+        return bAvg - aAvg; // highest sales average first
+      });
+      dealerReviewRows = newDealerReview;
+      if (typeof renderDealerReview === "function") renderDealerReview();
+    }
+    // Dealer lookup, added 24 Sep 2026 - just remembers the whole raw maps
+    // (no filtering/computation needed here, unlike Dormant/Dealer review
+    // above) so renderLookupCard_() can read any dealer on demand. Only
+    // re-renders the card when a dealer is actually selected, and only
+    // when one of these maps genuinely arrived this poll.
+    if (data.salesByDealer) lastLiveSalesByDealer_ = data.salesByDealer;
+    if (data.collectionByDealer) lastLiveCollectionByDealer_ = data.collectionByDealer;
+    if ((data.salesByDealer || data.collectionByDealer) && lookupSelectedDealer_ && typeof renderLookupCard_ === "function") {
+      renderLookupCard_();
     }
     if (stockChanged && typeof renderItemList === "function") renderItemList();
     if (dealersChanged) {
@@ -2917,6 +3088,155 @@
     var nameEl = e.target.closest(".manage-row-name.clickable");
     if (!nameEl) return;
     selectDealerForOrder_(nameEl.getAttribute("data-dealer-name"));
+  });
+
+  // Dealer review list rendering, added 23 Sep 2026 - see the computation
+  // in applyLiveOverlay_() above. DEALER_REVIEW_WARN_PCT matches the
+  // threshold proven on this same panel before, now also used by the
+  // dashboard's own dealer-wise version.
+  var dealerReviewRows = [];
+  var DEALER_REVIEW_WARN_PCT = 70;
+  function dealerReviewPctTagHtml_(pct) {
+    if (pct === null || pct === undefined) return "";
+    var rounded = Math.round(pct);
+    var arrow = rounded >= 100 ? "▲" : (rounded < DEALER_REVIEW_WARN_PCT ? "▼" : "●");
+    var color = rounded >= 100 ? "var(--accent)" : (rounded < DEALER_REVIEW_WARN_PCT ? "var(--danger)" : "var(--text-muted)");
+    return ' <b style="color:' + color + ';">' + arrow + " " + rounded + "%</b>";
+  }
+  function renderDealerReview() {
+    if (!dealerReviewListEl) return;
+    dealerReviewSummaryLabelEl.textContent = dealerReviewRows.length ? "(" + dealerReviewRows.length + ")" : "";
+    if (!dealerReviewRows.length) {
+      dealerReviewListEl.innerHTML = '<p class="empty-note" style="padding:10px 0;">No dealers with 6 months of Tally history yet.</p>';
+      return;
+    }
+    dealerReviewListEl.innerHTML = dealerReviewRows.map(function (r) {
+      var salesLine = (r.salesAvg !== null && r.salesAvg !== undefined)
+        ? "Sales " + formatNum(r.salesMonth) + " / " + formatNum(r.salesAvg) + " Ltr avg" + dealerReviewPctTagHtml_(r.salesPct)
+        : "Sales — no 6-mo history";
+      var collLine = (r.collAvg !== null && r.collAvg !== undefined)
+        ? "Coll. ₹" + formatBalance_(r.collMonth) + " / ₹" + formatBalance_(r.collAvg) + " avg" + dealerReviewPctTagHtml_(r.collPct)
+        : "Collection — no 6-mo history";
+      return '<div class="manage-row"><span class="manage-row-name clickable" data-dealer-name="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + "</span>" +
+        '<span class="manage-row-fields-static">' + salesLine + "<br>" + collLine + "</span></div>";
+    }).join("");
+  }
+  dealerReviewListEl.addEventListener("click", function (e) {
+    var nameEl = e.target.closest(".manage-row-name.clickable");
+    if (!nameEl) return;
+    selectDealerForOrder_(nameEl.getAttribute("data-dealer-name"));
+  });
+
+  // Dealer lookup, added 24 Sep 2026 - see the <section id="lookupDetails">
+  // markup and lastLiveSalesByDealer_/lastLiveCollectionByDealer_'s own
+  // comment above applyLiveOverlay_() for the full picture. Search is
+  // scoped to this app's own `dealers` array (not company-wide), same
+  // source renderDealerDropdown() above already searches for order entry.
+  function daysSinceYyyymmdd_(s) {
+    if (!s || String(s).length !== 8) return null;
+    var y = Number(String(s).slice(0, 4)), m = Number(String(s).slice(4, 6)), day = Number(String(s).slice(6, 8));
+    var then = new Date(y, m - 1, day);
+    if (isNaN(then.getTime())) return null;
+    var now = new Date();
+    var today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.round((today0 - then) / 86400000);
+  }
+  function renderLookupDropdown_(filter) {
+    var term = (filter || "").trim().toLowerCase();
+    if (!term) { lookupDropdownEl.hidden = true; lookupDropdownEl.innerHTML = ""; return; }
+    var matches = dealers.filter(function (d) { return d.name.toLowerCase().indexOf(term) !== -1; }).slice(0, 12);
+    if (!matches.length) {
+      lookupDropdownEl.innerHTML = '<div class="combo-empty">No matching dealer.</div>';
+      lookupDropdownEl.hidden = false;
+      return;
+    }
+    lookupDropdownEl.innerHTML = matches.map(function (d) {
+      return '<div class="combo-option" data-dealer-name="' + escapeHtml(d.name) + '">' + escapeHtml(d.name) + "</div>";
+    }).join("");
+    lookupDropdownEl.hidden = false;
+  }
+  function renderLookupCard_() {
+    if (!lookupCardWrapEl) return;
+    if (!lookupSelectedDealer_) { lookupCardWrapEl.innerHTML = ""; return; }
+    var name = lookupSelectedDealer_;
+    var d = dealers.filter(function (x) { return x.name === name; })[0];
+    var salesRec = lastLiveSalesByDealer_ ? lastLiveSalesByDealer_[name] : null;
+    var collRec = lastLiveCollectionByDealer_ ? lastLiveCollectionByDealer_[name] : null;
+
+    var salesText = (salesRec && salesRec.month !== null && salesRec.month !== undefined) ? formatNum(salesRec.month) + " Ltr" : "—";
+    var collText = (collRec && collRec.month !== null && collRec.month !== undefined) ? "₹" + formatBalance_(collRec.month) : "—";
+
+    // Outstanding - same "pendingAmount falls back to balance" convention
+    // as the dashboard's own Lookup card, using this app's own live
+    // dealer fields (see balanceBadgeHtml_()/remindBtnHtml_() above).
+    var pend = (d && d.pendingAmount !== null && d.pendingAmount !== undefined) ? d.pendingAmount : (d ? d.balance : null);
+    var owed = (pend !== null && pend !== undefined && !isNaN(pend) && pend < 0) ? Math.abs(pend) : null;
+    var outText = owed !== null ? "₹" + formatBalance_(owed) : "No dues on record";
+    var outColor = owed !== null ? "var(--danger)" : "var(--text)";
+    var outSub = "";
+    if (d && d.agedPendingAmount !== null && d.agedPendingAmount !== undefined && Math.abs(d.agedPendingAmount) >= 0.5) {
+      outSub = '<p class="lookup-stat-sub">' + OUTSTANDING_REMINDER_AGE_DAYS + '+d overdue: ₹' + formatBalance_(d.agedPendingAmount) + '</p>';
+    }
+
+    // Total Outstanding - the dealer's full ledger balance, distinct from
+    // Outstanding above (which prefers the narrower pendingAmount when
+    // available) - same distinction the dashboard's own Lookup card makes.
+    var totalOwed = (d && d.balance !== null && d.balance !== undefined && !isNaN(d.balance) && d.balance < 0) ? Math.abs(d.balance) : null;
+    var totalOutText = totalOwed !== null ? "₹" + formatBalance_(totalOwed) : "No dues on record";
+    var totalOutColor = totalOwed !== null ? "var(--danger)" : "var(--text)";
+
+    var lastOrderText = (salesRec && salesRec.lastSaleDate) ? (function () {
+      var s = String(salesRec.lastSaleDate);
+      var dd = daysSinceYyyymmdd_(s);
+      return s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6, 8) + (dd !== null ? " (" + dd + "d ago)" : "");
+    })() : "No recent sale on record";
+    var lastPaymentText = (collRec && collRec.lastPaymentDate) ? (function () {
+      var s = String(collRec.lastPaymentDate);
+      var dd = daysSinceYyyymmdd_(s);
+      return s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6, 8) + (dd !== null ? " (" + dd + "d ago)" : "");
+    })() : "No recent payment on record";
+
+    lookupCardWrapEl.innerHTML = '<div class="lookup-card">' +
+      '<div class="lookup-card-head"><p class="lookup-dealer-name">' + escapeHtml(name) + '</p>' +
+      '<button type="button" class="lookup-clear-btn" id="lookupClearBtn" title="Clear the searched dealer">Clear</button></div>' +
+      '<div class="lookup-grid">' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Sales this month</p><p class="lookup-stat-value">' + salesText + '</p></div>' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Collection this month</p><p class="lookup-stat-value">' + collText + '</p></div>' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Outstanding</p><p class="lookup-stat-value" style="color:' + outColor + ';">' + outText + '</p>' + outSub + '</div>' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Total Outstanding</p><p class="lookup-stat-value" style="color:' + totalOutColor + ';">' + totalOutText + '</p></div>' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Last order</p><p class="lookup-stat-value">' + lastOrderText + '</p></div>' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Last payment</p><p class="lookup-stat-value">' + lastPaymentText + '</p></div>' +
+      '</div></div>';
+  }
+  lookupInputEl.addEventListener("focus", function () { renderLookupDropdown_(lookupInputEl.value); });
+  lookupInputEl.addEventListener("input", function () {
+    lookupSelectedDealer_ = null;
+    renderLookupDropdown_(lookupInputEl.value);
+    renderLookupCard_();
+  });
+  lookupInputEl.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { lookupDropdownEl.hidden = true; lookupInputEl.blur(); }
+  });
+  lookupDropdownEl.addEventListener("mousedown", function (e) {
+    // mousedown (not click) so it fires before the input's blur hides the dropdown - same reasoning as dealerDropdown above
+    var opt = e.target.closest(".combo-option");
+    if (!opt || !opt.hasAttribute("data-dealer-name")) return;
+    e.preventDefault();
+    lookupSelectedDealer_ = opt.getAttribute("data-dealer-name");
+    lookupInputEl.value = lookupSelectedDealer_;
+    lookupDropdownEl.hidden = true;
+    renderLookupCard_();
+  });
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#lookupDetails .combo-wrap")) lookupDropdownEl.hidden = true;
+  });
+  lookupCardWrapEl.addEventListener("click", function (e) {
+    if (e.target.closest("#lookupClearBtn")) {
+      lookupSelectedDealer_ = null;
+      lookupInputEl.value = "";
+      lookupDropdownEl.hidden = true;
+      renderLookupCard_();
+    }
   });
 
   ordersListEl.addEventListener("click", function (e) {
