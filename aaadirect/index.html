@@ -257,6 +257,33 @@
   .lookup-stat-value { font-size: 14.5px; font-weight: 700; }
   .lookup-stat-sub { font-size: 11px; color: var(--text-muted); margin: 3px 0 0; }
 
+  /* Ask (rule-based smart query), added 24 Sep 2026 - see the
+     <section id="askDetails"> markup and runAskQuery_() further down for
+     the full picture. Reuses .lookup-input for the text box and this
+     app's own tokens for the rest, same as Dealer lookup above. */
+  .ask-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+  .ask-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+  .ask-chip {
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .ask-chip:active { opacity: 0.7; }
+  .ask-answer { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+  .ask-answer-title { font-family: "Archivo", sans-serif; font-weight: 700; font-size: 14.5px; margin: 0 0 4px; }
+  .ask-answer-body { font-size: 13.5px; color: var(--text); margin: 0; line-height: 1.5; }
+  .ask-answer-sub { font-size: 11px; color: var(--text-muted); margin: 6px 0 0; }
+  .ask-rank-row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+  .ask-rank-row:last-child { border-bottom: none; }
+  .ask-rank-name { color: var(--text); }
+  .ask-rank-value { color: var(--text); font-weight: 700; white-space: nowrap; }
+  .ask-empty { font-size: 13px; color: var(--text-muted); margin: 0; }
+
   .outstanding-badge {
     display: inline-block;
     flex-shrink: 0;
@@ -1061,6 +1088,29 @@
     </details>
   </section>
 
+  <!-- Ask (rule-based smart query), added 24 Sep 2026 at the owner's
+       request ("can u implement AI in dashboard and dsr app... eg last
+       month purchase, this month high paid dealer"). NOT a free-text AI -
+       the owner picked the free, no-signup option after both were
+       explained to him; this matches a typed question against a fixed
+       set of question shapes (see runAskQuery_() further down) and
+       always computes the answer from the exact same live data every
+       other panel above already reads - never a guessed number. -->
+  <section style="padding-bottom:0;">
+    <details class="manage" id="askDetails">
+      <summary>Ask</summary>
+      <div class="manage-body">
+        <p class="hint">Type a question about your dealers - e.g. "this month high paid dealer" or "last month purchase for Golden". Matches a fixed set of question types, not free AI text yet - tap an example to try one.</p>
+        <div class="ask-row">
+          <input type="text" class="lookup-input" style="flex:1;" id="askInput" placeholder="Ask about sales, collection, outstanding…" autocomplete="off">
+          <button type="button" class="btn btn-ghost" id="askBtn">Ask</button>
+        </div>
+        <div class="ask-chip-row" id="askChipRow"></div>
+        <div id="askAnswerWrap"></div>
+      </div>
+    </details>
+  </section>
+
   <section style="padding-bottom:0;">
     <details class="manage" id="pastOrdersDetails">
       <summary>Past orders</summary>
@@ -1405,6 +1455,10 @@
   var lookupInputEl = document.getElementById("lookupInput");
   var lookupDropdownEl = document.getElementById("lookupDropdown");
   var lookupCardWrapEl = document.getElementById("lookupCardWrap");
+  var askInputEl = document.getElementById("askInput");
+  var askBtnEl = document.getElementById("askBtn");
+  var askChipRowEl = document.getElementById("askChipRow");
+  var askAnswerWrapEl = document.getElementById("askAnswerWrap");
   var reportBtn = document.getElementById("reportBtn");
   var ordersListEl = document.getElementById("ordersList");
   var ordersCountLabel = document.getElementById("ordersCountLabel");
@@ -3510,6 +3564,305 @@
       lookupDropdownEl.hidden = true;
       renderLookupCard_();
     }
+  });
+
+  // Ask (rule-based smart query), added 24 Sep 2026 - see the <section
+  // id="askDetails"> comment above for why this isn't a free-text AI.
+  // Every branch below reads from data this app already has loaded
+  // (dealers[], lastLiveSalesByDealer_/lastLiveCollectionByDealer_,
+  // dealerReviewRows, ordersSummary) except the "last month purchase for
+  // a named dealer" branch, which is the one question shape none of that
+  // already-loaded data can answer - Tally's own per-dealer feed only
+  // ever carries a running "this month" total plus a 6-month blended
+  // average (see avg6moLtr's own docstring in tally_live_watcher.py's
+  // fetch_sales() - never a specific past month split) - so that one
+  // branch alone makes a fresh call to this DSR's own Past Orders search
+  // endpoint (ORDERS_API_URL?historyFrom&historyTo&dealerSearch), the
+  // SAME endpoint searchPastOrders() above already uses, and is
+  // therefore honestly labelled as "orders you logged in the app" rather
+  // than a Tally figure.
+  var ASK_EXAMPLES_ = [
+    "this month high paid dealer",
+    "top 5 dealers by sales this month",
+    "last month purchase for <dealer name>",
+    "sales this month for <dealer name>",
+    "outstanding for <dealer name>",
+    "who owes the most",
+    "who hasn't ordered this month",
+    "top selling item this month"
+  ];
+
+  // Added 24 Sep 2026 - whether the question just typed into Ask matched a
+  // known shape (true) or fell through to askDontUnderstand_() (false, set
+  // there). Read right after runAskQuery_() returns and sent along with the
+  // logged question, so the owner can filter the AskLog sheet to "No" rows
+  // to see exactly which real phrasings Ask still needs to be taught.
+  var askLastUnderstood_ = true;
+
+  // Fire-and-forget: appends the typed question to the AskLog sheet via the
+  // same backend this app already posts orders to. Best-effort only - never
+  // blocks or affects the answer already shown on screen, and a failure
+  // here is silently swallowed (same spirit as fetchLiveOverlay_() above).
+  function askLogQuery_(question, understood) {
+    if (!question || !apiConfigured()) return;
+    try {
+      var dsrNameVal = (document.getElementById("dsrName") && document.getElementById("dsrName").value) || "";
+      postToApi("logAsk", { source: "DSR App", dsrName: dsrNameVal, question: question, understood: !!understood }).catch(function () {});
+    } catch (e) { /* ignore */ }
+  }
+
+  function askMonthLabel_(y, m) {
+    var MN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    return MN[m] + " " + y;
+  }
+  function askPrevMonthRange_() {
+    var now = new Date();
+    var y = now.getFullYear(), m = now.getMonth();
+    var py = y, pm = m - 1;
+    if (pm < 0) { pm = 11; py = y - 1; }
+    var first = new Date(py, pm, 1);
+    var last = new Date(py, pm + 1, 0);
+    function iso(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+    return { from: iso(first), to: iso(last), label: askMonthLabel_(py, pm) };
+  }
+
+  // Best-matching dealer mentioned inside a typed question - scores each
+  // of this app's own dealers[] on how many of its own distinctive words
+  // (4+ letters) appear as whole words inside the question text (run in
+  // the opposite direction from Dealer lookup's own dropdown filter,
+  // which matches a typed prefix against the FULL name).
+  function askFindDealer_(lowerText) {
+    var words = lowerText.match(/[a-z0-9]+/g) || [];
+    if (!words.length) return null;
+    var wordSet = {};
+    words.forEach(function (w) { wordSet[w] = true; });
+    var best = null, bestScore = 0, bestLen = 0;
+    dealers.forEach(function (d) {
+      var dWords = (d.name.toLowerCase().match(/[a-z0-9]+/g) || []).filter(function (w) { return w.length >= 4; });
+      var score = 0, matchedLen = 0;
+      dWords.forEach(function (w) { if (wordSet[w]) { score++; matchedLen += w.length; } });
+      if (score > 0 && (score > bestScore || (score === bestScore && matchedLen > bestLen))) {
+        best = d; bestScore = score; bestLen = matchedLen;
+      }
+    });
+    return best;
+  }
+
+  function askTopN_(lowerText) {
+    var m = lowerText.match(/top\s*(\d{1,2})/);
+    if (m) return Math.max(1, Math.min(10, Number(m[1])));
+    return 5;
+  }
+
+  function askRankHtml_(rows, valuePrefix, valueSuffix) {
+    if (!rows.length) return '<p class="ask-empty">No dealers with data for this yet.</p>';
+    return rows.map(function (r, i) {
+      return '<div class="ask-rank-row"><span class="ask-rank-name">' + (i + 1) + ". " + escapeHtml(r.name) + '</span>' +
+        '<span class="ask-rank-value">' + valuePrefix + formatNum(r.value) + valueSuffix + '</span></div>';
+    }).join("");
+  }
+
+  function askAnswerCard_(title, bodyHtml, subText) {
+    if (!askAnswerWrapEl) return;
+    askAnswerWrapEl.innerHTML = '<div class="ask-answer"><p class="ask-answer-title">' + escapeHtml(title) + '</p>' +
+      bodyHtml + (subText ? '<p class="ask-answer-sub">' + escapeHtml(subText) + '</p>' : '') + '</div>';
+  }
+
+  function askDontUnderstand_() {
+    askLastUnderstood_ = false;
+    askAnswerCard_("Not sure what you're asking",
+      '<p class="ask-answer-body">I can only answer question types I already know — tap an example chip below, or try mentioning a dealer name along with "top", "this month", "last month", "outstanding", "collection", or "sales".</p>', "");
+  }
+
+  function runAskQuery_(raw) {
+    var text = String(raw || "").trim();
+    if (!text) return;
+    askLastUnderstood_ = true;
+    var lower = text.toLowerCase();
+    try {
+    var dealer = askFindDealer_(lower);
+    var n = askTopN_(lower);
+
+    var wantsOutstanding = /outstanding|owe|owes|owing|\bdue\b|dues|balance|pending amount/.test(lower);
+    var wantsCollection = /collect|paid|payment|collection/.test(lower);
+    var wantsItem = /\bitem|\bsku\b|product/.test(lower);
+    var wantsNotOrdered = /(haven'?t|hasn'?t|didn'?t|not|no|pending|yet to).{0,20}order/.test(lower);
+    var wantsLastMonth = /last month/.test(lower);
+    var wantsToday = /\btoday\b/.test(lower);
+    var wantsTop = /\btop\b|highest|\bhigh\b|most|best|\bwho\b|largest|maximum/.test(lower);
+    var wantsSales = /sale|sold|purchase|bought|\bbuy\b|order/.test(lower) && !wantsNotOrdered;
+
+    // Top-selling item this month - app-punched, no dealer involved.
+    if (wantsItem && wantsTop) {
+      var itemTotals = (ordersSummary && ordersSummary.monthItemTotals) || {};
+      var itemRows = Object.keys(itemTotals).map(function (k) { return { name: k, value: itemTotals[k] }; })
+        .sort(function (a, b) { return b.value - a.value; }).slice(0, n);
+      askAnswerCard_("Top selling item" + (n > 1 ? "s" : "") + " this month",
+        askRankHtml_(itemRows, "", " Ltr"), "From orders you've punched into this app this month.");
+      return;
+    }
+
+    // Dealers who haven't ordered yet this month, ranked by their own
+    // 6-month average - reuses dealerReviewRows, already computed for
+    // the Dealer review panel above and already sorted highest-average-
+    // first, so this is the exact same "high-average dealer, ordered or
+    // not" check the owner asked for when he asked for that sort.
+    if (wantsNotOrdered) {
+      var pending = dealerReviewRows.filter(function (r) { return !r.salesMonth; }).slice(0, n)
+        .map(function (r) { return { name: r.name, value: r.salesAvg || 0 }; });
+      askAnswerCard_("Top dealers who haven't ordered yet this month",
+        askRankHtml_(pending, "", " Ltr avg"), "Ranked by their own 6-month sales average — your most important dealers first.");
+      return;
+    }
+
+    // A specific dealer mentioned.
+    if (dealer) {
+      var salesRec = lastLiveSalesByDealer_ ? lastLiveSalesByDealer_[dealer.name] : null;
+      var collRec = lastLiveCollectionByDealer_ ? lastLiveCollectionByDealer_[dealer.name] : null;
+
+      if (wantsLastMonth && !wantsOutstanding) {
+        if (wantsCollection) {
+          var cThis = (collRec && collRec.month !== null && collRec.month !== undefined) ? collRec.month : 0;
+          askAnswerCard_(dealer.name,
+            '<p class="ask-answer-body">Last month’s collection isn’t tracked per dealer yet — only a running current-month total and a 6-month average are.</p>',
+            "This month so far: ₹" + formatBalance_(cThis) + ".");
+          return;
+        }
+        var range = askPrevMonthRange_();
+        if (!apiConfigured()) {
+          askAnswerCard_(dealer.name, '<p class="ask-answer-body">Can’t check that right now — app isn’t set up yet.</p>', "");
+          return;
+        }
+        askAnswerCard_(dealer.name, '<p class="ask-answer-body">Checking ' + escapeHtml(range.label) + '…</p>', "");
+        var dsrNameVal = document.getElementById("dsrName").value || "";
+        var url = ORDERS_API_URL + "?dsrName=" + encodeURIComponent(dsrNameVal) +
+          "&historyFrom=" + encodeURIComponent(range.from) + "&historyTo=" + encodeURIComponent(range.to) +
+          "&dealerSearch=" + encodeURIComponent(dealer.name) + "&_ts=" + Date.now();
+        fetch(url, { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (res) {
+          var list = (res && res.ok && res.historyOrders) ? res.historyOrders.filter(function (o) { return o.dealer === dealer.name; }) : [];
+          var total = list.reduce(function (s, o) { return s + (Number(o.totalLtr) || 0); }, 0);
+          askAnswerCard_(dealer.name,
+            '<p class="ask-answer-body">Purchased <b>' + formatNum(total) + ' Ltr</b> in ' + escapeHtml(range.label) + ' across ' + list.length + ' order(s) you logged.</p>',
+            "From orders you punched into this app that month — not a Tally figure (Tally only tracks a running this-month total plus a 6-month average per dealer, never a specific past month).");
+        }).catch(function () {
+          askAnswerCard_(dealer.name, '<p class="ask-answer-body">Couldn’t check that right now — try again.</p>', "");
+        });
+        return;
+      }
+
+      if (wantsOutstanding) {
+        var pend = (dealer.pendingAmount !== null && dealer.pendingAmount !== undefined) ? dealer.pendingAmount : dealer.balance;
+        var owed = (pend !== null && pend !== undefined && !isNaN(pend) && pend < 0) ? Math.abs(pend) : null;
+        var body = '<p class="ask-answer-body">' + (owed !== null ? "Owes <b>₹" + formatBalance_(owed) + "</b>" : "No dues on record") + '</p>';
+        var sub = "";
+        if (dealer.agedPendingAmount !== null && dealer.agedPendingAmount !== undefined && Math.abs(dealer.agedPendingAmount) >= 0.5) {
+          sub = OUTSTANDING_REMINDER_AGE_DAYS + "+d overdue: ₹" + formatBalance_(dealer.agedPendingAmount);
+        }
+        askAnswerCard_(dealer.name, body, sub);
+        return;
+      }
+
+      if (wantsCollection) {
+        var cVal = wantsToday ? (collRec && collRec.today) : (collRec && collRec.month);
+        var cAvg = (collRec && collRec.avg6moCollectedRs !== null && collRec.avg6moCollectedRs !== undefined) ? collRec.avg6moCollectedRs : null;
+        var body2 = '<p class="ask-answer-body">Paid <b>₹' + ((cVal !== null && cVal !== undefined) ? formatBalance_(cVal) : "0") + '</b> ' + (wantsToday ? "today" : "this month") +
+          (!wantsToday && cAvg !== null ? " (6-month avg ₹" + formatBalance_(cAvg) + ")" : "") + '.</p>';
+        askAnswerCard_(dealer.name, body2, "Live from Tally.");
+        return;
+      }
+
+      // Default for a named dealer: sales, today or this month.
+      var sVal = wantsToday ? (salesRec && salesRec.today) : (salesRec && salesRec.month);
+      var sAvg = (salesRec && salesRec.avg6moLtr !== null && salesRec.avg6moLtr !== undefined) ? salesRec.avg6moLtr : null;
+      var body3 = '<p class="ask-answer-body">Bought <b>' + ((sVal !== null && sVal !== undefined) ? formatNum(sVal) : "0") + ' Ltr</b> ' + (wantsToday ? "today" : "this month") +
+        (!wantsToday && sAvg !== null ? " (6-month avg " + formatNum(sAvg) + " Ltr)" : "") + '.</p>';
+      askAnswerCard_(dealer.name, body3, "Live from Tally.");
+      return;
+    }
+
+    // No dealer named - a ranking, or a DSR-wide total.
+    if (wantsTop) {
+      if (wantsOutstanding) {
+        var outRows = dealers.filter(function (d) {
+          var p = (d.pendingAmount !== null && d.pendingAmount !== undefined) ? d.pendingAmount : d.balance;
+          return p !== null && p !== undefined && !isNaN(p) && p < 0;
+        }).map(function (d) {
+          var p = (d.pendingAmount !== null && d.pendingAmount !== undefined) ? d.pendingAmount : d.balance;
+          return { name: d.name, value: Math.abs(p) };
+        }).sort(function (a, b) { return b.value - a.value; }).slice(0, n);
+        askAnswerCard_("Top " + outRows.length + " by outstanding", askRankHtml_(outRows, "₹", ""), "Live from Tally.");
+        return;
+      }
+      if (wantsCollection) {
+        var collSrc = lastLiveCollectionByDealer_ || {};
+        var collRows = Object.keys(collSrc).filter(function (k) { return dealers.some(function (d) { return d.name === k; }); })
+          .map(function (k) { return { name: k, value: collSrc[k].month || 0 }; })
+          .filter(function (r) { return r.value > 0; })
+          .sort(function (a, b) { return b.value - a.value; }).slice(0, n);
+        askAnswerCard_("Top " + collRows.length + " dealers by collection this month", askRankHtml_(collRows, "₹", ""), "Live from Tally.");
+        return;
+      }
+      var salesSrc = lastLiveSalesByDealer_ || {};
+      var salesRows = Object.keys(salesSrc).filter(function (k) { return dealers.some(function (d) { return d.name === k; }); })
+        .map(function (k) { return { name: k, value: salesSrc[k].month || 0 }; })
+        .filter(function (r) { return r.value > 0; })
+        .sort(function (a, b) { return b.value - a.value; }).slice(0, n);
+      askAnswerCard_("Top " + salesRows.length + " dealers by sales this month", askRankHtml_(salesRows, "", " Ltr"), "Live from Tally.");
+      return;
+    }
+
+    // DSR-wide totals, no dealer, no ranking.
+    if (wantsLastMonth) {
+      if (wantsCollection) {
+        askAnswerCard_("Last month's collection", '<p class="ask-answer-body">₹' + (liveCollectionLastMonthFull !== null ? formatBalance_(liveCollectionLastMonthFull) : "—") + '</p>', "Live from Tally.");
+      } else {
+        askAnswerCard_("Last month's sales", '<p class="ask-answer-body">' + (liveSalesLastMonthFull !== null ? formatNum(liveSalesLastMonthFull) + " Ltr" : "—") + '</p>', "Live from Tally.");
+      }
+      return;
+    }
+    if (wantsCollection) {
+      var thisMonthColl = wantsToday ? liveCollectionToday : liveCollectionMonth;
+      askAnswerCard_(wantsToday ? "Today's collection" : "This month's collection",
+        '<p class="ask-answer-body">₹' + (thisMonthColl !== null ? formatBalance_(thisMonthColl) : "—") + '</p>', "Live from Tally.");
+      return;
+    }
+    if (wantsSales || wantsToday) {
+      var val = wantsToday ? ordersSummary.todayLtr : ordersSummary.monthLtr;
+      askAnswerCard_(wantsToday ? "Today's sales" : "This month's sales", '<p class="ask-answer-body">' + formatNum(val || 0) + ' Ltr</p>', "From orders you've punched into this app.");
+      return;
+    }
+
+    askDontUnderstand_();
+    } finally {
+      askLogQuery_(text, askLastUnderstood_);
+    }
+  }
+
+  function renderAskChips_() {
+    if (!askChipRowEl) return;
+    askChipRowEl.innerHTML = ASK_EXAMPLES_.map(function (q) {
+      return '<button type="button" class="ask-chip" data-ask-q="' + escapeHtml(q) + '">' + escapeHtml(q) + '</button>';
+    }).join("");
+  }
+  renderAskChips_();
+
+  function submitAsk_() { runAskQuery_(askInputEl.value); }
+  if (askBtnEl) askBtnEl.addEventListener("click", submitAsk_);
+  if (askInputEl) askInputEl.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); submitAsk_(); } });
+  if (askChipRowEl) askChipRowEl.addEventListener("click", function (e) {
+    var chip = e.target.closest(".ask-chip");
+    if (!chip) return;
+    var q = chip.getAttribute("data-ask-q");
+    // The "<dealer name>" placeholder chips aren't runnable as-is - fill
+    // the box (with the placeholder trimmed off) and let the DSR finish
+    // typing a real dealer name instead of silently failing to match one.
+    if (q.indexOf("<dealer name>") !== -1) {
+      askInputEl.value = q.replace("<dealer name>", "").replace(/\s+$/, "");
+      askInputEl.focus();
+      return;
+    }
+    askInputEl.value = q;
+    runAskQuery_(q);
   });
 
   ordersListEl.addEventListener("click", function (e) {
