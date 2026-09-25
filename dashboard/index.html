@@ -274,6 +274,22 @@
   .dsr-row-body { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 13px; }
   .dsr-row-subsection { padding-top: 4px; }
 
+  /* Click-toggle rows for the "Full Petronas This Month Sales" table's
+     Madurai/Tirunelveli Total rows (added 25 Sep 2026) - a lighter-weight
+     stand-in for the .dsr-row-toggle +/- convention above, since a real
+     <details> can't sit inside a <tr>. Content ('+'/'−') is set by
+     JS on click rather than via ::before, so it works without a
+     details[open] ancestor to key off of. */
+  .area-toggle-row { cursor: pointer; }
+  .area-toggle-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 999px; margin-right: 6px;
+    background: var(--accent-soft); color: var(--accent);
+    font-size: 13px; font-weight: 700; line-height: 1;
+  }
+  .area-child-row td { color: var(--ink-secondary); font-size: 12px; }
+  .area-child-row td:first-child { padding-left: 30px; }
+
   .pill { font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
   .pill.on { background: var(--accent-soft); color: var(--accent); }
   .pill.done { background: var(--good-soft); color: var(--good); }
@@ -385,6 +401,8 @@
   .lookup-stat-label { font-size: 11px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: .05em; margin: 0 0 4px; }
   .lookup-stat-value { font-size: 15px; font-weight: 700; }
   .lookup-stat-sub { font-size: 11px; color: var(--ink-muted); margin: 3px 0 0; }
+  .lookup-stat-wide { grid-column: 1 / -1; }
+  .lookup-stat-value .lastmonth-line { padding-top: 3px; font-weight: 500; }
 
   /* Ask (rule-based smart query), added 24 Sep 2026 - see the "Ask"
      section further down and runAskQuery_() for the full picture.
@@ -396,6 +414,12 @@
   .ask-row { display: flex; gap: 8px; align-items: center; }
   .ask-btn { display: inline-flex; align-items: center; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--accent-ink); background: var(--accent); border: none; border-radius: 10px; padding: 10px 16px; cursor: pointer; white-space: nowrap; }
   .ask-btn:hover { opacity: 0.9; }
+  /* Secondary variant, added 25 Sep 2026 - reused by the Ask panel's new
+     "Clear" button (next to the primary "Ask" button) and the new Stock/
+     MRP/Nett Price section's "Export as Excel" button, so neither reads as
+     the primary action on its row. */
+  .ask-btn.secondary { background: var(--surface-2); color: var(--ink-secondary); border: 1px solid var(--border); }
+  .ask-btn.secondary:hover { opacity: 1; color: var(--ink); }
   .ask-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
   .ask-chip { font-size: 12px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-muted); font-family: inherit; cursor: pointer; }
   .ask-chip:hover { color: var(--ink); }
@@ -442,9 +466,20 @@
      than inventing new components; horizontally scrollable on narrow
      screens since a wide DSR roster makes for a wide table. */
   .age-table-scroll { overflow-x: auto; padding: 14px 18px 18px; -webkit-overflow-scrolling: touch; }
-  .age-table { border-collapse: collapse; width: 100%; min-width: 480px; font-size: 12.5px; }
+  .age-table { border-collapse: collapse; width: 100%; min-width: 480px; font-size: 12.5px; table-layout: fixed; }
   .age-table th, .age-table td { padding: 7px 10px; text-align: center; white-space: nowrap; border-bottom: 1px solid var(--border); }
   .age-table th:first-child, .age-table td:first-child { text-align: center; font-weight: 600; color: var(--ink-secondary); position: sticky; left: 0; background: var(--surface); }
+  /* Long dealer/item names (e.g. "SRI MEENAKSHI AUTO STORES,APT (OIL)")
+     were pushing the numeric columns off-screen on mobile, hiding the
+     figures the owner actually needs while scrolling - added 25 Sep 2026.
+     table-layout:fixed above + a bounded/wrapping first column keeps the
+     numeric columns reliably visible next to even a very long name;
+     .num keeps nowrap (inherited from the th/td rule above) so amounts
+     never wrap awkwardly. Applies to every table using .age-table at
+     once (Dealer Review, 60+ overdue, Needs Attention, Inactive dealers,
+     Stock, Full Petronas Sales, etc). */
+  .age-table th:first-child, .age-table td:first-child { max-width: 42vw; white-space: normal; word-break: break-word; }
+  .age-table td.num, .age-table th.num { white-space: nowrap; }
   .age-table thead th { font-weight: 700; color: var(--ink); border-bottom: 2px solid var(--border); }
   .age-table td.num { font-variant-numeric: tabular-nums; }
   .age-table tr.age-table-total td { font-weight: 700; color: var(--ink); border-top: 2px solid var(--border); border-bottom: none; }
@@ -525,7 +560,7 @@
      it. Hiding it for the capture's duration and letting it reappear
      right after (still `display:flex` in its own inline style - this
      rule only overrides it while .capturing is present) fixes that. */
-  .capturing .share-icon-btn, .capturing .refresh-btn, .capturing .dormant-overlay { display: none !important; }
+  .capturing .share-icon-btn, .capturing .refresh-btn, .capturing .dormant-overlay, .capturing .lookup-clear-btn { display: none !important; }
   .rank-value { font-weight: 600; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
   /* Dormant rows' value grows once the outstanding amount/date is appended
      (added 19 Sep 2026) - let it wrap to 2 lines and cap its width instead
@@ -550,7 +585,7 @@
 <div class="page">
   <header class="top">
     <div>
-      <p class="eyebrow">Petronas Lubricants · DSR Sales &amp; Collection</p>
+      <p class="eyebrow">Petronas Lubricants</p>
       <h1>Sales &amp; Collection Dashboard</h1>
     </div>
     <div class="top-meta">
@@ -585,7 +620,7 @@
   <div id="captureSummary">
   <div id="captureCombined">
     <div class="section-label-row">
-      <p class="section-label">Combined — Sales &amp; Collection</p>
+      <p class="section-label">Combined — Sales</p>
       <button type="button" class="share-icon-btn small" id="shareCombinedBtn" title="Share combined Sales &amp; Collection">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
       </button>
@@ -666,6 +701,11 @@
     <div class="ask-row">
       <input type="text" class="lookup-input" style="flex:1;" id="askInput" placeholder="Ask about sales, collection, outstanding…" autocomplete="off">
       <button type="button" class="ask-btn" id="askBtn">Ask</button>
+      <!-- Clear button, added 25 Sep 2026 - purely a UI reset (empties the
+           input, clears the answer card below), wired to its own
+           clearAsk_() function - does not touch runAskQuery_() or the
+           AskLog logging hook at all. -->
+      <button type="button" class="ask-btn secondary" id="askClearBtn">Clear</button>
     </div>
     <div class="ask-chip-row" id="askChipRow"></div>
     <div id="askAnswerWrap"></div>
@@ -768,7 +808,12 @@
   <!-- Dealer review (this month vs 6-month avg) modal, added 23 Sep 2026 -
        same overlay/sheet styling as the others above, opened from each DSR
        row's own dealer review list (see dealerReviewRowsHtml_()/
-       openDealerReviewSheet_() below). -->
+       openDealerReviewSheet_() below). Reverted to this simple form on
+       25 Sep 2026 - a share button + 3-line/Rs-enriched cells were added
+       earlier that same day, but the owner clarified the 6-mo-avg/
+       last-month/current-month + Rs enrichment was only ever meant for
+       the Dealer Lookup card (see renderLookupCard_() below), not this
+       popup - this stays the plain per-DSR dealer list it always was. -->
   <div class="dormant-overlay" id="dealerReviewOverlay" style="display:none;">
     <div class="dormant-sheet">
       <div class="dormant-sheet-head">
@@ -871,6 +916,77 @@
       </div>
     </div>
   </div>
+
+  <!-- "Full Petronas This Month Sales" summary table, added 25 Sep 2026 at
+       the owner's request - a company-wide roll-up of the same live
+       data.sales[dsrName].month Ltr figures already flowing into each
+       DSR's own card above (DSRS[i].monthLtr, populated in fetchLive()
+       above), grouped into the office's own real Tally area-group
+       hierarchy (confirmed with the owner): AAA Direct stands alone;
+       "Madurai Total Area" = Arun + Chellamani + Prabha; "Tirunelveli
+       Total Area" = Madhu + Anandh + Nagaraj. No new backend field - a
+       purely client-side sum of numbers this dashboard already has. See
+       renderPetronasAreaTable_() below. Purely additive, appended at the
+       very bottom of the page alongside the Stock/MRP/Nett Price section
+       below it.
+       TODO(coimbatore): a fourth area group ("Coimbatore Area") belongs
+       here too, once the owner's separate real-Tally diagnostic for that
+       territory is resolved - do not add it before then.
+       Madurai Total/Tirunelveli Total rows expand (tap) to show their
+       member DSRs' own Ltr figures, added 25 Sep 2026 at the owner's
+       request - see the click-toggle in renderPetronasAreaTable_() below
+       (plain <tr> rows, not <details>, since <details> doesn't nest
+       cleanly as a table row). Share button added the same day, reusing
+       the openShareSheet_()/#capture* pattern used everywhere else on
+       this page. -->
+  <div id="capturePetronasArea">
+    <div class="section-label-row">
+      <p class="section-label">Full Petronas This Month Sales</p>
+      <button type="button" class="share-icon-btn small" id="sharePetronasAreaBtn" title="Share Full Petronas This Month Sales">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+      </button>
+    </div>
+    <div id="petronasAreaWrap"></div>
+  </div>
+
+  <!-- "Current Stock, MRP & Nett Price", added 25 Sep 2026 at the owner's
+       request - EVERY catalog item (all ~180, the exact same static
+       baseline every DSR app embeds client-side as its own DEFAULT_ITEMS -
+       see claude/item-catalog.json), live-patched from stockMap the same
+       way every DSR app's own applyLiveOverlay_() already does (see
+       arun_index.html's own stock/rate/mrp live-patch, reused here as
+       liveCatalogItems_() below) rather than only showing items with live
+       data. Grouped by the catalog's own `group` field into collapsed
+       <details> blocks (12 distinct groups in this catalog), reusing the
+       same .dsr-row "+/-" native-disclosure convention already used for
+       each DSR's own row above, each independently expandable. "Nett
+       Price (incl. GST)" is `rate * 1.18` (changed 25 Sep 2026 at the
+       owner's request to fold in 18% GST - was previously the plain
+       pre-GST `rate`; the underlying fetch_stock() field itself is
+       unchanged, only this table's display/export multiplies by 1.18).
+       Export as Excel builds a real .xlsx workbook client-side via
+       SheetJS (see the script tag above) - every item across every
+       group, not just the ones currently expanded. All 12 groups are
+       wrapped in one outer "Stocks" <details> (added 25 Sep 2026) whose
+       summary shows the total stock quantity in Ltr across every item -
+       see stockCatalogItemLtr_()/renderStockCatalog_() below. See
+       CATALOG_ITEMS/liveCatalogItems_() below. Purely additive. -->
+  <p class="section-label">Current Stock, MRP &amp; Nett Price</p>
+  <details class="dsr-row" id="stocksMasterDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Stocks</span>
+        <span class="card-territory" id="stocksMasterTotal">Loading…</span></span>
+      <span class="dsr-row-headright">
+        <button type="button" class="share-icon-btn small" id="exportStockXlsxBtn" title="Export as Excel" style="margin-left:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        </button>
+      </span>
+    </summary>
+    <div class="dsr-row-body">
+      <div class="dsr-list" id="stockCatalogWrap"></div>
+    </div>
+  </details>
 </div>
 
 <!-- Added 20 Sep 2026 for the image/PDF share rebuild - html2canvas turns a
@@ -882,6 +998,14 @@
      breaking the rest of the dashboard. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- SheetJS (xlsx), added 25 Sep 2026 for the new "Current Stock, MRP &
+     Nett Price" section's "Export as Excel" button - same cdnjs
+     convention as html2canvas/jspdf above; a real .xlsx workbook is built
+     entirely client-side (see the exportStockXlsxBtn handler further
+     down), no server round-trip. Fails gracefully into an alert (like
+     html2canvas/jspdf's own share-sheet failure message) if the CDN is
+     unreachable, rather than breaking the rest of the dashboard. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
   var ORDERS_API_URL = "https://script.google.com/macros/s/AKfycbxppCHNsSlDGVY5gWKC-N2MKJ4wrLOd97FsKC19-SXjg9NPh4myip5Ht4h5R1dDlSl4GQ/exec";
 
@@ -932,6 +1056,29 @@
   var PETRONAS_ITEM_NAMES = ["10W30 1 LIT SPRINTA F700 (20)", "0W20 4 LIT SYNTIUM 7000 SN HYBRID FULLSYN (4)", "0W30 MGDO 5.3 LIT SYNTIUM 3000SZ (2)", "0W40  4 LIT SYNTIUM 7000 SN (COOLTECH) (5)", "10W30 210 LIT SPRINTA F300 BARREL", "10W30 800 ML SPRINTA A300 (COMBO PACK - WITH GEAR OIL) (10)", "10W30 800 ML SPRINTA A300 (SPOUT PACK) (20)", "10W30 900 ML SPRINTA F300 (20)", "10W30 F100 SPRINTA 55 LIT", "10W40 1 LIT SN SPRINTA RACING (20)", "10W40 1 LIT SPRINTA F900 (MOTO GP PACK) (16)", "10W40 1 LIT SYNTIUM 800 (20)", "10W40 3 LIT SYNTIUM 800 (6)", "10W40 3.5 LIT SYNTIUM 800 SN (4)", "10W50 1 LIT SN SPRINTA RACING (20)", "15W40 1 LIT SYNTIUM 500 CH-4 DIESEL *****", "15W40 1 LIT SYNTIUM 500 CI4+ DIESEL (20)", "15W40 5 LIT SYNTIUM 500 CI4+ DIESEL", "15W40 7 LIT SYNTIUM 500 CI4+ DIESEL", "15W50 1 LIT SPRINTA F700 (20)", "15W50 2.5 LIT SPRINTA F700 (6)", "15W50 SPRINTA F700 50 LIT", "20W40 1 LIT (CF4) MOTOLUBE", "20W40 1 LIT SPRINTA F300 (20)", "20W40 210 LIT SPRINTA F300", "20W40 55 LIT SPRINTA F300", "20W40 900 ML SPRINTA F300 (20)", "20W50 1 LIT SPRINTA F300 (20)", "20W50 1 LIT SYNTIUM 300 SL (20)", "20W50 1 LTR CNG LUBE (20)", "20W50 210 LTR CNG LUBE BARREL", "20W50 3 LIT SYNTIUM 300 SL (6)", "20W50 3.5 LIT SYNTIUM 300 SL (4)", "20W50 3.5 LTR CNG LUBE (4)", "20W50 500 ML CNG LUBE (20)", "3 WHEELER LIFE ENGINE OIL 2.75 LIT PETRONAS (6)", "3 WHEELER LIFE ENGINE OIL 3 LIT PETRONAS (6)", "3 WHEELER LIFE ENGINE OIL 500 ML PETRONAS (20)", "5W30  1 LIT SYNTIUM 500 SN/CF (20)", "5W30  3 LIT SYNTIUM 500 SN/CF (6)", "5W30  3.5 LIT SYNTIUM 500 SN/CF (4)", "5W30 1 LIT SYNTIUM 3000 SN PLUS FULLY SYN (20)", "5W30 3.5 LIT SYNTIUM 3000 (SP) FULLY SYN (4)", "5W30 3.5 LIT SYNTIUM 800 SN SEMI SYNT (4)", "5W30 5 LIT SYNTIUM 500 SN/CF (4)", "5W30 50 LIT SYNTIUM 500 SN/CF", "5W30 600 ML SPRINTA A700 (SPOUT - SCOOTER PACK) (20)", "5W30 SYNTIUM 500 SN/CF 210 LIT", "5W40 4 LIT SYNTIUM 3000 SN (4)", "5W40 MGDO 3.5 LIT SYNTIUM 3000SZ (4)", "75W90 1 LTR TUTELA TRANSMISSION OIL (20)", "75W90 2.5 LTR TUTELA TRANSMISSION OIL (6)", "80W90 1 LTR TUTELA TRANSMISSION OIL", "80W90 20 LTR TUTELA TRANSMISSION OIL", "80W90 TUTELA 300 MTF TRANSMISSION OIL 7 LIT", "80W90 TUTELA TRANSMISSION OIL 2.5 LIT (6)", "80W90 TUTELA TRANSMISSION OIL 5 LIT", "85W140 1 LIT TUTELA TRANSMISSION OIL (20)", "85W140 210 LTR TUTELA TRANSMISSION OIL", "85W140 5LIT TUTELA TRANSMISSION OIL", "AGRI GOLD TRACTOR ENGINE OIL 7.5 LIT", "AGRI GOLD TRACTOR ENGINE OIL 8.5 LIT", "AGRI GOLD TRACTOR TRANSMISSION OIL 26 LIT", "AKROS 20W30 20 LIT MULTI UTTO", "AMBRA MASTER GOLD HSP 7.7 LIT", "AMBRA SUPER GOLD 10 LIT", "AMBRA SUPERTRAN 5 LIT TRANSMISSION OIL (4)", "ATUL AUTO GENUINE OIL 1 LIT (20)", "ATUL AUTO GENUINE OIL 2.5 LIT BSVI (6)", "ATUL AUTO GENUINE OIL 3 LIT (6)", "ATUL AUTO GENUINE OIL 500 ML (20)", "CF4 15W40 1 LIT URANIA 800 (20)", "CF4 15W40 10 LIT URANIA 800", "CF4 15W40 3 LIT URANIA 800(6)", "CF4 15W40 6 LIT URANIA 800", "CF4 15W40 7.5 LIT URANIA 800", "CF4 20W40 1 LIT URANIA 800", "CF4 20W40 10 LIT URANIA 800", "CF4 20W40 210 LIT URANIA 800", "CF4 20W40 6 LIT URANIA 800", "CF4 20W40 7.5 LIT URANIA 800", "CF4 20W40 8.5 LIT URANIA 800", "CH4 15W40 1 LIT URANIA 1000 (20)", "CH4 15W40 10 LIT URANIA 1000", "CH4 15W40 210 LIT URANIA 1000", "CH4 15W40 3 LIT URANIA 1000(6)", "CH4 15W40 55 LIT URANIA 1000", "CH4 15W40 7.5 LIT URANIA 1000", "CI4+ 15W 40 210 LIT URANIA 3000", "CI4+ 15W40 1 LIT URANIA 3000", "CI4+ 15W40 15 LIT URANIA 3000", "CI4+ 15W40 2.5 LIT URANIA 3000 (6)", "CI4+ 15W40 3.5 LIT SYNTIUM 500 (4)", "CI4+ 15W40 55 LIT URANIA 3000", "CI4+ 15W40 6 LIT URANIA 3000", "CI4+ 15W40 7.5 LIT URANIA 3000", "CI4+ 15W40 8.5 LIT URANIA 3000", "CK4 15W40 1 LIT URANIA 5000 IN (20)", "CK4 15W40 10 LIT URANIA 5000 IN", "CK4 15W40 15 LIT URANIA 5000 IN", "EPYX 140 1 LIT GEAR OIL TUTELA (20)", "EPYX 140 20 LIT GEAR OIL TUTELA", "EPYX 140 5 LIT GEAR OIL TUTELA  (4)", "EPYX 90 1 LIT GEAR OIL TUTELA (20)", "EPYX 90 20 LIT GEAR OIL TUTELA", "EPYX 90 5 LIT GEAR OIL TUTELA (4)", "HYDROCER 46 HYD OIL 26 LIT", "MACH5 20W50 3.5 LIT SG (4)", "MACH5 CH4 15W40 5 LIT DIESEL (4)", "MOTOLUB 15W40 10 LTR (CF4)", "MOTOLUB 15W40 7.5 LTR (CF4)", "MOTOLUB 20W40 10 LIT (CF4)", "MOTOLUB 20W40 7.5 (CF4)", "MOTOLUB CF4 15W40 0.5 LIT (20)", "MOTOLUB CF4 15W40 1 LIT (20)", "MOTOLUB CF4 15W40 3 LIT (6)", "MOTOLUB CF4 15W40 6 LIT", "NEXPRO TRANSMISSION OIL 20 LIT", "PROFAR ANTIFREEZE COOLANT OIL 1 LIT (10)", "PUMPSET OIL 3.5 LIT CF40 PETRONAS (4)", "SPRINTA 20W40 F100 55 LIT SJ DRUM", "SPRINTA 20W50 55 LIT F300", "SPRINTA F100 15W50 1.2 LIT- SL (10)", "SPRINTA F100 15W50 2.5 LIT- SL (6)", "SPRINTA F100 20W40 1 LIT- SJ (20)", "SPRINTA F100 20W40 900 ML - SJ (20)", "SPRINTA F300 20W50 1.2 L - SL (10)", "SPRINTA F900 15W50 2.5 LIT (6)", "TUTELA AKROS 80W 20 LIT UTTO F100", "TUTELA AKROS 80W 5 LIT UTTO F100 (4)", "TUTELA GREASE 1 KG (MR3) (12)", "TUTELA GREASE 2 KG (MR3) (6)", "TUTELA GREASE 3 KG  (4) (MR3)", "TUTELA GREASE 500GMS (MR3)(24)", "TUTELA LONG LIFE GREASE 1 KG (RED - NLGI 3) (12)", "TUTELA LONG LIFE GREASE 20 KG (RED - NLGI 3)", "TUTELA LONG LIFE GREASE 3 KG (RED - NLGI 3) (4)", "TUTELA LONG LIFE GREASE 500 GMS (RED - NLGI 3) (24)", "TUTELA LONG LIFE GREASE 7 KG (RED - NLGI 3)", "TUTELA MULTI UTTO 5 LIT 20W30 (AKROS) (4)", "TUTELA SUPREME LL GREASE 1 KG (GREEN-NLGI 3) (12)", "TUTELA SUPREME LL GREASE 5 KG (GREEN-NLGI 3) (2)", "TUTELA SUPREME LL GREASE 500 GM (GREEN-NLGI 3) (24)", "TVS TRU4 RACE PRO 15W50 1.7 L (OE PACK) (9)", "TVS TRU4 RACE PRO 15W50 FULLY SYN 1.2 LIT (10)", "TVS TRU4 RACE PRO 15W50 FULLY SYN 2.5 LIT (6)", "10W30 55 LIT SPRINTA F300 SL", "5W30 7 LIT SYNTIUM 500 SN/CF", "5W40 1 LIT SYNTIUM 3000 SM (FULL SYNT) COOLTECH (20", "5W40 MGDO SYNTIUM 3000SZ 210 LIT BARREL", "80W90 210 LTR TUTELA TRANSMISSION OIL", "85W140 12 LIT TUTELA 300 EP TRANSMISSION OIL", "AGRI GOLD TRACTOR ENGINE OIL 10 LIT", "AGRI GOLD UTTO TRANSMISSION OIL 26LIT (AKROS)", "AGRI GOLD UTTO TRANSMISSION OIL 5 LIT (AKROS)", "CF4 15W40 210 LIT URANIA 800", "CF4 15W40 55 LIT URANIA 800", "CF4 20W40 55 LIT URANIA 800", "CI4+ 15W40 10 LIT URANIA 3000", "CI4+ 15W40 11 LIT URANIA 3000", "CI4+ 15W40 18 LIT URANIA 3000", "EPYX 140 TUTELA 210 LIT TRANSMISSION OIL", "EPYX 90 TUTELA 210 LIT TRANSMISSION OIL", "HYDROCER 68 HYD OIL 20 LIT", "HYDROCER 68 HYD OIL 210 LIT", "HYDROCER 68 HYD OIL 26 LIT", "POWER STEERING OIL ATF D3 1 LIT (20)", "TUTELA GREASE 20 KG (MR3)", "TUTELA LONG LIFE GREASE 5 KG (RED - NLGI 3) (2)", "5W30  4.5 LIT SYNTIUM 500 SN/CF (4)"];
   var PETRONAS_ITEM_SET = {};
   PETRONAS_ITEM_NAMES.forEach(function (n) { PETRONAS_ITEM_SET[n] = true; });
+
+  // Defensive client-side dedup for the Tally-sourced per-DSR-per-item
+  // sales list - added 24 Sep 2026. The backend sheet (LiveSalesByDsrItem)
+  // can end up with more than one row for the same DSR+item (each a
+  // different poll-time snapshot of the same growing month-to-date total)
+  // if it was ever appended to instead of updated in place - see the
+  // backend upsert-key fix alongside this. Collapsing here, once, right
+  // where the API response is ingested, protects every downstream reader
+  // (renderCards()'s catalogSection, renderTopSkuByDsr_(), and the aging
+  // table's itemsCovered count) even if the sheet ever drifts again.
+  // Keeps the highest monthLtr per DSR+item - safe because these are
+  // point-in-time snapshots of a monotonically-growing running total, so
+  // the max is always the most complete/current reading, never an
+  // under-report.
+  function dedupeSalesByDsrItem_(list) {
+    var byKey = {};
+    (list || []).forEach(function (r) {
+      if (!r || !r.dsrName || !r.itemName) return;
+      var key = r.dsrName + '||' + r.itemName;
+      if (!byKey[key] || (r.monthLtr || 0) > (byKey[key].monthLtr || 0)) byKey[key] = r;
+    });
+    return Object.keys(byKey).map(function (k) { return byKey[k]; });
+  }
 
   // Shared by renderCoverage_() (homescreen) and renderCards()'s
   // catalogSection (per-DSR card) so the "X / Y" denominator is always
@@ -1290,11 +1437,26 @@
     });
     return mb;
   }
+  // Total dealer count (regardless of billed status) for the "X / Y"
+  // rendering of the MB line below, added 25 Sep 2026 at the owner's
+  // request ("dealers billed" should show out of how many total). Mirrors
+  // countMB_()'s dsrMap loop but without the byDealerMap/month>0 filter -
+  // just counts every dealer mapped to this DSR via knownDealerDsrMap_().
+  function countTotalDealers_(dsrDisplayName) {
+    var dsrMap = knownDealerDsrMap_();
+    var total = 0;
+    Object.keys(dsrMap).forEach(function (dealerName) {
+      if (dsrMap[dealerName] !== dsrDisplayName) return;
+      total++;
+    });
+    return total;
+  }
   function mbLineHtml_(dsrDisplayName, monthLtr) {
     var mb = countMB_(dsrDisplayName, salesByDealer);
     if (mb === 0) return '';
     var avg = monthLtr / mb;
-    return '<div class="mb-line">Dealers billed this month (MB): <strong class="num">' + mb + '</strong> · Avg <strong class="num">' + fmt1_(avg) + ' Ltr</strong>/dealer</div>';
+    var total = countTotalDealers_(dsrDisplayName);
+    return '<div class="mb-line">Dealers billed this month (MB): <strong class="num">' + mb + ' / ' + total + '</strong> · Avg <strong class="num">' + fmt1_(avg) + ' Ltr</strong>/dealer</div>';
   }
   function mbCollectionLineHtml_(dsrDisplayName, monthCollected) {
     var mb = countMB_(dsrDisplayName, collectionByDealer);
@@ -1380,14 +1542,27 @@
     return out;
   }
 
+  // Shared table wrapper for the 4 DSR-row dealer-wise lists below
+  // (Dealer review, 60+ overdue, Needs attention, Inactive dealers) -
+  // converted from .rank-row divs to real <table> markup 25 Sep 2026 at
+  // the owner's request, reusing the same .age-table/.total-col CSS
+  // already proven on the aging/activity tables above rather than
+  // inventing new styling. Used both by each DSR row's own capped view
+  // AND that list's "+N more" modal (same head, same row-building
+  // functions), so both views always stay visually and numerically in
+  // sync.
+  function ageTableWrap_(theadHtml, bodyRowsHtml) {
+    return '<div class="age-table-scroll"><table class="age-table">' + theadHtml + '<tbody>' + bodyRowsHtml + '</tbody></table></div>';
+  }
+
   var SIXTYPLUS_CARD_LIMIT = 5;
+  var SIXTYPLUS_TABLE_HEAD_ = '<thead><tr><th>Dealer</th><th>Collected / Baseline</th></tr></thead>';
 
   function sixtyPlusRowsHtml_(list) {
-    return list.map(function (r, i) {
+    return list.map(function (r) {
       var pct = r.baseline > 0 ? Math.round((r.collected / r.baseline) * 100) : 0;
-      return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
-        '<span class="rank-name">' + r.name + '</span>' +
-        '<span class="rank-value num">' + fmtRs(r.collected) + ' / ' + fmtRs(r.baseline) + ' (' + pct + '%)</span></div>';
+      return '<tr><td>' + r.name + '</td>' +
+        '<td class="num">' + fmtRs(r.collected) + ' / ' + fmtRs(r.baseline) + ' (' + pct + '%)</td></tr>';
     }).join('');
   }
 
@@ -1396,20 +1571,20 @@
   // the total is correct whether or not "+N more" has been expanded.
   // Same column position as every row's own value (name column blank
   // except the "Total" label, value column holds the sum), same pct math.
+  // Rendered as a <tr> since 25 Sep 2026 (see ageTableWrap_() above).
   function sixtyPlusTotalRowHtml_(list) {
     if (!list.length) return '';
     var totalCollected = 0, totalBaseline = 0;
     list.forEach(function (r) { totalCollected += r.collected; totalBaseline += r.baseline; });
     var pct = totalBaseline > 0 ? Math.round((totalCollected / totalBaseline) * 100) : 0;
-    return '<div class="rank-row total-row"><span class="rank-num"></span>' +
-      '<span class="rank-name">Total</span>' +
-      '<span class="rank-value num">' + fmtRs(totalCollected) + ' / ' + fmtRs(totalBaseline) + ' (' + pct + '%)</span></div>';
+    return '<tr class="age-table-total"><td>Total</td>' +
+      '<td class="num">' + fmtRs(totalCollected) + ' / ' + fmtRs(totalBaseline) + ' (' + pct + '%)</td></tr>';
   }
 
   function openSixtyPlusSheet_(dsrDisplayName, fullList) {
     document.getElementById('sixtyPlusSheetTitle').textContent = dsrDisplayName;
     document.getElementById('sixtyPlusSheetSub').textContent = fullList.length + ' dealer' + (fullList.length === 1 ? '' : 's') + ' in this month\'s 60+ day baseline';
-    document.getElementById('sixtyPlusSheetList').innerHTML = sixtyPlusRowsHtml_(fullList) + sixtyPlusTotalRowHtml_(fullList);
+    document.getElementById('sixtyPlusSheetList').innerHTML = ageTableWrap_(SIXTYPLUS_TABLE_HEAD_, sixtyPlusRowsHtml_(fullList) + sixtyPlusTotalRowHtml_(fullList));
     document.getElementById('sixtyPlusOverlay').style.display = 'flex';
   }
   function closeSixtyPlusSheet_() {
@@ -1481,6 +1656,7 @@
 
   var DEALER_REVIEW_CARD_LIMIT = 5;
   var DEALER_REVIEW_WARN_PCT = 70; // matches the threshold already proven on Arun's own DSR app panel
+  var DEALER_REVIEW_TABLE_HEAD_ = '<thead><tr><th>Dealer</th><th>Sales — month / 6-mo avg</th><th>Collection — month / 6-mo avg</th></tr></thead>';
 
   function pctTagHtml_(pct) {
     if (pct === null || pct === undefined) return '';
@@ -1491,16 +1667,16 @@
   }
 
   function dealerReviewRowsHtml_(list) {
-    return list.map(function (r, i) {
+    return list.map(function (r) {
       var salesLine = (r.salesAvg !== null && r.salesAvg !== undefined)
-        ? 'Sales ' + fmt(r.salesMonth) + ' / ' + fmt(r.salesAvg) + ' Ltr avg' + pctTagHtml_(r.salesPct)
-        : 'Sales — no 6-mo history';
+        ? fmt(r.salesMonth) + ' / ' + fmt(r.salesAvg) + ' Ltr avg' + pctTagHtml_(r.salesPct)
+        : 'no 6-mo history';
       var collLine = (r.collAvg !== null && r.collAvg !== undefined)
-        ? 'Coll. ' + fmtRs(r.collMonth) + ' / ' + fmtRs(r.collAvg) + ' avg' + pctTagHtml_(r.collPct)
-        : 'Collection — no 6-mo history';
-      return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
-        '<span class="rank-name">' + r.name + '</span>' +
-        '<span class="rank-value wrap num">' + salesLine + '<br>' + collLine + '</span></div>';
+        ? fmtRs(r.collMonth) + ' / ' + fmtRs(r.collAvg) + ' avg' + pctTagHtml_(r.collPct)
+        : 'no 6-mo history';
+      return '<tr><td>' + r.name + '</td>' +
+        '<td class="num">' + salesLine + '</td>' +
+        '<td class="num">' + collLine + '</td></tr>';
     }).join('');
   }
 
@@ -1522,21 +1698,17 @@
     });
     var salesPct = hasSales && salesAvgSum > 0 ? (salesMonthSum / salesAvgSum) * 100 : null;
     var collPct = hasColl && collAvgSum > 0 ? (collMonthSum / collAvgSum) * 100 : null;
-    var salesLine = hasSales
-      ? 'Sales ' + fmt(salesMonthSum) + ' / ' + fmt(salesAvgSum) + ' Ltr avg' + pctTagHtml_(salesPct)
-      : 'Sales — no 6-mo history';
-    var collLine = hasColl
-      ? 'Coll. ' + fmtRs(collMonthSum) + ' / ' + fmtRs(collAvgSum) + ' avg' + pctTagHtml_(collPct)
-      : 'Collection — no 6-mo history';
-    return '<div class="rank-row total-row"><span class="rank-num"></span>' +
-      '<span class="rank-name">Total</span>' +
-      '<span class="rank-value wrap num">' + salesLine + '<br>' + collLine + '</span></div>';
+    var salesLine = hasSales ? fmt(salesMonthSum) + ' / ' + fmt(salesAvgSum) + ' Ltr avg' + pctTagHtml_(salesPct) : 'no 6-mo history';
+    var collLine = hasColl ? fmtRs(collMonthSum) + ' / ' + fmtRs(collAvgSum) + ' avg' + pctTagHtml_(collPct) : 'no 6-mo history';
+    return '<tr class="age-table-total"><td>Total</td>' +
+      '<td class="num">' + salesLine + '</td>' +
+      '<td class="num">' + collLine + '</td></tr>';
   }
 
   function openDealerReviewSheet_(dsrDisplayName, fullList) {
     document.getElementById('dealerReviewSheetTitle').textContent = dsrDisplayName;
     document.getElementById('dealerReviewSheetSub').textContent = fullList.length + ' dealer' + (fullList.length === 1 ? '' : 's') + ' with 6-month history';
-    document.getElementById('dealerReviewSheetList').innerHTML = dealerReviewRowsHtml_(fullList) + dealerReviewTotalRowHtml_(fullList);
+    document.getElementById('dealerReviewSheetList').innerHTML = ageTableWrap_(DEALER_REVIEW_TABLE_HEAD_, dealerReviewRowsHtml_(fullList) + dealerReviewTotalRowHtml_(fullList));
     document.getElementById('dealerReviewOverlay').style.display = 'flex';
   }
   function closeDealerReviewSheet_() {
@@ -1644,7 +1816,7 @@
         var drFull = dealerReviewByDsr[d.name] || [];
         var drShown = drFull.slice(0, DEALER_REVIEW_CARD_LIMIT);
         var drBody = drShown.length
-          ? dealerReviewRowsHtml_(drShown) + dealerReviewTotalRowHtml_(drFull)
+          ? ageTableWrap_(DEALER_REVIEW_TABLE_HEAD_, dealerReviewRowsHtml_(drShown) + dealerReviewTotalRowHtml_(drFull))
           : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No dealers with 6 months of Tally history yet.</p>';
         var drMore = drFull.length > DEALER_REVIEW_CARD_LIMIT
           ? '<p class="card-name-hint clickable" data-view-dealerreview="' + escapeAttr_(d.name) + '">+' + (drFull.length - DEALER_REVIEW_CARD_LIMIT) + ' more — tap to see all ' + drFull.length + '</p>'
@@ -1661,7 +1833,7 @@
         var spFull = sixtyPlusByDsr[d.name] || [];
         var spShown = spFull.slice(0, SIXTYPLUS_CARD_LIMIT);
         var spBody = spShown.length
-          ? sixtyPlusRowsHtml_(spShown) + sixtyPlusTotalRowHtml_(spFull)
+          ? ageTableWrap_(SIXTYPLUS_TABLE_HEAD_, sixtyPlusRowsHtml_(spShown) + sixtyPlusTotalRowHtml_(spFull))
           : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No dealers in this month\'s 60+ day baseline.</p>';
         var spMore = spFull.length > SIXTYPLUS_CARD_LIMIT
           ? '<p class="card-name-hint clickable" data-view-sixtyplus="' + escapeAttr_(d.name) + '">+' + (spFull.length - SIXTYPLUS_CARD_LIMIT) + ' more — tap to see all ' + spFull.length + '</p>'
@@ -1679,7 +1851,7 @@
         var attnFull = lastAttnSummary.byDsr[d.name] || [];
         var attnShown = attnFull.slice(0, ATTN_CARD_LIMIT);
         var attnBody = attnShown.length
-          ? attnRowsHtml_(attnShown)
+          ? ageTableWrap_(ATTN_TABLE_HEAD_, attnRowsHtml_(attnShown) + attnTotalRowHtml_(attnFull))
           : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No dealers overdue 30+ days.</p>';
         var attnMore = attnFull.length > ATTN_CARD_LIMIT
           ? '<p class="card-name-hint clickable" data-view-attn="' + escapeAttr_(d.name) + '">+' + (attnFull.length - ATTN_CARD_LIMIT) + ' more — tap to see all ' + attnFull.length + '</p>'
@@ -1694,7 +1866,7 @@
         var dormFull = lastDormantSummary.byDsr[d.name] || [];
         var dormShown = dormFull.slice(0, DORMANT_CARD_LIMIT);
         var dormBody = dormShown.length
-          ? dormantRowsHtml_(dormShown)
+          ? ageTableWrap_(DORMANT_TABLE_HEAD_, dormantRowsHtml_(dormShown))
           : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No inactive dealers.</p>';
         var dormMore = dormFull.length > DORMANT_CARD_LIMIT
           ? '<p class="card-name-hint clickable" data-view-dormant="' + escapeAttr_(d.name) + '">+' + (dormFull.length - DORMANT_CARD_LIMIT) + ' more — tap to see all ' + dormFull.length + '</p>'
@@ -2198,19 +2370,35 @@
   // defeats the point. Kept as its own functions/ids rather than sharing
   // Dormant's so the already-proven Dormant modal isn't touched.
   var ATTN_CARD_LIMIT = 5;
+  var ATTN_TABLE_HEAD_ = '<thead><tr><th>Dealer</th><th>Owed</th><th>Days overdue</th></tr></thead>';
 
   function attnRowsHtml_(list) {
-    return list.map(function (r, i) {
-      return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
-        '<span class="rank-name">' + r.name + '</span>' +
-        '<span class="rank-value num">' + fmtRs(Math.abs(r.raw)) + ' · ' + r.days + 'd</span></div>';
+    return list.map(function (r) {
+      return '<tr><td>' + r.name + '</td>' +
+        '<td class="num">' + fmtRs(Math.abs(r.raw)) + '</td>' +
+        '<td class="num">' + r.days + 'd</td></tr>';
     }).join('');
+  }
+
+  // Total row, added 25 Sep 2026 alongside the table conversion, at the
+  // owner's explicit request - same "sum the WHOLE list, not just the
+  // capped rows shown" convention as sixtyPlusTotalRowHtml_/
+  // dealerReviewTotalRowHtml_ above (both already had one; Needs
+  // Attention didn't). Days overdue has no meaningful sum across
+  // different dealers, so that column states the dealer count instead.
+  function attnTotalRowHtml_(list) {
+    if (!list.length) return '';
+    var totalOwed = 0;
+    list.forEach(function (r) { totalOwed += Math.abs(r.raw); });
+    return '<tr class="age-table-total"><td>Total</td>' +
+      '<td class="num">' + fmtRs(totalOwed) + '</td>' +
+      '<td class="num">' + list.length + ' dealer' + (list.length === 1 ? '' : 's') + '</td></tr>';
   }
 
   function openAttnSheet_(dsrDisplayName, fullList) {
     document.getElementById('attnSheetTitle').textContent = dsrDisplayName;
     document.getElementById('attnSheetSub').textContent = fullList.length + ' dealer' + (fullList.length === 1 ? '' : 's') + ' overdue 30+ days';
-    document.getElementById('attnSheetList').innerHTML = attnRowsHtml_(fullList);
+    document.getElementById('attnSheetList').innerHTML = ageTableWrap_(ATTN_TABLE_HEAD_, attnRowsHtml_(fullList) + attnTotalRowHtml_(fullList));
     document.getElementById('attnOverlay').style.display = 'flex';
   }
   function closeAttnSheet_() {
@@ -2235,6 +2423,7 @@
   // have real dormant dealers hidden past a fixed cutoff.
   var DORMANT_MAX_DAYS = 100;
   var DORMANT_CARD_LIMIT = 5;
+  var DORMANT_TABLE_HEAD_ = '<thead><tr><th>Dealer</th><th>Last sale</th><th>Outstanding</th></tr></thead>';
 
   function daysSinceYyyymmdd(s) {
     if (!s || s.length !== 8) return null;
@@ -2300,25 +2489,24 @@
   }
 
   function dormantRowsHtml_(list) {
-    return list.map(function (r, i) {
+    return list.map(function (r) {
       var valueText = r.days + 'd ago';
-      var valueCls = 'rank-value num';
+      var owedText = '—';
       if (r.owed !== null) {
-        valueText += ' · ' + fmtRs(r.owed) + ' due';
-        if (r.since) valueText += ' since ' + fmtDate_(r.since);
-        if (r.overdueDays !== null) valueText += ' (' + r.overdueDays + 'd)';
-        valueCls += ' wrap'; // this line is longer once due info is added - let it wrap to 2 lines instead of crushing the dealer name
+        owedText = fmtRs(r.owed) + ' due';
+        if (r.since) owedText += ' since ' + fmtDate_(r.since);
+        if (r.overdueDays !== null) owedText += ' (' + r.overdueDays + 'd)';
       }
-      return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
-        '<span class="rank-name">' + r.name + '</span>' +
-        '<span class="' + valueCls + '">' + valueText + '</span></div>';
+      return '<tr><td>' + r.name + '</td>' +
+        '<td class="num">' + valueText + '</td>' +
+        '<td class="num">' + owedText + '</td></tr>';
     }).join('');
   }
 
   function openDormantSheet_(dsrDisplayName, fullList) {
     document.getElementById('dormantSheetTitle').textContent = dsrDisplayName;
     document.getElementById('dormantSheetSub').textContent = fullList.length + ' inactive dealer' + (fullList.length === 1 ? '' : 's');
-    document.getElementById('dormantSheetList').innerHTML = dormantRowsHtml_(fullList);
+    document.getElementById('dormantSheetList').innerHTML = ageTableWrap_(DORMANT_TABLE_HEAD_, dormantRowsHtml_(fullList));
     document.getElementById('dormantOverlay').style.display = 'flex';
   }
   function closeDormantSheet_() {
@@ -2559,6 +2747,208 @@
     wrap.innerHTML = sections || '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Tally sales recorded yet this month.</p>';
   }
 
+  // "Full Petronas This Month Sales" + "Current Stock, MRP & Nett Price",
+  // added 25 Sep 2026 - see these two sections' own HTML comments further
+  // up for the full owner-request context. The sales roll-up reads only
+  // DSRS (already populated by fetchLive() above); the stock/price table
+  // reads only CATALOG_ITEMS (the static ~180-item baseline below,
+  // identical to claude/item-catalog.json - the same catalog every DSR
+  // app embeds as DEFAULT_ITEMS) live-patched from stockMap. Neither
+  // needs a new network call or backend field.
+
+  // Madurai/Tirunelveli member DSRs kept as module-level lists (not just
+  // inline sums) so both the table renderer and the share-text builder
+  // below can enumerate the same per-DSR breakdown, added 25 Sep 2026 at
+  // the owner's request to expand each Total row and see its members.
+  var PETRONAS_AREA_GROUPS_ = [
+    { key: 'madurai', label: 'Madurai Total Area', members: ['Arun', 'Chellamani', 'Prabha'] },
+    { key: 'tvl', label: 'Tirunelveli Total Area', members: ['Madhu', 'Anandh', 'Nagaraj'] }
+  ];
+  function renderPetronasAreaTable_() {
+    var wrap = document.getElementById('petronasAreaWrap');
+    if (!wrap) return;
+    var byName = {};
+    DSRS.forEach(function (d) { byName[d.name] = d.monthLtr || 0; });
+    var aaa = byName['AAA Direct'] || 0;
+    // TODO(coimbatore): sum a 4th "Coimbatore Area" group here once that
+    // territory's own real-Tally diagnostic is resolved - see this
+    // section's HTML comment above.
+    var cell = function (v) { return v > 0 ? '<td class="num">' + fmt(v) + ' Ltr</td>' : '<td class="num zero">\u2014</td>'; };
+    var grand = aaa;
+    var rowsHtml = '<tr><td>AAA Direct</td>' + cell(aaa) + '</tr>';
+    PETRONAS_AREA_GROUPS_.forEach(function (g) {
+      var memberVals = g.members.map(function (name) { return { label: name, value: byName[name] || 0 }; });
+      var total = memberVals.reduce(function (s, m) { return s + m.value; }, 0);
+      grand += total;
+      rowsHtml += '<tr class="area-toggle-row" data-area-toggle="' + g.key + '">' +
+        '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + g.label + '</td>' + cell(total) + '</tr>';
+      rowsHtml += memberVals.map(function (m) {
+        return '<tr class="area-child-row" data-area-child="' + g.key + '" style="display:none;"><td>' + m.label + '</td>' + cell(m.value) + '</tr>';
+      }).join('');
+    });
+    var totalRow = '<tr class="age-table-total"><td>Total</td>' + cell(grand) + '</tr>';
+    wrap.innerHTML = ageTableWrap_('<thead><tr><th>Area</th><th>This month (Ltr)</th></tr></thead>', rowsHtml + totalRow);
+  }
+
+  // Static catalog baseline - identical to claude/item-catalog.json /
+  // every DSR app's own DEFAULT_ITEMS: {id, name, unit, nosPerUnit,
+  // sizeLtr, rate, mrp, stock, group, schemePaid?, schemeFree?, imgUrl?}.
+  // Only name/group/stock/rate/mrp are read below; the rest ride along
+  // unused rather than hand-trimming the array out of sync with the
+  // source catalog.
+  var CATALOG_ITEMS = [{"id": "p1", "name": "10W30 1 LIT SPRINTA F700 (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 438.14, "mrp": 697, "stock": 218, "schemePaid": 18, "schemeFree": 2, "group": "MCO - SPRINTA"}, {"id": "p2", "name": "0W20 4 LIT SYNTIUM 7000 SN HYBRID FULLSYN (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 4, "rate": 2344.07, "mrp": 4646, "stock": 20, "group": "PCMO - SYNTIUM", "imgUrl": "https://drive.google.com/file/d/1iS_MJMrmlUrRhWbPhGojRuBPycr05vfr/view?usp=sharing"}, {"id": "p3", "name": "0W30 MGDO 5.3 LIT SYNTIUM 3000SZ (2)", "unit": "Case", "nosPerUnit": 2, "sizeLtr": 5.3, "rate": 1987.29, "mrp": 2968, "stock": 2, "group": "PCMO - MGDO"}, {"id": "p4", "name": "0W40  4 LIT SYNTIUM 7000 SN (COOLTECH) (5)", "unit": "Case", "nosPerUnit": 5, "sizeLtr": 4, "rate": 2450.85, "mrp": 4452, "stock": 5, "group": "PCMO - SYNTIUM"}, {"id": "p5", "name": "10W30 210 LIT SPRINTA F300 BARREL", "unit": "Barrel", "sizeLtr": 210, "rate": 36483.05, "stock": 2, "group": "MCO - SPRINTA"}, {"id": "p6", "name": "10W30 800 ML SPRINTA A300 (COMBO PACK - WITH GEAR OIL) (10)", "unit": "Case", "nosPerUnit": 10, "sizeLtr": 0.8, "rate": 362.71, "mrp": 531, "stock": 2538, "schemePaid": 9, "schemeFree": 1, "group": "MCO - SPRINTA", "imgUrl": "https://drive.google.com/file/d/1xzvDIGv-ZpTd2DTDvACo9JRxLRjDorWb/view?usp=sharing"}, {"id": "p7", "name": "10W30 800 ML SPRINTA A300 (SPOUT PACK) (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 0.8, "rate": 282.2, "mrp": 509, "stock": 1169, "group": "MCO - SPRINTA"}, {"id": "p8", "name": "10W30 900 ML SPRINTA F300 (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 0.9, "rate": 272.88, "mrp": 425, "stock": 50, "schemePaid": 18, "schemeFree": 2, "group": "MCO - SPRINTA"}, {"id": "p9", "name": "10W30 F100 SPRINTA 55 LIT", "unit": "Drum", "sizeLtr": 55, "rate": 13860.17, "stock": 5, "group": "MCO - SPRINTA"}, {"id": "p10", "name": "10W40 1 LIT SN SPRINTA RACING (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 406.78, "mrp": 710, "stock": 180, "group": "MCO - SPRINTA", "imgUrl": "https://drive.google.com/file/d/1T6evgl7hJeNltA1vfdxIhct2MQ2xe8kH/view?usp=sharing"}, {"id": "p11", "name": "10W40 1 LIT SPRINTA F900 (MOTO GP PACK) (16)", "unit": "Case", "nosPerUnit": 16, "sizeLtr": 1, "rate": 584.75, "mrp": 895, "stock": 229, "group": "MCO - SPRINTA"}, {"id": "p12", "name": "10W40 1 LIT SYNTIUM 800 (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 304.24, "mrp": 451, "stock": 60, "group": "PCMO - SYNTIUM", "imgUrl": "https://drive.google.com/file/d/1btI-M1O1jiUJ3QUGM1NTi08Fu4U9bsx9/view?usp=drive_link"}, {"id": "p13", "name": "10W40 3 LIT SYNTIUM 800 (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 3, "rate": 814.41, "mrp": 1347, "stock": 13, "group": "PCMO - SYNTIUM"}, {"id": "p14", "name": "10W40 3.5 LIT SYNTIUM 800 SN (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 3.5, "rate": 1060.17, "mrp": 1758, "stock": 36, "group": "PCMO - SYNTIUM", "imgUrl": "https://drive.google.com/file/d/12RCAW-LZS18-22wcsiV7roAmBJU4Dz67/view?usp=sharing"}, {"id": "p15", "name": "10W50 1 LIT SN SPRINTA RACING (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 406.78, "mrp": 700, "stock": 302, "group": "MCO - SPRINTA", "imgUrl": "https://drive.google.com/file/d/1UD9RQ_9-IYUiAa4VeODnhQ4Zwze3EjkC/view?usp=sharing"}, {"id": "p16", "name": "15W40 1 LIT SYNTIUM 500 CH-4 DIESEL *****", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 254.24, "mrp": 416, "stock": 12, "group": "PCMO - SYNTIUM"}, {"id": "p17", "name": "15W40 1 LIT SYNTIUM 500 CI4+ DIESEL (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 338.98, "mrp": 630, "stock": 64, "group": "PCMO - SYNTIUM"}, {"id": "p18", "name": "15W40 5 LIT SYNTIUM 500 CI4+ DIESEL", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 5, "rate": 1861.02, "mrp": 2986, "stock": 264, "group": "PCMO - SYNTIUM"}, {"id": "p19", "name": "15W40 7 LIT SYNTIUM 500 CI4+ DIESEL", "unit": "Bucket", "sizeLtr": 7, "rate": 2527.97, "mrp": 4126, "stock": 273, "group": "PCMO - SYNTIUM", "imgUrl": "https://drive.google.com/file/d/1EDVeEab4hfS6N_rCpy5nxIY4RR6dwEec/view?usp=sharing"}, {"id": "p20", "name": "15W50 1 LIT SPRINTA F700 (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 367.8, "mrp": 563, "stock": 514, "group": "MCO - SPRINTA", "imgUrl": "https://drive.google.com/file/d/1744-BKfxDJNfHjTV5xohP0dG8HJcJ9ls/view?usp=sharing"}, {"id": "p21", "name": "15W50 2.5 LIT SPRINTA F700 (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 2.5, "rate": 989.83, "mrp": 1624, "stock": 516, "schemePaid": 5, "schemeFree": 1, "group": "MCO - SPRINTA", "imgUrl": "https://drive.google.com/file/d/1gopKIZitea2zj0Ba3skALSk3R5Tnwpx7/view?usp=sharing"}, {"id": "p22", "name": "15W50 SPRINTA F700 50 LIT", "unit": "Drum", "sizeLtr": 50, "rate": 15550.85, "stock": 4, "group": "MCO - SPRINTA"}, {"id": "p23", "name": "20W40 1 LIT (CF4) MOTOLUBE", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 214.41, "mrp": 355, "stock": 20, "group": "Motolub"}, {"id": "p24", "name": "20W40 1 LIT SPRINTA F300 (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 371.19, "mrp": 607, "stock": 3589, "schemePaid": 18, "schemeFree": 2, "group": "MCO - SPRINTA", "imgUrl": "https://drive.google.com/file/d/1Gkk-ss1hcfUKokVeIyWQkqJ6zPojI3-5/view?usp=sharing"}, {"id": "p25", "name": "20W40 210 LIT SPRINTA F300", "unit": "Barrel", "sizeLtr": 210, "rate": 52994.07, "stock": 5, "group": "MCO - SPRINTA"}, {"id": "p26", "name": "20W40 55 LIT SPRINTA F300", "unit": "Drum", "sizeLtr": 55, "rate": 13685.59, "stock": 46, "group": "MCO - SPRINTA"}, {"id": "p27", "name": "20W40 900 ML SPRINTA F300 (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 0.9, "rate": 338.98, "mrp": 543, "stock": 5040, "schemePaid": 18, "schemeFree": 2, "group": "MCO - SPRINTA", "imgUrl": "https://drive.google.com/file/d/1H5mBINntwOS-zZZjtnoBVBOoaLm4HcFq/view?usp=sharing"}, {"id": "p28", "name": "20W50 1 LIT SPRINTA F300 (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 298.31, "mrp": 484.0, "stock": 830, "schemePaid": 18, "schemeFree": 2, "group": "MCO - SPRINTA"}, {"id": "p29", "name": "20W50 1 LIT SYNTIUM 300 SL (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 245.76, "mrp": 404, "stock": 359, "group": "PCMO - SYNTIUM"}, {"id": "p30", "name": "20W50 1 LTR CNG LUBE (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 257.63, "mrp": 500, "stock": 1341, "group": "CNG Lube"}, {"id": "p31", "name": "20W50 210 LTR CNG LUBE BARREL", "unit": "Barrel", "sizeLtr": 210, "rate": 51991.53, "stock": 1, "group": "CNG Lube"}, {"id": "p32", "name": "20W50 3 LIT SYNTIUM 300 SL (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 3, "rate": 980.51, "mrp": 1506, "stock": 222, "group": "PCMO - SYNTIUM", "imgUrl": "https://drive.google.com/file/d/1ttA4zbu5VkaySdZIICkraBNkWOvhmGHC/view?usp=sharing"}, {"id": "p33", "name": "20W50 3.5 LIT SYNTIUM 300 SL (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 3.5, "rate": 973.73, "mrp": 1752, "stock": 2, "group": "PCMO - SYNTIUM"}, {"id": "p34", "name": "20W50 3.5 LTR CNG LUBE (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 3.5, "rate": 584.75, "mrp": 1133, "stock": 8, "group": "CNG Lube"}, {"id": "p35", "name": "20W50 500 ML CNG LUBE (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 0.5, "rate": 133.05, "mrp": 261, "stock": 2299, "group": "CNG Lube"}, {"id": "p36", "name": "3 WHEELER LIFE ENGINE OIL 2.75 LIT PETRONAS (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 2.75, "rate": 560.17, "mrp": 804, "stock": 6, "group": "AUTO - 3 Wheeler \\ Atul"}, {"id": "p37", "name": "3 WHEELER LIFE ENGINE OIL 3 LIT PETRONAS (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 3, "rate": 680.51, "mrp": 968, "stock": 13, "group": "AUTO - 3 Wheeler \\ Atul"}, {"id": "p38", "name": "3 WHEELER LIFE ENGINE OIL 500 ML PETRONAS (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 0.5, "rate": 172.88, "mrp": 234, "stock": 1400, "group": "AUTO - 3 Wheeler \\ Atul"}, {"id": "p39", "name": "5W30  1 LIT SYNTIUM 500 SN/CF (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 282.2, "mrp": 609, "stock": 370, "group": "PCMO - SYNTIUM"}, {"id": "p40", "name": "5W30  3 LIT SYNTIUM 500 SN/CF (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 3, "rate": 885.59, "mrp": 1803, "stock": 125, "group": "PCMO - SYNTIUM", "imgUrl": "https://drive.google.com/file/d/1lACfuZlv-wtBvOk7lGjHayTmqa6c3JZk/view?usp=sharing"}, {"id": "p41", "name": "5W30  3.5 LIT SYNTIUM 500 SN/CF (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 3.5, "rate": 1242.37, "mrp": 2588, "stock": 516, "group": "PCMO - SYNTIUM", "imgUrl": "https://drive.google.com/file/d/1WH5sDYSVi-IQYq2zwVOTzbyM9dup5Jb_/view?usp=sharing"}, {"id": "p42", "name": "5W30 1 LIT SYNTIUM 3000 SN PLUS FULLY SYN (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 456.78, "mrp": 825, "stock": 132, "group": "PCMO - SYNTIUM"}, {"id": "p43", "name": "5W30 3.5 LIT SYNTIUM 3000 (SP) FULLY SYN (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 3.5, "rate": 1842.37, "mrp": 3741, "stock": 32, "group": "PCMO - SYNTIUM", "imgUrl": "https://drive.google.com/file/d/1Pc_5RSQAbKO8uHGgVco49OiZtP5qTlnH/view?usp=sharing"}, {"id": "p44", "name": "5W30 3.5 LIT SYNTIUM 800 SN SEMI SYNT (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 3.5, "rate": 1124.58, "mrp": 2350, "stock": 3, "group": "PCMO - SYNTIUM"}, {"id": "p45", "name": "5W30 4 LIT TATA MOTORS GENUINE OIL (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 4, "rate": 1450.85, "mrp": 2104, "stock": 132, "group": "PCMO - TATA GENUINE", "imgUrl": "https://drive.google.com/file/d/1TAqP6lRReiIU7E4PZgRGASmmeO79UnZm/view?usp=sharing"}, {"id": "p46", "name": "5W30 5 LIT SYNTIUM 500 SN/CF (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 5, "rate": 1411.86, "mrp": 2874, "stock": -3, "group": "PCMO - SYNTIUM"}, {"id": "p47", "name": "5W30 50 LIT SYNTIUM 500 SN/CF", "unit": "Drum", "sizeLtr": 50, "rate": 14016.95, "stock": 16, "group": "PCMO - SYNTIUM"}, {"id": "p48", "name": "5W30 600 ML SPRINTA A700 (SPOUT - SCOOTER PACK) (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 0.6, "rate": 279.66, "mrp": 430, "stock": 480, "group": "MCO - SPRINTA", "imgUrl": "https://drive.google.com/file/d/1_ZnhbX2qLQuYalRlV8f8xkF84ISEIEDi/view?usp=sharing"}, {"id": "p49", "name": "5W30 SYNTIUM 500 SN/CF 210 LIT", "unit": "Barrel", "sizeLtr": 210, "rate": 57694.07, "stock": 9, "group": "PCMO - SYNTIUM"}, {"id": "p50", "name": "5W40 4 LIT SYNTIUM 3000 SN (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 4, "rate": 1737.29, "mrp": 3988, "stock": 367, "group": "PCMO - SYNTIUM", "imgUrl": "https://drive.google.com/file/d/1zfmoOoYIApTK-Fd0Q0vZD7XNYo8m-NLv/view?usp=sharing"}, {"id": "p51", "name": "5W40 MGDO 3.5 LIT SYNTIUM 3000SZ (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 3.5, "rate": 1484.75, "mrp": 2590, "stock": 179, "group": "PCMO - MGDO"}, {"id": "p52", "name": "75W90 1 LTR TUTELA TRANSMISSION OIL (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 351.69, "mrp": 567, "stock": 105, "schemePaid": 18, "schemeFree": 2, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p53", "name": "75W90 2.5 LTR TUTELA TRANSMISSION OIL (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 2.5, "rate": 818.64, "mrp": 1376, "stock": 72, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p54", "name": "80W90 1 LTR TUTELA TRANSMISSION OIL", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 327.97, "mrp": 550, "stock": 126, "schemePaid": 18, "schemeFree": 2, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p55", "name": "80W90 20 LTR TUTELA TRANSMISSION OIL", "unit": "Bucket", "sizeLtr": 20, "rate": 4572.03, "mrp": 8057, "stock": 2, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p56", "name": "80W90 TUTELA 300 MTF TRANSMISSION OIL 7 LIT", "unit": "Bucket", "sizeLtr": 7, "rate": 1641.53, "mrp": 2765, "stock": 8, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p57", "name": "80W90 TUTELA TRANSMISSION OIL 2.5 LIT (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 2.5, "rate": 805.93, "mrp": 1371, "stock": 69, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p58", "name": "80W90 TUTELA TRANSMISSION OIL 5 LIT", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 5, "rate": 1618.64, "mrp": 2731, "stock": 49, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p59", "name": "85W140 1 LIT TUTELA TRANSMISSION OIL (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 246.61, "mrp": 392, "stock": 213, "schemePaid": 18, "schemeFree": 2, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p60", "name": "85W140 210 LTR TUTELA TRANSMISSION OIL", "unit": "Barrel", "sizeLtr": 210, "rate": 38561.86, "stock": 1, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p61", "name": "85W140 5LIT TUTELA TRANSMISSION OIL", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 5, "rate": 1199.15, "mrp": 2039, "stock": 11, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p62", "name": "AGRI GOLD TRACTOR ENGINE OIL 7.5 LIT", "unit": "Bucket", "sizeLtr": 7.5, "rate": 1627.12, "mrp": 2647, "stock": 6, "group": "TRACTOR - Agrigold/ Ambra"}, {"id": "p63", "name": "AGRI GOLD TRACTOR ENGINE OIL 8.5 LIT", "unit": "Bucket", "sizeLtr": 8.5, "rate": 3179.66, "mrp": 4230, "stock": 38, "group": "TRACTOR - Agrigold/ Ambra"}, {"id": "p64", "name": "AGRI GOLD TRACTOR TRANSMISSION OIL 26 LIT", "unit": "Bucket", "sizeLtr": 26, "rate": 5508.47, "stock": 3, "group": "TRACTOR - Agrigold/ Ambra"}, {"id": "p65", "name": "AKROS 20W30 20 LIT MULTI UTTO", "unit": "Bucket", "sizeLtr": 20, "rate": 3792.37, "mrp": 7563, "stock": 1, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p66", "name": "AMBRA MASTER GOLD HSP 7.7 LIT", "unit": "Bucket", "sizeLtr": 7.7, "rate": 2302.54, "stock": 2, "group": "TRACTOR - Agrigold/ Ambra"}, {"id": "p67", "name": "AMBRA SUPER GOLD 10 LIT", "unit": "Bucket", "sizeLtr": 10, "rate": 3459.32, "stock": 15, "group": "TRACTOR - Agrigold/ Ambra"}, {"id": "p68", "name": "AMBRA SUPERTRAN 5 LIT TRANSMISSION OIL (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 5, "rate": 1443.22, "stock": 17, "group": "TRACTOR - Agrigold/ Ambra"}, {"id": "p69", "name": "ATUL AUTO GENUINE OIL 1 LIT (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 223.73, "mrp": 341, "stock": -238, "group": "AUTO - 3 Wheeler \\ Atul"}, {"id": "p70", "name": "ATUL AUTO GENUINE OIL 2.5 LIT BSVI (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 2.5, "rate": 667.8, "mrp": 927, "stock": 42, "group": "AUTO - 3 Wheeler \\ Atul"}, {"id": "p71", "name": "ATUL AUTO GENUINE OIL 3 LIT (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 3, "rate": 661.02, "mrp": 1008, "stock": -42, "group": "AUTO - 3 Wheeler \\ Atul"}, {"id": "p72", "name": "ATUL AUTO GENUINE OIL 500 ML (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 0.5, "rate": 116.95, "mrp": 179, "stock": 16, "group": "AUTO - 3 Wheeler \\ Atul"}, {"id": "p73", "name": "CF4 15W40 1 LIT URANIA 800 (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 242.37, "mrp": 374, "stock": 289, "group": "CVL - URANIA"}, {"id": "p74", "name": "CF4 15W40 10 LIT URANIA 800", "unit": "Bucket", "sizeLtr": 10, "rate": 2817.8, "mrp": 5018, "stock": 52, "group": "CVL - URANIA"}, {"id": "p75", "name": "CF4 15W40 3 LIT URANIA 800(6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 3, "rate": 955.93, "mrp": 1571, "stock": 389, "group": "CVL - URANIA"}, {"id": "p76", "name": "CF4 15W40 6 LIT URANIA 800", "unit": "Bucket", "sizeLtr": 6, "rate": 2042.37, "mrp": 3179, "stock": 16, "group": "CVL - URANIA"}, {"id": "p77", "name": "CF4 15W40 7.5 LIT URANIA 800", "unit": "Bucket", "sizeLtr": 7.5, "rate": 1864.41, "mrp": 2754.0, "stock": 50, "group": "CVL - URANIA"}, {"id": "p78", "name": "CF4 20W40 1 LIT URANIA 800", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 242.37, "mrp": 362, "stock": 507, "group": "CVL - URANIA"}, {"id": "p79", "name": "CF4 20W40 10 LIT URANIA 800", "unit": "Bucket", "sizeLtr": 10, "rate": 2047.46, "mrp": 3513, "stock": 54, "group": "CVL - URANIA"}, {"id": "p80", "name": "CF4 20W40 210 LIT URANIA 800", "unit": "Barrel", "sizeLtr": 210, "rate": 34773.73, "stock": 1, "group": "CVL - URANIA"}, {"id": "p81", "name": "CF4 20W40 6 LIT URANIA 800", "unit": "Bucket", "sizeLtr": 6, "rate": 1283.9, "mrp": 2078, "stock": 17, "group": "CVL - URANIA"}, {"id": "p82", "name": "CF4 20W40 7.5 LIT URANIA 800", "unit": "Bucket", "sizeLtr": 7.5, "rate": 2353.39, "mrp": 3896, "stock": 256, "group": "CVL - URANIA", "imgUrl": "https://drive.google.com/file/d/1dxiQiAruqKNFB0jX6bqMDVA8SvtO7QOi/view?usp=sharing"}, {"id": "p83", "name": "CF4 20W40 8.5 LIT URANIA 800", "unit": "Bucket", "sizeLtr": 8.5, "rate": 2500.0, "mrp": 4419, "stock": 6, "group": "CVL - URANIA"}, {"id": "p84", "name": "CH4 15W40 1 LIT URANIA 1000 (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 367.8, "mrp": 537, "stock": 263, "group": "CVL - URANIA"}, {"id": "p85", "name": "CH4 15W40 10 LIT URANIA 1000", "unit": "Bucket", "sizeLtr": 10, "rate": 2344.07, "mrp": 3846, "stock": 37, "group": "CVL - URANIA"}, {"id": "p86", "name": "CH4 15W40 210 LIT URANIA 1000", "unit": "Barrel", "sizeLtr": 210, "rate": 35415.25, "stock": 2, "group": "CVL - URANIA"}, {"id": "p87", "name": "CH4 15W40 3 LIT URANIA 1000(6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 3, "rate": 926.27, "mrp": 1532, "stock": 4307, "group": "CVL - URANIA", "imgUrl": "https://drive.google.com/file/d/1au7quOf9_W1K51cfQ3N1IJD8KgG5_JHA/view?usp=sharing"}, {"id": "p88", "name": "CH4 15W40 55 LIT URANIA 1000", "unit": "Drum", "sizeLtr": 55, "rate": 13745.76, "stock": 1, "group": "CVL - URANIA"}, {"id": "p89", "name": "CH4 15W40 7.5 LIT URANIA 1000", "unit": "Bucket", "sizeLtr": 7.5, "rate": 2691.53, "mrp": 3852, "stock": 115, "group": "CVL - URANIA"}, {"id": "p90", "name": "CI4+ 15W 40 210 LIT URANIA 3000", "unit": "Barrel", "sizeLtr": 210, "rate": 52254.24, "stock": 7, "group": "CVL - URANIA"}, {"id": "p91", "name": "CI4+ 15W40 1 LIT URANIA 3000", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 270.34, "mrp": 440, "stock": 88, "group": "CVL - URANIA"}, {"id": "p92", "name": "CI4+ 15W40 15 LIT URANIA 3000", "unit": "Bucket", "sizeLtr": 15, "rate": 4177.97, "mrp": 6144, "stock": 23, "group": "CVL - URANIA"}, {"id": "p93", "name": "CI4+ 15W40 2.5 LIT URANIA 3000 (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 2.5, "rate": 929.66, "mrp": 1520, "stock": 235, "group": "CVL - URANIA"}, {"id": "p94", "name": "CI4+ 15W40 3.5 LIT SYNTIUM 500 (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 3.5, "rate": 895.76, "mrp": 1548, "stock": 192, "group": "PCMO - SYNTIUM", "imgUrl": "https://drive.google.com/file/d/10QJZOA6rW9xYvg69UNpFVFEG-BCHodDW/view?usp=sharing"}, {"id": "p95", "name": "CI4+ 15W40 55 LIT URANIA 3000", "unit": "Drum", "sizeLtr": 55, "rate": 16570.34, "stock": 5, "group": "CVL - URANIA", "imgUrl": "https://drive.google.com/file/d/17nr4wOmkHtVAnYY6UUXeIVQkdEq3ZY9W/view?usp=sharing"}, {"id": "p96", "name": "CI4+ 15W40 6 LIT URANIA 3000", "unit": "Bucket", "sizeLtr": 6, "rate": 1745.76, "mrp": 2553, "stock": 23, "group": "CVL - URANIA"}, {"id": "p97", "name": "CI4+ 15W40 7.5 LIT URANIA 3000", "unit": "Bucket", "sizeLtr": 7.5, "rate": 2386.44, "mrp": 4219, "stock": 204, "group": "CVL - URANIA", "imgUrl": "https://drive.google.com/file/d/1S5wlxDxDGpi3h4X4Fy5eoq9QRo57GTga/view?usp=sharing"}, {"id": "p98", "name": "CI4+ 15W40 8.5 LIT URANIA 3000", "unit": "Bucket", "sizeLtr": 8.5, "rate": 2384.75, "mrp": 3213, "stock": 5, "group": "CVL - URANIA"}, {"id": "p99", "name": "CK4 15W40 1 LIT URANIA 5000 IN (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 317.8, "mrp": 485, "stock": 115, "group": "CVL - URANIA"}, {"id": "p100", "name": "CK4 15W40 10 LIT URANIA 5000 IN", "unit": "Bucket", "sizeLtr": 10, "rate": 3135.59, "mrp": 4500, "stock": 2, "group": "CVL - URANIA"}, {"id": "p101", "name": "CK4 15W40 15 LIT URANIA 5000 IN", "unit": "Bucket", "sizeLtr": 15, "rate": 4576.27, "mrp": 6500, "stock": 4, "group": "CVL - URANIA"}, {"id": "p102", "name": "EPYX 140 1 LIT GEAR OIL TUTELA (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 304.24, "mrp": 543, "stock": 355, "schemePaid": 18, "schemeFree": 2, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p103", "name": "EPYX 140 20 LIT GEAR OIL TUTELA", "unit": "Bucket", "sizeLtr": 20, "rate": 4610.17, "mrp": 7561, "stock": 2, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p104", "name": "EPYX 140 5 LIT GEAR OIL TUTELA  (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 5, "rate": 1484.75, "mrp": 2634, "stock": 110, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p105", "name": "EPYX 90 1 LIT GEAR OIL TUTELA (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 324.58, "mrp": 534, "stock": 544, "schemePaid": 18, "schemeFree": 2, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p106", "name": "EPYX 90 20 LIT GEAR OIL TUTELA", "unit": "Bucket", "sizeLtr": 20, "rate": 4580.51, "mrp": 7650, "stock": 3, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p107", "name": "EPYX 90 5 LIT GEAR OIL TUTELA (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 5, "rate": 1153.39, "mrp": 1922, "stock": 59, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p108", "name": "HYDROCER 46 HYD OIL 26 LIT", "unit": "Bucket", "sizeLtr": 26, "rate": 4702.54, "stock": 2, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p109", "name": "MACH5 20W50 3.5 LIT SG (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 3.5, "rate": 758.47, "mrp": 1188, "stock": 2, "group": "Motolub"}, {"id": "p110", "name": "MACH5 CH4 15W40 5 LIT DIESEL (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 5, "rate": 927.97, "mrp": 1465, "stock": 3, "group": "Motolub"}, {"id": "p111", "name": "MOTOLUB 15W40 10 LTR (CF4)", "unit": "Bucket", "nosPerUnit": 4, "sizeLtr": 10, "rate": 1838.98, "mrp": 3238, "stock": 4, "group": "Motolub"}, {"id": "p112", "name": "MOTOLUB 15W40 7.5 LTR (CF4)", "unit": "Bucket", "sizeLtr": 7.5, "rate": 1406.78, "mrp": 2445, "stock": 9, "group": "Motolub"}, {"id": "p113", "name": "MOTOLUB 20W40 10 LIT (CF4)", "unit": "Bucket", "sizeLtr": 10, "rate": 1836.44, "mrp": 3211, "stock": 16, "group": "Motolub"}, {"id": "p114", "name": "MOTOLUB 20W40 7.5 (CF4)", "unit": "Bucket", "sizeLtr": 7.5, "rate": 1422.88, "mrp": 2485, "stock": 2, "group": "Motolub"}, {"id": "p115", "name": "MOTOLUB CF4 15W40 0.5 LIT (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 0.5, "rate": 161.86, "mrp": 256, "stock": 4122, "group": "Motolub"}, {"id": "p116", "name": "MOTOLUB CF4 15W40 1 LIT (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 255.08, "mrp": 424, "stock": 396, "group": "Motolub"}, {"id": "p117", "name": "MOTOLUB CF4 15W40 3 LIT (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 3, "rate": 831.36, "mrp": 1477, "stock": 520, "group": "Motolub"}, {"id": "p118", "name": "MOTOLUB CF4 15W40 6 LIT", "unit": "Bucket", "sizeLtr": 6, "rate": 1304.24, "mrp": 2494, "stock": -1, "group": "Motolub"}, {"id": "p119", "name": "NEXPRO TRANSMISSION OIL 20 LIT", "unit": "Bucket", "sizeLtr": 20, "rate": 4864.41, "stock": 2, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p120", "name": "PROFAR ANTIFREEZE COOLANT OIL 1 LIT (10)", "unit": "Case", "nosPerUnit": 10, "sizeLtr": 1, "rate": 172.88, "mrp": 324, "stock": 219, "group": "Coolant \\ Pumpset"}, {"id": "p121", "name": "PUMPSET OIL 3.5 LIT CF40 PETRONAS (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 3.5, "rate": 449.16, "stock": 141, "group": "Coolant \\ Pumpset"}, {"id": "p122", "name": "SPRINTA 20W40 F100 55 LIT SJ DRUM", "unit": "Drum", "sizeLtr": 55, "rate": 13860.17, "stock": 6, "group": "MCO - SPRINTA"}, {"id": "p123", "name": "SPRINTA 20W50 55 LIT F300", "unit": "Drum", "sizeLtr": 55, "rate": 11826.27, "stock": 9, "group": "MCO - SPRINTA", "imgUrl": "https://drive.google.com/file/d/1YT9W8CBzpmYK8p4cr2qXOafPuD5rhRM6/view?usp=sharing"}, {"id": "p124", "name": "SPRINTA F100 15W50 1.2 LIT- SL (10)", "unit": "Case", "nosPerUnit": 10, "sizeLtr": 1.2, "rate": 312.71, "mrp": 492, "stock": 137, "group": "MCO - SPRINTA"}, {"id": "p125", "name": "SPRINTA F100 15W50 2.5 LIT- SL (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 2.5, "rate": 794.07, "mrp": 1461, "stock": 152, "group": "MCO - SPRINTA"}, {"id": "p126", "name": "SPRINTA F100 20W40 1 LIT- SJ (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 313.56, "mrp": 560, "stock": 999, "group": "MCO - SPRINTA"}, {"id": "p127", "name": "SPRINTA F100 20W40 900 ML - SJ (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 0.9, "rate": 282.2, "mrp": 506, "stock": 1199, "group": "MCO - SPRINTA"}, {"id": "p128", "name": "SPRINTA F300 20W50 1.2 L - SL (10)", "unit": "Case", "nosPerUnit": 10, "sizeLtr": 1.2, "rate": 369.49, "mrp": 577, "stock": 100, "group": "MCO - SPRINTA"}, {"id": "p129", "name": "SPRINTA F900 15W50 2.5 LIT (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 2.5, "rate": 1383.05, "mrp": 2075, "stock": 60, "group": "MCO - SPRINTA", "imgUrl": "https://drive.google.com/file/d/1Rf9EqOwfwsQaymQHijAR-jp14ggDkRo0/view?usp=sharing"}, {"id": "p130", "name": "TATA MOTORS CH4 15W40 GENUINE OIL 4 LIT (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 4, "rate": 945.76, "mrp": 1812, "stock": -69, "group": "PCMO - TATA GENUINE"}, {"id": "p131", "name": "TATA MOTORS GENUINE OIL 1 LIT (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 224.58, "mrp": 365, "stock": 9, "group": "PCMO - TATA GENUINE"}, {"id": "p132", "name": "TATA MOTORS GENUINE OIL 5 LIT (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 5, "rate": 1474.58, "mrp": 2520, "stock": 65, "group": "PCMO - TATA GENUINE"}, {"id": "p133", "name": "TMGO 0W20 5 LIT FULLY SYNT", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 5, "rate": 3284.75, "mrp": 5295, "stock": 37, "group": "PCMO - TATA GENUINE"}, {"id": "p134", "name": "TMGO 5W30 5 LIT FULLY SYNT (HARRIER)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 5, "rate": 2591.53, "mrp": 3860, "stock": -25, "group": "PCMO - TATA GENUINE"}, {"id": "p135", "name": "TMGO CI4 + 15W40 5 LIT (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 5, "rate": 1730.51, "mrp": 2375, "stock": 8, "group": "PCMO - TATA GENUINE"}, {"id": "p136", "name": "TMOO T-PRO 1000 0W20 3.5 LIT (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 3.5, "rate": 2032.2, "mrp": 3775, "stock": 260, "group": "PCMO - TATA GENUINE", "imgUrl": "https://drive.google.com/file/d/1UKQ6tDKDSsTRQb2YQ5riWeJWPW2uBYzB/view?usp=sharing"}, {"id": "p137", "name": "TMOO T-PRO 1000 0W20 50 LIT", "unit": "Drum", "sizeLtr": 50, "rate": 19774.58, "stock": 5, "group": "PCMO - TATA GENUINE"}, {"id": "p138", "name": "TUTELA AKROS 80W 20 LIT UTTO F100", "unit": "Bucket", "sizeLtr": 20, "rate": 4633.05, "mrp": 8230, "stock": 27, "group": "TUTELA - Gear Oil (Transmission)", "imgUrl": "https://drive.google.com/file/d/1YA5wxlqJ6VnrDphE23qvCOwMDDaMUK-g/view?usp=sharing"}, {"id": "p139", "name": "TUTELA AKROS 80W 5 LIT UTTO F100 (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 5, "rate": 1166.95, "mrp": 2072, "stock": 182, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p140", "name": "TUTELA GREASE 1 KG (MR3) (12)", "unit": "Case", "nosPerUnit": 12, "sizeLtr": 1, "rate": 331.36, "mrp": 521, "stock": 14, "group": "Grease"}, {"id": "p141", "name": "TUTELA GREASE 2 KG (MR3) (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 2, "rate": 669.49, "mrp": 1034, "stock": 12, "group": "Grease"}, {"id": "p142", "name": "TUTELA GREASE 3 KG  (4) (MR3)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 3, "rate": 978.81, "mrp": 1518, "stock": 5, "group": "Grease"}, {"id": "p143", "name": "TUTELA GREASE 500GMS (MR3)(24)", "unit": "Case", "nosPerUnit": 24, "sizeLtr": 0.5, "rate": 166.1, "mrp": 261, "stock": 242, "group": "Grease"}, {"id": "p144", "name": "TUTELA LONG LIFE GREASE 1 KG (RED - NLGI 3) (12)", "unit": "Case", "nosPerUnit": 12, "sizeLtr": 1, "rate": 389.83, "mrp": 550, "stock": 35, "group": "Grease"}, {"id": "p145", "name": "TUTELA LONG LIFE GREASE 20 KG (RED - NLGI 3)", "unit": "Case", "sizeLtr": 20, "rate": 7694.92, "mrp": 13080, "stock": 1, "group": "Grease"}, {"id": "p146", "name": "TUTELA LONG LIFE GREASE 3 KG (RED - NLGI 3) (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 3, "rate": 1161.02, "mrp": 2022, "stock": 35, "group": "Grease"}, {"id": "p147", "name": "TUTELA LONG LIFE GREASE 500 GMS (RED - NLGI 3) (24)", "unit": "Case", "nosPerUnit": 24, "sizeLtr": 0.5, "rate": 201.69, "mrp": 339, "stock": 33, "group": "Grease"}, {"id": "p148", "name": "TUTELA LONG LIFE GREASE 7 KG (RED - NLGI 3)", "unit": "Case", "sizeLtr": 7, "rate": 2675.42, "mrp": 4634, "stock": 2, "group": "Grease"}, {"id": "p149", "name": "TUTELA MULTI UTTO 5 LIT 20W30 (AKROS) (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 5, "rate": 1000.0, "mrp": 1940, "stock": 2, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p150", "name": "TUTELA SUPREME LL GREASE 1 KG (GREEN-NLGI 3) (12)", "unit": "Case", "nosPerUnit": 12, "sizeLtr": 1, "rate": 482.2, "mrp": 799, "stock": 96, "group": "Grease"}, {"id": "p151", "name": "TUTELA SUPREME LL GREASE 5 KG (GREEN-NLGI 3) (2)", "unit": "Case", "nosPerUnit": 2, "sizeLtr": 5, "rate": 2368.64, "mrp": 3920, "stock": 1, "group": "Grease", "imgUrl": "https://drive.google.com/file/d/1i7Ai5ietrN4I0xBFgmY2gGGvq3y2ye8K/view?usp=sharing"}, {"id": "p152", "name": "TUTELA SUPREME LL GREASE 500 GM (GREEN-NLGI 3) (24)", "unit": "Case", "nosPerUnit": 24, "sizeLtr": 0.5, "rate": 243.22, "mrp": 399, "stock": 135, "group": "Grease"}, {"id": "p153", "name": "TVS TRU4 RACE PRO 15W50 1.7 L (OE PACK) (9)", "unit": "Case", "nosPerUnit": 9, "sizeLtr": 1.7, "rate": 1211.86, "mrp": 1700, "stock": 68, "group": "MCO - SPRINTA"}, {"id": "p154", "name": "TVS TRU4 RACE PRO 15W50 FULLY SYN 1.2 LIT (10)", "unit": "Case", "nosPerUnit": 10, "sizeLtr": 1.2, "rate": 521.19, "mrp": 1250, "stock": 22, "group": "MCO - SPRINTA"}, {"id": "p155", "name": "TVS TRU4 RACE PRO 15W50 FULLY SYN 2.5 LIT (6)", "unit": "Case", "nosPerUnit": 6, "sizeLtr": 2.5, "rate": 1003.39, "mrp": 2450, "stock": 9, "group": "MCO - SPRINTA"}, {"id": "p156", "name": "10W30 55 LIT SPRINTA F300 SL", "unit": "Drum", "sizeLtr": 55, "rate": 10254.24, "stock": 0, "group": "MCO - SPRINTA"}, {"id": "p157", "name": "5W30 7 LIT SYNTIUM 500 SN/CF", "unit": "Bucket", "sizeLtr": 7, "rate": 2726.27, "mrp": 5098, "stock": -8, "schemePaid": 7, "schemeFree": 1, "group": "PCMO - SYNTIUM", "imgUrl": "https://drive.google.com/file/d/1nb41igoYglQz5f-CxPIciJ7_Cz6tYNda/view?usp=sharing"}, {"id": "p158", "name": "5W40 1 LIT SYNTIUM 3000 SM (FULL SYNT) COOLTECH (20", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 476.27, "mrp": 1030, "stock": 0, "group": "PCMO - SYNTIUM"}, {"id": "p159", "name": "5W40 MGDO SYNTIUM 3000SZ 210 LIT BARREL", "unit": "Barrel", "sizeLtr": 210, "rate": 86313.56, "stock": 2, "group": "PCMO - MGDO"}, {"id": "p160", "name": "80W90 210 LTR TUTELA TRANSMISSION OIL", "unit": "Barrel", "sizeLtr": 210, "rate": 45677.97, "stock": 0, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p161", "name": "85W140 12 LIT TUTELA 300 EP TRANSMISSION OIL", "unit": "Bucket", "sizeLtr": 12, "rate": 2737.29, "mrp": 4539, "stock": 0, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p162", "name": "AGRI GOLD TRACTOR ENGINE OIL 10 LIT", "unit": "Bucket", "sizeLtr": 10, "rate": 2355.93, "mrp": 3915, "stock": 0, "group": "TRACTOR - Agrigold/ Ambra"}, {"id": "p163", "name": "AGRI GOLD UTTO TRANSMISSION OIL 26LIT (AKROS)", "unit": "Bucket", "sizeLtr": 26, "rate": 5508.47, "stock": 0, "group": "TRACTOR - Agrigold/ Ambra"}, {"id": "p164", "name": "AGRI GOLD UTTO TRANSMISSION OIL 5 LIT (AKROS)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 5, "rate": 1139.83, "mrp": 1771, "stock": 0, "group": "TRACTOR - Agrigold/ Ambra"}, {"id": "p165", "name": "CF4 15W40 210 LIT URANIA 800", "unit": "Barrel", "sizeLtr": 210, "rate": 52762.71, "stock": 2, "group": "CVL - URANIA"}, {"id": "p166", "name": "CF4 15W40 55 LIT URANIA 800", "unit": "Drum", "sizeLtr": 55, "rate": 10084.75, "stock": 0, "group": "CVL - URANIA"}, {"id": "p167", "name": "CF4 20W40 55 LIT URANIA 800", "unit": "Drum", "sizeLtr": 55, "rate": 9581.36, "stock": 0, "group": "CVL - URANIA"}, {"id": "p168", "name": "CI4+ 15W40 10 LIT URANIA 3000", "unit": "Bucket", "sizeLtr": 10, "rate": 2887.29, "mrp": 4190, "stock": 0, "group": "CVL - URANIA", "imgUrl": "https://drive.google.com/file/d/1pt8zZymtbwrRYo1OqUs0NYhNh88PHt3B/view?usp=sharing"}, {"id": "p169", "name": "CI4+ 15W40 11 LIT URANIA 3000", "unit": "Bucket", "sizeLtr": 11, "rate": 3330.51, "mrp": 6140, "stock": 15, "group": "CVL - URANIA"}, {"id": "p170", "name": "CI4+ 15W40 18 LIT URANIA 3000", "unit": "Bucket", "sizeLtr": 18, "rate": 4576.27, "mrp": 7462, "stock": 0, "group": "CVL - URANIA"}, {"id": "p171", "name": "EPYX 140 TUTELA 210 LIT TRANSMISSION OIL", "unit": "Barrel", "sizeLtr": 210, "rate": 37288.14, "stock": 0, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p172", "name": "EPYX 90 TUTELA 210 LIT TRANSMISSION OIL", "unit": "Barrel", "sizeLtr": 210, "rate": 35423.73, "stock": 0, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p173", "name": "HYDROCER 68 HYD OIL 20 LIT", "unit": "Bucket", "sizeLtr": 20, "rate": 3817.8, "mrp": 6136, "stock": 0, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p174", "name": "HYDROCER 68 HYD OIL 210 LIT", "unit": "Barrel", "sizeLtr": 210, "rate": 30432.2, "stock": 0, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p175", "name": "HYDROCER 68 HYD OIL 26 LIT", "unit": "Bucket", "sizeLtr": 26, "rate": 4879.66, "stock": 0, "group": "TUTELA - Gear Oil (Transmission)"}, {"id": "p176", "name": "POWER STEERING OIL ATF D3 1 LIT (20)", "unit": "Case", "nosPerUnit": 20, "sizeLtr": 1, "rate": 349.15, "mrp": 466, "stock": 0, "group": "Coolant \\ Pumpset"}, {"id": "p177", "name": "TMOO T-PRO 1000 0W20 210 LIT", "unit": "Barrel", "sizeLtr": 210, "rate": 77950, "stock": 0, "group": "PCMO - TATA GENUINE", "imgUrl": "https://drive.google.com/file/d/19EwlLcJkSOVJ7ZPT-gHF28sWcBMBOWnm/view?usp=sharing"}, {"id": "p178", "name": "TUTELA GREASE 20 KG (MR3)", "unit": "Bucket", "sizeLtr": 20, "rate": 6474.58, "mrp": 9854, "stock": 0, "group": "Grease"}, {"id": "p179", "name": "TUTELA LONG LIFE GREASE 5 KG (RED - NLGI 3) (2)", "unit": "Case", "nosPerUnit": 2, "sizeLtr": 5, "rate": 1556.78, "mrp": 2700, "stock": 0, "group": "Grease"}, {"id": "p180", "name": "5W30  4.5 LIT SYNTIUM 500 SN/CF (4)", "unit": "Case", "nosPerUnit": 4, "sizeLtr": 4.5, "rate": 1589.83, "mrp": 3310, "stock": 0, "group": "PCMO - SYNTIUM"}];
+
+  // Live-patches a FRESH copy of CATALOG_ITEMS from stockMap on every
+  // call (never mutates CATALOG_ITEMS itself, so this is safe to call
+  // repeatedly across render() passes) - same stock/rate/mrp patch rule
+  // every DSR app's own applyLiveOverlay_() already uses (see
+  // arun_index.html): only overwrite when the live value isn't
+  // null/undefined/NaN, otherwise keep the catalog's own baseline value.
+  function liveCatalogItems_() {
+    return CATALOG_ITEMS.map(function (it) {
+      var upd = stockMap ? stockMap[it.name] : null;
+      var stock = it.stock, rate = it.rate, mrp = it.mrp;
+      if (upd) {
+        if (upd.stock !== null && upd.stock !== undefined && !isNaN(upd.stock)) stock = upd.stock;
+        if (upd.rate !== null && upd.rate !== undefined && !isNaN(upd.rate)) rate = upd.rate;
+        if (upd.mrp !== null && upd.mrp !== undefined && !isNaN(upd.mrp)) mrp = upd.mrp;
+      }
+      return { name: it.name, group: it.group || 'Other', stock: stock, rate: rate, mrp: mrp, sizeLtr: it.sizeLtr, nosPerUnit: it.nosPerUnit };
+    });
+  }
+
+  // "Nett Price" now shown WITH 18% GST folded in (rate * 1.18), changed
+  // 25 Sep 2026 at the owner's request - was previously the raw pre-GST
+  // `rate` (STANDARDPRICE straight from Tally, see fetch_stock()'s own
+  // docstring note in tally_live_watcher.py). Only this table's
+  // display/export multiplies by 1.18 - the underlying `rate` field/
+  // fetch_stock() itself is untouched. Header relabelled "Nett Price
+  // (incl. GST)" everywhere it appears so it's unambiguous, distinct
+  // from the DSR order-apps' own separate "Rate incl GST" convention.
+  // "Stock in Ltr" column added 25 Sep 2026 at the owner's request
+  // ("near stock also add a coloumn stock in Ltr") - see
+  // stockCatalogItemLtr_() below for the conversion, confirmed against
+  // real Tally data the same day (--dump-stock-unit).
+  var STOCK_TABLE_HEAD_ = '<thead><tr><th>Item</th><th>Stock</th><th>Stock in Ltr</th><th>MRP</th><th>Nett Price (incl. GST)</th></tr></thead>';
+
+  function stockRowHtml_(it) {
+    var stockCell = (it.stock === null || it.stock === undefined) ? '\u2014' : fmt(it.stock);
+    var ltrCell = fmt(stockCatalogItemLtr_(it));
+    var mrpCell = (it.mrp === null || it.mrp === undefined) ? '\u2014' : fmtRs(Math.round(it.mrp));
+    var rateCell = (it.rate === null || it.rate === undefined) ? '\u2014' : fmtRs(Math.round(it.rate * 1.18));
+    return '<tr><td style="text-align:left;">' + it.name + '</td>' +
+      '<td class="num">' + stockCell + '</td>' +
+      '<td class="num">' + ltrCell + '</td>' +
+      '<td class="num">' + mrpCell + '</td>' +
+      '<td class="num">' + rateCell + '</td></tr>';
+  }
+
+  // Ltr conversion for a live-patched catalog item: live stock is
+  // Tally's CLOSINGBALANCE, already expressed in individual Nos (see
+  // comment below), so this is simply stock x sizeLtr - no nosPerUnit
+  // multiplication (that's for a DSR-app *order* qty entered in Cases,
+  // a different quantity from live warehouse stock; see e.g.
+  // arun_index.html's own ltrPerUnit()/ltrText() for that separate use,
+  // where a Barrel/Drum/Bucket item is sold as a single piece). Items
+  // with no known sizeLtr can't be converted and contribute 0 rather
+  // than throwing.
+  //
+  // UNIT QUESTION RESOLVED 25 Sep 2026 via --dump-stock-unit against
+  // real Tally data (5 sample items, 4 of them case-packed). Tally's
+  // own CLOSINGBALANCE line states the Ltr conversion directly (e.g.
+  // "218 NOS = 218.000 LTR" for a 20-per-case item) and it matches
+  // stock(Nos) x sizeLtr exactly on all 5 items, while stock(Nos) x
+  // nosPerUnit x sizeLtr (the old formula) overstated 4 of the 5 by
+  // exactly their own nosPerUnit (20x, 4x, 6x, 20x too high). So
+  // `it.stock` (CLOSINGBALANCE) is already individual Nos, same as the
+  // Sales-voucher quantity field turned out to be - nosPerUnit must NOT
+  // be applied here. Do not reintroduce it without new real-data proof.
+  function stockCatalogItemLtr_(it) {
+    if (it.stock === null || it.stock === undefined || isNaN(it.stock)) return 0;
+    if (it.sizeLtr === null || it.sizeLtr === undefined || isNaN(it.sizeLtr)) return 0;
+    return it.stock * it.sizeLtr;
+  }
+
+  // All 12 CATALOG_ITEMS groups wrapped in one outer "Stocks" <details>,
+  // added 25 Sep 2026 at the owner's request - each group still
+  // independently expands/collapses exactly as before (nested <details>
+  // is valid HTML), this just gives the dashboard one collapsed "Stocks"
+  // row instead of 12 always-visible top-level rows. Each group's own
+  // summary line, and the outer master summary, show a "Total ALT QTY"
+  // (Ltr) figure instead of an item count - changed 25 Sep 2026 at the
+  // owner's request ("need total alt qty not counting of items") - see
+  // stockCatalogItemLtr_()'s comment above for the conversion, confirmed
+  // against real Tally data 25 Sep 2026.
+  function renderStockCatalog_() {
+    var wrap = document.getElementById('stockCatalogWrap');
+    var totalEl = document.getElementById('stocksMasterTotal');
+    if (!wrap) return;
+    var items = liveCatalogItems_();
+    var byGroup = {};
+    items.forEach(function (it) { (byGroup[it.group] = byGroup[it.group] || []).push(it); });
+    var groupNames = Object.keys(byGroup).sort(function (a, b) { return a.localeCompare(b); });
+    var grandLtr = 0;
+    wrap.innerHTML = groupNames.map(function (g) {
+      var rows = byGroup[g].slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
+      var groupLtr = rows.reduce(function (s, it) { return s + stockCatalogItemLtr_(it); }, 0);
+      grandLtr += groupLtr;
+      var rowsHtml = rows.map(stockRowHtml_).join('');
+      return '<details class="dsr-row">' +
+        '<summary class="dsr-row-summary"><span class="dsr-row-toggle" aria-hidden="true"></span>' +
+        '<span class="dsr-row-headtext"><span class="card-name">' + g + '</span>' +
+        '<span class="card-territory">ALT QTY ' + fmt(groupLtr) + ' Ltr</span></span></summary>' +
+        '<div class="dsr-row-body">' + ageTableWrap_(STOCK_TABLE_HEAD_, rowsHtml) + '</div></details>';
+    }).join('');
+    if (totalEl) totalEl.textContent = 'Total ALT QTY ' + fmt(grandLtr) + ' Ltr';
+  }
+
+  // "Export as Excel" button - builds a real .xlsx workbook client-side
+  // via SheetJS (loaded from cdnjs, see the script tag near
+  // html2canvas/jspdf above), covering EVERY catalog item across EVERY
+  // group, not just the ones currently expanded - no server round-trip,
+  // same liveCatalogItems_() data the table above already renders from.
+  // Fails gracefully (an alert, nothing thrown) if the CDN couldn't be
+  // reached, matching this file's existing html2canvas/jspdf convention.
+  (function () {
+    var btn = document.getElementById('exportStockXlsxBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      // The button now sits inside the "Stocks" <summary> (see the HTML
+      // markup above, added 25 Sep 2026 for the Stocks wrapper) - without
+      // this, clicking it would also toggle the <details> open/closed via
+      // native <summary> behavior, same reason the per-DSR share button
+      // does the same preventDefault/stopPropagation (see the delegated
+      // dsrList click handler further down).
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof XLSX === 'undefined') {
+        alert('Excel export isn\'t available right now \u2014 the export library didn\'t load. Check your connection and try again.');
+        return;
+      }
+      var items = liveCatalogItems_();
+      var rows = [['Item Name', 'Group', 'Stock', 'Stock in Ltr (ALT QTY)', 'MRP', 'Nett Price (incl. GST)']];
+      items.forEach(function (it) {
+        rows.push([
+          it.name,
+          it.group,
+          (it.stock === null || it.stock === undefined) ? '' : it.stock,
+          stockCatalogItemLtr_(it),
+          (it.mrp === null || it.mrp === undefined) ? '' : Math.round(it.mrp),
+          (it.rate === null || it.rate === undefined) ? '' : Math.round(it.rate * 1.18)
+        ]);
+      });
+      var ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 55 }, { wch: 28 }, { wch: 10 }, { wch: 16 }, { wch: 12 }, { wch: 12 }];
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Stock');
+      var d = new Date();
+      var mm = d.getMonth() + 1; if (mm < 10) mm = '0' + mm;
+      var dd = d.getDate(); if (dd < 10) dd = '0' + dd;
+      var stamp = d.getFullYear() + '-' + mm + '-' + dd;
+      XLSX.writeFile(wb, 'AAA_Stock_MRP_NettPrice_' + stamp + '.xlsx');
+    });
+  })();
+
   // renderNeedsAttention()/renderDormant() moved BEFORE renderCards() 22
   // Sep 2026 - renderCards() now reads lastAttnSummary.byDsr/
   // lastDormantSummary.byDsr into each DSR's expandable row, so both need
@@ -2570,6 +2960,7 @@
     renderInactiveVsBilled_(); renderCoverage_(); renderCards(); renderLeaderboard();
     renderTop5(); renderTopSkuByDsr_(); renderTrend(); renderTrendBars();
     renderCollectionRatio_(); renderLookupCard_();
+    renderPetronasAreaTable_(); renderStockCatalog_();
   }
 
   // Sales + Collection trend chart, rebuilt 20 Sep 2026 on Tally-verified
@@ -2892,6 +3283,38 @@
       });
     });
   }
+  // Missing individual sub-value (e.g. no prior-month sale for a dealer)
+  // renders as '—' for just that piece, not the whole block.
+  function fmtOrDash_(v) { return (v === null || v === undefined || isNaN(v)) ? '—' : fmt(v); }
+  function fmtRsOrDash_(v) { return (v === null || v === undefined || isNaN(v)) ? '—' : fmtRs(v); }
+
+  // 3-line Sales/Collection blocks (this month / last month / 6-mo avg),
+  // added 25 Sep 2026 at the owner's request - this enrichment was first
+  // built into the Dealer Review popup, but the owner corrected that: it
+  // belongs here on the Dealer Lookup card instead ("in dashboard dealer
+  // lookup need to add avg of 6month sales ltr / value - last month
+  // sales ltr/value - current month , collection 6 m avg - last month
+  // -current month" / "NOT IN DSR CARD/DEALER REVIEW"). Sales shows both
+  // Ltr and Rs on each line; Collection is Rs-only. "Last month" is
+  // lastMonthFull - the whole previous calendar month, not the narrower
+  // lastMonthSameDate cutoff used elsewhere.
+  function buildLookupSalesHtml_(salesRec) {
+    if (!salesRec || salesRec.avg6moLtr === null || salesRec.avg6moLtr === undefined) {
+      return (salesRec && salesRec.month !== null && salesRec.month !== undefined) ? fmt(salesRec.month) + ' Ltr' : '—';
+    }
+    return '<div>This month: <b>' + fmtOrDash_(salesRec.month) + ' Ltr</b> / ' + fmtRsOrDash_(salesRec.monthSoldRs) + '</div>' +
+      '<div class="lastmonth-line">Last month: ' + fmtOrDash_(salesRec.lastMonthFullLtr) + ' Ltr / ' + fmtRsOrDash_(salesRec.lastMonthFullRs) + '</div>' +
+      '<div class="lastmonth-line">6-mo avg: ' + fmtOrDash_(salesRec.avg6moLtr) + ' Ltr / ' + fmtRsOrDash_(salesRec.avg6moRs) + '</div>';
+  }
+  function buildLookupCollHtml_(collRec) {
+    if (!collRec || collRec.avg6moCollectedRs === null || collRec.avg6moCollectedRs === undefined) {
+      return (collRec && collRec.month !== null && collRec.month !== undefined) ? fmtRs(collRec.month) : '—';
+    }
+    return '<div>This month: <b>' + fmtRsOrDash_(collRec.month) + '</b></div>' +
+      '<div class="lastmonth-line">Last month: ' + fmtRsOrDash_(collRec.lastMonthFull) + '</div>' +
+      '<div class="lastmonth-line">6-mo avg: ' + fmtRsOrDash_(collRec.avg6moCollectedRs) + '</div>';
+  }
+
   function renderLookupCard_() {
     var wrap = document.getElementById('lookupCardWrap');
     if (!lookupSelectedDealer) { wrap.innerHTML = ''; return; }
@@ -2900,50 +3323,36 @@
     var collRec = collectionByDealer ? collectionByDealer[name] : null;
     var outRec = outstandingMap ? outstandingMap[name] : null;
 
-    var salesText = (salesRec && salesRec.month !== null && salesRec.month !== undefined) ? fmt(salesRec.month) + ' Ltr' : '—';
-    var collText = (collRec && collRec.month !== null && collRec.month !== undefined) ? fmtRs(collRec.month) : '—';
-    var owed = null, since = null;
-    if (outRec) {
-      var raw = (outRec.pendingAmount !== null && outRec.pendingAmount !== undefined) ? outRec.pendingAmount : outRec.balance;
-      if (raw !== null && raw !== undefined && raw < 0) { owed = Math.abs(raw); since = outRec.since; }
-    }
-    // Fixed 22 Sep 2026 - this used to show the FULL owed amount tagged
-    // with a single "(Xd)" taken from `since` (the OLDEST open bill's
-    // date), which misrepresents a dealer with more than one open bill:
-    // the owner flagged a real example (BS Enterprises, screenshot from
-    // Tally's own "Ledger Voucher Outstanding") with a ₹33,336 bill raised
-    // TODAY, a ₹13,955 bill 59 days old, and a ₹3,000 bill 73 days old -
-    // this card showed "₹50,291 (73d)", implying the WHOLE amount was 73
-    // days overdue. Now the headline is just the plain owed amount, and a
-    // real per-band breakdown (from tally_live_watcher.py's
-    // fetch_outstanding() band3059/band6089/band90plus - true per-bill
-    // splits, see its docstring) renders underneath, oldest band first,
-    // only for the genuinely 30+ day portion - a dealer with nothing 30+
-    // days old (like the ₹33,336 bill above, raised today) correctly gets
-    // no age tag at all, instead of a misleading "(0d)"/"(Xd)" on the
-    // whole balance.
-    var outText = owed !== null ? fmtRs(owed) : 'No dues on record';
-    var outColor = owed !== null ? 'var(--warn)' : 'var(--ink)';
+    var salesHtml = buildLookupSalesHtml_(salesRec);
+    var collHtml = buildLookupCollHtml_(collRec);
+    // Age breakdown (30-59/60-89/90+ days), per-bill from
+    // tally_live_watcher.py's fetch_outstanding() band3059/band6089/
+    // band90plus - oldest band first, only for the genuinely 30+ day
+    // portion, so a dealer with nothing 30+ days old shows no dues line
+    // at all rather than a misleading "(0d)" tag. Styled 25 Sep 2026 at
+    // the owner's request to match "Total Outstanding"'s own font (was
+    // a small muted note before - "MAKE THE DUES AS PER THE TOTAL AMOUNT
+    // FONT") - see the merged Total Outstanding tile below.
     var outAgeBreakdown = '';
     if (outRec) {
       var ob90 = Math.abs(outRec.band90plus || 0);
       var ob60 = Math.abs(outRec.band6089 || 0);
       var ob30 = Math.abs(outRec.band3059 || 0);
       var ageParts = [];
-      if (ob90 > 0) ageParts.push('90+d ' + fmtRs(ob90));
-      if (ob60 > 0) ageParts.push('60-89d ' + fmtRs(ob60));
-      if (ob30 > 0) ageParts.push('30-59d ' + fmtRs(ob30));
+      if (ob90 > 0) ageParts.push('90+d: <b>' + fmtRs(ob90) + '</b>');
+      if (ob60 > 0) ageParts.push('60-89d: <b>' + fmtRs(ob60) + '</b>');
+      if (ob30 > 0) ageParts.push('30-59d: <b>' + fmtRs(ob30) + '</b>');
       if (ageParts.length) {
-        outAgeBreakdown = '<p class="lookup-stat-sub">' + ageParts.join(' · ') + '</p>';
+        outAgeBreakdown = '<div class="lookup-stat-value" style="margin-top:6px;">' + ageParts.join('<br>') + '</div>';
       }
     }
-    // "Total Outstanding", added 22 Sep 2026 at the owner's request - the
-    // dealer's FULL ledger closing balance (outRec.balance), distinct
-    // from "Outstanding" above (which prefers the narrower BILLCL-based
-    // pendingAmount when it's available - see LIVE_OUTSTANDING_HEADERS'
-    // own history in Code.gs). The two normally read close to each other,
-    // but aren't always identical, so both are shown rather than picking
-    // one.
+    // "Total Outstanding" - the dealer's FULL ledger closing balance
+    // (outRec.balance). Was shown alongside a separate, narrower
+    // "Outstanding" tile (BILLCL-based pendingAmount) until 25 Sep 2026,
+    // when the owner asked to drop that first column since this one
+    // already covers it ("FIRST OUTSTANDING TOTAL AMOUNT DONT NEED THAT
+    // IS IN SECON COLOUMN SO REMOVE") - the age breakdown above now
+    // renders under this single tile instead.
     var totalOwed = null;
     if (outRec && outRec.balance !== null && outRec.balance !== undefined && outRec.balance < 0) {
       totalOwed = Math.abs(outRec.balance);
@@ -2974,10 +3383,9 @@
         '<button type="button" class="share-icon-btn small" id="lookupShareBtn" title="Share ' + lookupSelectedDealer.name + '\'s card">' + SHARE_ICON_SVG + '</button>' +
       '</div></div>' +
       '<div class="lookup-grid">' +
-        '<div class="lookup-stat"><p class="lookup-stat-label">Sales this month</p><p class="lookup-stat-value">' + salesText + '</p></div>' +
-        '<div class="lookup-stat"><p class="lookup-stat-label">Collection this month</p><p class="lookup-stat-value">' + collText + '</p></div>' +
-        '<div class="lookup-stat"><p class="lookup-stat-label">Outstanding</p><p class="lookup-stat-value" style="color:' + outColor + ';">' + outText + '</p>' + outAgeBreakdown + '</div>' +
-        '<div class="lookup-stat"><p class="lookup-stat-label">Total Outstanding</p><p class="lookup-stat-value" style="color:' + totalOutColor + ';">' + totalOutText + '</p></div>' +
+        '<div class="lookup-stat lookup-stat-wide"><p class="lookup-stat-label">Sales — this month / last month / 6-mo avg</p><div class="lookup-stat-value">' + salesHtml + '</div></div>' +
+        '<div class="lookup-stat lookup-stat-wide"><p class="lookup-stat-label">Collection — this month / last month / 6-mo avg</p><div class="lookup-stat-value">' + collHtml + '</div></div>' +
+        '<div class="lookup-stat lookup-stat-wide"><p class="lookup-stat-label">Total Outstanding</p><p class="lookup-stat-value" style="color:' + totalOutColor + ';">' + totalOutText + '</p>' + outAgeBreakdown + '</div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Last order</p><p class="lookup-stat-value">' + lastOrderText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Last payment</p><p class="lookup-stat-value">' + lastPaymentText + '</p></div>' +
       '</div></div>';
@@ -2985,6 +3393,27 @@
   function buildShareTextLookup_() {
     if (!lookupSelectedDealer) return '';
     return 'See attached image for ' + lookupSelectedDealer.name + '\'s details (Sales, Collection, Outstanding, Last order/payment).';
+  }
+  // Crop/shorten fix for WhatsApp, added 25 Sep 2026 at the owner's
+  // request ("while sharing crips and short the photo to fix in
+  // whatsapp"). The live .lookup-card is only as wide as the phone
+  // screen, and the 6-mo-avg/last-month enrichment above made the card
+  // taller - captured at that narrow live width, the PNG comes out
+  // tall-and-narrow, which WhatsApp's own preview then shrinks down to
+  // a sliver, making the text unreadable before it's even opened. This
+  // clones the card's content into an off-screen box at a FIXED wider
+  // width (independent of the live phone-screen width), which keeps
+  // the image's proportions close to a normal photo and the text
+  // legible in WhatsApp - same off-screen-clone-for-capture technique
+  // used elsewhere in this file for the same reason, just wider here
+  // instead of row-capped. Removed again via openShareSheet_'s
+  // cleanupEl parameter once the capture is done.
+  function buildLookupShareCaptureEl_(lookupCardEl) {
+    var el = document.createElement('div');
+    el.style.cssText = 'position:fixed;left:-9999px;top:0;width:560px;background:var(--surface);padding:18px 20px;border-radius:14px;';
+    el.innerHTML = lookupCardEl.innerHTML;
+    document.body.appendChild(el);
+    return el;
   }
   // Clear + Share on the lookup card, added 20 Sep 2026 at the owner's
   // request - delegated on #lookupCardWrap (bound once) since the card
@@ -2999,8 +3428,10 @@
     }
     if (e.target.closest('#lookupShareBtn') && lookupSelectedDealer) {
       var lookupCardEl = document.querySelector('.lookup-card');
-      openShareSheet_('Share ' + lookupSelectedDealer.name + '\'s card', lookupCardEl,
-        lookupSelectedDealer.name + ' — ' + dateHeaderLine_(), buildShareTextLookup_());
+      var captureEl = buildLookupShareCaptureEl_(lookupCardEl);
+      openShareSheet_('Share ' + lookupSelectedDealer.name + '\'s card', captureEl,
+        lookupSelectedDealer.name + ' — ' + dateHeaderLine_(), buildShareTextLookup_(),
+        false, captureEl);
     }
   });
   document.getElementById('lookupInput').addEventListener('input', function (e) {
@@ -3344,6 +3775,20 @@
   var askChipRowEl_ = document.getElementById('askChipRow');
   if (askBtnEl_) askBtnEl_.addEventListener('click', submitAsk_);
   if (askInputEl_) askInputEl_.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submitAsk_(); } });
+
+  // Clear button, added 25 Sep 2026 at the owner's request - resets the
+  // input field to empty AND clears whatever answer card is currently
+  // showing, restoring the panel to its pre-question state. Purely
+  // additive: does not call or alter runAskQuery_() in any way, and the
+  // AskLog logging hook (inside runAskQuery_()) never fires for a clear
+  // since no question is being asked.
+  function clearAsk_() {
+    if (askInputEl_) askInputEl_.value = '';
+    var answerWrap = document.getElementById('askAnswerWrap');
+    if (answerWrap) answerWrap.innerHTML = '';
+  }
+  var askClearBtnEl_ = document.getElementById('askClearBtn');
+  if (askClearBtnEl_) askClearBtnEl_.addEventListener('click', clearAsk_);
   if (askChipRowEl_) askChipRowEl_.addEventListener('click', function (e) {
     var chip = e.target.closest('.ask-chip');
     if (!chip) return;
@@ -3416,6 +3861,28 @@
     return lines.join('\n');
   }
 
+  // "Full Petronas This Month Sales" share text, added 25 Sep 2026 -
+  // mirrors renderPetronasAreaTable_()'s own AAA Direct/Madurai/
+  // Tirunelveli breakdown, member DSRs included under each area total.
+  function buildShareTextPetronasArea_() {
+    var lines = ['FULL PETRONAS THIS MONTH SALES — ' + dateHeaderLine_(), ''];
+    var byName = {};
+    DSRS.forEach(function (d) { byName[d.name] = d.monthLtr || 0; });
+    var aaa = byName['AAA Direct'] || 0;
+    var grand = aaa;
+    lines.push('AAA Direct: ' + fmt(aaa) + ' Ltr');
+    PETRONAS_AREA_GROUPS_.forEach(function (g) {
+      var memberVals = g.members.map(function (name) { return { label: name, value: byName[name] || 0 }; });
+      var total = memberVals.reduce(function (s, m) { return s + m.value; }, 0);
+      grand += total;
+      lines.push(g.label + ': ' + fmt(total) + ' Ltr');
+      memberVals.forEach(function (m) { lines.push('  ' + m.label + ': ' + fmt(m.value) + ' Ltr'); });
+    });
+    lines.push('');
+    lines.push('Total: ' + fmt(grand) + ' Ltr');
+    return lines.join('\n');
+  }
+
   function buildShareTextAttn_() {
     var lines = ['NEEDS ATTENTION — ' + dateHeaderLine_(), ''];
     lines.push('Dealers who currently owe money, grouped by how long their oldest unpaid bill has been overdue. Total outstanding covers every genuinely-owed dealer regardless of age; the three bands below only cover debt that\'s 30+ days old, so they won\'t add up to the total (debt under 30 days isn\'t in any band).');
@@ -3472,6 +3939,47 @@
         lines.push('COLLECTION: waiting for today\'s Tally sync');
       }
     }
+    return lines.join('\n');
+  }
+
+  // Short WhatsApp headline for a DSR's card, added 25 Sep 2026 - the
+  // owner's "top selling items showing double" report led to a wider
+  // conversation about the per-DSR WhatsApp share being unreadable (one
+  // giant, narrow screenshot, shrunk small by WhatsApp's own chat
+  // thumbnail). Chosen fix (owner picked "Option 4" after seeing 4
+  // samples): keep sharing the full detailed image exactly as before, but
+  // ALSO send a short 2-3 line text alongside it as the WhatsApp message
+  // itself, so anyone scanning the group chat gets the key numbers
+  // instantly without needing to open/zoom the image at all - the image is
+  // still attached right below for anyone who wants the full detail.
+  // Deliberately much shorter than buildShareTextCard_() above (which
+  // stays as-is, still used for the Email body) - only the headline
+  // Sales/Collection %, plus a few counts that summarize how much detail
+  // is in the attached image, reusing the exact same data each of those
+  // sections is built from (see renderCards() above) rather than
+  // recomputing anything new.
+  function buildShareTextCardShort_(d) {
+    var headline = [d.name.toUpperCase() + ' — ' + dateHeaderLine_(), d.territory].join(' · ');
+    var perf = [];
+    if (d.monthLtr !== null && !d.salesError) {
+      perf.push('Sales ' + pctOf_(d.monthLtr, d.target) + '% (' + fmt(d.monthLtr) + '/' + fmt(d.target) + ' Ltr)');
+    }
+    if (d.collectionTarget > 0 && d.monthCollected !== null && !d.collectionError) {
+      perf.push('Collection ' + pctOf_(d.monthCollected, d.collectionTarget) + '% (' + fmtRs(d.monthCollected) + '/' + fmtRs(d.collectionTarget) + ')');
+    }
+    var counts = [];
+    if (salesByDsrItemList !== null && stockMap !== null) {
+      var covered = salesByDsrItemList.filter(function (r) { return r.dsrName === d.dsrName && PETRONAS_ITEM_SET.hasOwnProperty(r.itemName); }).length;
+      counts.push(covered + '/' + petronasCoverage_().totalInStock + ' SKUs sold');
+    }
+    var drCount = (dealerReviewByDsr_()[d.name] || []).length;
+    if (drCount) counts.push(drCount + ' dealers under review');
+    var spCount = (sixtyPlusByDsrDealerwise_()[d.name] || []).length;
+    if (spCount) counts.push(spCount + ' overdue 60+ days');
+    var lines = [headline];
+    if (perf.length) lines.push(perf.join(' · '));
+    if (counts.length) lines.push(counts.join(' · '));
+    lines.push('Full detail in the image below ⬇️');
     return lines.join('\n');
   }
 
@@ -3571,6 +4079,48 @@
     downloadBlob_(blob, filename);
     return Promise.resolve();
   }
+  // Best-effort clipboard copy, used only as the fallback when this
+  // device/browser can't hand text+image to WhatsApp together (see
+  // shareImageWithText_ below) - so the short summary is never just
+  // silently lost, the owner can still paste it in himself.
+  function copyTextToClipboard_(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+    } catch (e) { /* ignore */ }
+    return Promise.resolve();
+  }
+  // Text + image together, added 25 Sep 2026 for the per-DSR card share -
+  // see buildShareTextCardShort_() above for why. navigator.share() (Web
+  // Share API level 2) accepts files AND text in the one call, and on
+  // Android/iOS this is exactly "open WhatsApp with the image attached and
+  // the text pre-filled as the message" - the same share panel as
+  // shareImageBlob_() above, just handing over both pieces instead of only
+  // the file. Checked with canShare({files, text}) first since a handful of
+  // older browsers support file-only sharing but reject the combination;
+  // those fall back to a files-only share (still gets the image across)
+  // with the text copied to the clipboard so it isn't lost, and a
+  // no-share-API browser (desktop) falls back to downloading the image
+  // with the text copied, same spirit as shareImageBlob_()'s own fallback.
+  function shareImageWithText_(blob, filename, text) {
+    try {
+      var file = new File([blob], filename, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file], text: text })) {
+        return navigator.share({ files: [file], text: text }).catch(function (err) {
+          if (err && err.name === 'AbortError') return; // user cancelled the share sheet themselves
+          return copyTextToClipboard_(text).then(function () { downloadBlob_(blob, filename); });
+        });
+      }
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        return copyTextToClipboard_(text).then(function () {
+          return navigator.share({ files: [file] }).catch(function (err) {
+            if (err && err.name === 'AbortError') return;
+            downloadBlob_(blob, filename);
+          });
+        });
+      }
+    } catch (e) { /* fall through to download */ }
+    return copyTextToClipboard_(text).then(function () { downloadBlob_(blob, filename); });
+  }
   // A browser can't attach a file into Outlook's compose window for
   // security reasons - the most it can do is open the mail app with a
   // ready subject/body (confirmed with the owner as an acceptable
@@ -3589,6 +4139,7 @@
   var currentShareFilenameBase = 'share';
   var currentShareEmailSubject = '';
   var currentShareEmailBody = '';
+  var currentShareWaText = null;
 
   // captureEl is the live DOM node to screenshot - "the same card what i
   // am seeing" - emailSubject/emailBodyText reuse the existing
@@ -3606,12 +4157,19 @@
   // failure) so it never lingers. Omitted/undefined for every other
   // share trigger, which all capture a real on-screen element that must
   // stay exactly where it is.
-  function openShareSheet_(title, captureEl, emailSubject, emailBodyText, includeEmail, cleanupEl) {
+  // waText - added 25 Sep 2026, optional. When given (currently only the
+  // per-DSR card share passes this - see buildShareTextCardShort_() and
+  // the dsrList click handler below), the WhatsApp button sends this short
+  // text ALONGSIDE the image instead of the image alone - see
+  // shareImageWithText_() above. Every other share trigger omits it and
+  // keeps the exact old image-only WhatsApp behaviour.
+  function openShareSheet_(title, captureEl, emailSubject, emailBodyText, includeEmail, cleanupEl, waText) {
     document.getElementById('shareSheetTitle').textContent = title;
     currentShareBlob = null;
     currentShareFilenameBase = safeFileSlug_(title);
     currentShareEmailSubject = emailSubject;
     currentShareEmailBody = emailBodyText;
+    currentShareWaText = waText || null;
     sharePreviewWrap.innerHTML = '';
     shareSheetStatus.textContent = 'Preparing image…';
     shareSheetStatus.style.display = '';
@@ -3658,7 +4216,10 @@
   // "Preparing PDF…" state is still visible to the owner while it works.
   shareWaBtn.addEventListener('click', function () {
     if (!currentShareBlob) return;
-    shareImageBlob_(currentShareBlob, currentShareFilenameBase + '.png').then(closeShareSheet_);
+    var p = currentShareWaText
+      ? shareImageWithText_(currentShareBlob, currentShareFilenameBase + '.png', currentShareWaText)
+      : shareImageBlob_(currentShareBlob, currentShareFilenameBase + '.png');
+    p.then(closeShareSheet_);
   });
   shareEmailBtn.addEventListener('click', function () {
     if (!currentShareBlob) return;
@@ -3707,6 +4268,26 @@
     openShareSheet_('Share Inactive vs Billed', document.getElementById('captureInactiveSummary'),
       'Inactive vs Billed — ' + dateHeaderLine_(), buildShareTextInactiveVsBilled_());
   });
+  // "Share Full Petronas This Month Sales", added 25 Sep 2026.
+  document.getElementById('sharePetronasAreaBtn').addEventListener('click', function () {
+    openShareSheet_('Share Full Petronas This Month Sales', document.getElementById('capturePetronasArea'),
+      'Full Petronas This Month Sales — ' + dateHeaderLine_(), buildShareTextPetronasArea_());
+  });
+  // Madurai/Tirunelveli Total row expand-to-show-member-DSRs toggle,
+  // added 25 Sep 2026 - delegated on the wrap element (which persists
+  // across renderPetronasAreaTable_() re-renders; only its innerHTML is
+  // replaced) rather than re-bound per row.
+  document.getElementById('petronasAreaWrap').addEventListener('click', function (e) {
+    var row = e.target.closest('[data-area-toggle]');
+    if (!row) return;
+    var key = row.getAttribute('data-area-toggle');
+    var icon = row.querySelector('.area-toggle-icon');
+    var expanded = icon.textContent === '−';
+    icon.textContent = expanded ? '+' : '−';
+    document.getElementById('petronasAreaWrap').querySelectorAll('[data-area-child="' + key + '"]').forEach(function (tr) {
+      tr.style.display = expanded ? 'none' : 'table-row';
+    });
+  });
   // "Share Inactive dealers" (whole-company) removed 22 Sep 2026 along
   // with the standalone Inactive Dealers section itself - inactive-dealer
   // detail is now per-DSR, inside each DSR's own expandable row, and
@@ -3734,7 +4315,8 @@
     var rowEl = btn.closest('.dsr-row');
     rowEl.open = true;
     requestAnimationFrame(function () {
-      openShareSheet_('Share ' + d.name + '\'s results', rowEl, d.name + ' — ' + dateHeaderLine_(), buildShareTextCard_(d));
+      openShareSheet_('Share ' + d.name + '\'s results', rowEl, d.name + ' — ' + dateHeaderLine_(), buildShareTextCard_(d),
+        false, null, buildShareTextCardShort_(d));
     });
   });
 
@@ -3840,7 +4422,7 @@
         // stockMap/salesByDsrItemList added 22 Sep 2026 - see their own
         // comments near the var declarations above.
         if (res && res.ok && res.stock) stockMap = res.stock;
-        if (res && res.ok && res.salesByDsrItem) salesByDsrItemList = res.salesByDsrItem;
+        if (res && res.ok && res.salesByDsrItem) salesByDsrItemList = dedupeSalesByDsrItem_(res.salesByDsrItem);
         // Added 23 Sep 2026 - see sixtyPlusByDealer's own comment near the
         // var declaration above.
         if (res && res.ok && res.sixtyPlusByDealer) sixtyPlusByDealer = res.sixtyPlusByDealer;
