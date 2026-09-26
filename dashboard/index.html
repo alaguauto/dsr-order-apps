@@ -3325,34 +3325,49 @@
 
     var salesHtml = buildLookupSalesHtml_(salesRec);
     var collHtml = buildLookupCollHtml_(collRec);
-    // Age breakdown (30-59/60-89/90+ days), per-bill from
-    // tally_live_watcher.py's fetch_outstanding() band3059/band6089/
-    // band90plus - oldest band first, only for the genuinely 30+ day
-    // portion, so a dealer with nothing 30+ days old shows no dues line
-    // at all rather than a misleading "(0d)" tag. Styled 25 Sep 2026 at
-    // the owner's request to match "Total Outstanding"'s own font (was
-    // a small muted note before - "MAKE THE DUES AS PER THE TOTAL AMOUNT
-    // FONT") - see the merged Total Outstanding tile below.
-    var outAgeBreakdown = '';
+    // Age breakdown (0-29/30-59/60-89/90+ days), per-bill from
+    // tally_live_watcher.py's fetch_outstanding() band0_29/band3059/
+    // band6089/band90plus - oldest band first, only bands with a real
+    // balance shown, so a dealer with literally nothing outstanding
+    // shows "No dues" rather than a misleading "(0d)" tag or a blank
+    // tile. 0-29d added 26 Sep 2026 at the owner's request ("0-29 ALSO
+    // U CAN ADD THERE PLEASE") - band0_29 was already being fetched/
+    // synced for the DSR-wise aging table elsewhere on this dashboard
+    // (see e.g. sixtyPlusByDsrDealerwise_() and the aging-table row
+    // builders above), just not surfaced on this card before. This is
+    // the "Outstanding" tile's own content (see below) - styled 25 Sep
+    // 2026 at the owner's request to match "Total Outstanding"'s own
+    // bold font (was a small muted note before - "MAKE THE DUES AS PER
+    // THE TOTAL AMOUNT FONT").
+    var outAgeText = 'No dues';
     if (outRec) {
       var ob90 = Math.abs(outRec.band90plus || 0);
       var ob60 = Math.abs(outRec.band6089 || 0);
       var ob30 = Math.abs(outRec.band3059 || 0);
+      var ob0 = Math.abs(outRec.band0_29 || 0);
       var ageParts = [];
-      if (ob90 > 0) ageParts.push('90+d: <b>' + fmtRs(ob90) + '</b>');
-      if (ob60 > 0) ageParts.push('60-89d: <b>' + fmtRs(ob60) + '</b>');
-      if (ob30 > 0) ageParts.push('30-59d: <b>' + fmtRs(ob30) + '</b>');
-      if (ageParts.length) {
-        outAgeBreakdown = '<div class="lookup-stat-value" style="margin-top:6px;">' + ageParts.join('<br>') + '</div>';
-      }
+      if (ob90 > 0) ageParts.push('90+d: ' + fmtRs(ob90));
+      if (ob60 > 0) ageParts.push('60-89d: ' + fmtRs(ob60));
+      if (ob30 > 0) ageParts.push('30-59d: ' + fmtRs(ob30));
+      if (ob0 > 0) ageParts.push('0-29d: ' + fmtRs(ob0));
+      if (ageParts.length) outAgeText = ageParts.join('<br>');
     }
     // "Total Outstanding" - the dealer's FULL ledger closing balance
-    // (outRec.balance). Was shown alongside a separate, narrower
-    // "Outstanding" tile (BILLCL-based pendingAmount) until 25 Sep 2026,
-    // when the owner asked to drop that first column since this one
-    // already covers it ("FIRST OUTSTANDING TOTAL AMOUNT DONT NEED THAT
-    // IS IN SECON COLOUMN SO REMOVE") - the age breakdown above now
-    // renders under this single tile instead.
+    // (outRec.balance).
+    //
+    // 25 Sep 2026: the owner asked to stop showing the "Outstanding"
+    // tile's own big rupee total, since it duplicated this tile's figure
+    // ("FIRST OUTSTANDING TOTAL AMOUNT DONT NEED THAT IS IN SECON
+    // COLOUMN SO REMOVE AND MAKE THE DUES AS PER THE TOTAL AMOUNT
+    // FONT") - misread the first time as "remove the whole tile", which
+    // dropped the age breakdown display entirely for any dealer with
+    // nothing in bands 30-89/90+ (nothing left to show once merged into
+    // this tile). Corrected 26 Sep 2026 per the owner's own follow-up
+    // ("WHAT I SAID REMOVE THE FORST COLOUMN OUTSTASNING AMOUNT...BUT U
+    // SIMPLY REMOVED THAT COLOUMN BRING AGIAN"): the "Outstanding" tile
+    // is back, alongside this one, showing ONLY the age breakdown above
+    // (bold, no separate small-note styling) - its own big total amount
+    // stays gone since that was the actual duplicate.
     var totalOwed = null;
     if (outRec && outRec.balance !== null && outRec.balance !== undefined && outRec.balance < 0) {
       totalOwed = Math.abs(outRec.balance);
@@ -3385,7 +3400,8 @@
       '<div class="lookup-grid">' +
         '<div class="lookup-stat lookup-stat-wide"><p class="lookup-stat-label">Sales — this month / last month / 6-mo avg</p><div class="lookup-stat-value">' + salesHtml + '</div></div>' +
         '<div class="lookup-stat lookup-stat-wide"><p class="lookup-stat-label">Collection — this month / last month / 6-mo avg</p><div class="lookup-stat-value">' + collHtml + '</div></div>' +
-        '<div class="lookup-stat lookup-stat-wide"><p class="lookup-stat-label">Total Outstanding</p><p class="lookup-stat-value" style="color:' + totalOutColor + ';">' + totalOutText + '</p>' + outAgeBreakdown + '</div>' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Outstanding</p><p class="lookup-stat-value">' + outAgeText + '</p></div>' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Total Outstanding</p><p class="lookup-stat-value" style="color:' + totalOutColor + ';">' + totalOutText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Last order</p><p class="lookup-stat-value">' + lastOrderText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Last payment</p><p class="lookup-stat-value">' + lastPaymentText + '</p></div>' +
       '</div></div>';
