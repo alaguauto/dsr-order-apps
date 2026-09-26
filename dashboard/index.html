@@ -288,6 +288,12 @@
     font-size: 13px; font-weight: 700; line-height: 1;
   }
   .area-child-row td { color: var(--ink-secondary); font-size: 12px; }
+  /* "Balance" column added 26 Sep 2026 (Sales + new Collection area
+     tables) - reuses the existing "target reached" green (var(--good))
+     already used for .stat.balance.done/.pill.done/.balance-line.done
+     elsewhere, so a fully-met-or-exceeded area/DSR reads the same way
+     here as it does on each DSR's own card. */
+  td.num.done { color: var(--good); font-weight: 700; }
   .area-child-row td:first-child { padding-left: 30px; }
 
   .pill { font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
@@ -466,7 +472,7 @@
      than inventing new components; horizontally scrollable on narrow
      screens since a wide DSR roster makes for a wide table. */
   .age-table-scroll { overflow-x: auto; padding: 14px 18px 18px; -webkit-overflow-scrolling: touch; }
-  .age-table { border-collapse: collapse; width: 100%; min-width: 480px; font-size: 12.5px; table-layout: fixed; }
+  .age-table { border-collapse: collapse; min-width: 480px; font-size: 12.5px; table-layout: fixed; }
   .age-table th, .age-table td { padding: 7px 10px; text-align: center; white-space: nowrap; border-bottom: 1px solid var(--border); }
   .age-table th:first-child, .age-table td:first-child { text-align: center; font-weight: 600; color: var(--ink-secondary); position: sticky; left: 0; background: var(--surface); }
   /* Long dealer/item names (e.g. "SRI MEENAKSHI AUTO STORES,APT (OIL)")
@@ -480,6 +486,38 @@
      Stock, Full Petronas Sales, etc). */
   .age-table th:first-child, .age-table td:first-child { max-width: 42vw; white-space: normal; word-break: break-word; }
   .age-table td.num, .age-table th.num { white-space: nowrap; }
+  /* Data columns were overlapping/rendering on top of each other once a
+     row's real numbers got wide (₹27,38,341-style figures across up to
+     8 DSR columns on Needs Attention, or a combined "630 / 859 Ltr avg
+     ▼73%" cell on Dealer Review/60+ overdue) - found 26 Sep 2026 from the
+     owner's own screenshots ("share need attention like this data coming
+     collapesd"). Root cause: table-layout:fixed only reads column widths
+     off this FIRST row (always <thead> here) - with the table itself
+     forced to width:100% (removed above) and no per-column width ever
+     specified, every column was squeezed to an equal, too-narrow share of
+     the phone width, and since these cells are nowrap, the overflowing
+     text rendered on top of the neighbouring cell instead of wrapping or
+     scrolling - a real bug on the live page too, not just in a shared
+     image. Fixed by giving every column (via ageTableWrap_()'s new
+     `variant` param, which also sets the table's own inline `width` to
+     match - table-layout:fixed needs an explicit total or it silently
+     re-shrinks these back to fit 100%/min-width instead of overflowing)
+     a real minimum pixel width instead of an equal split, so a column
+     that doesn't fit makes the WHOLE table wider than the phone screen -
+     .age-table-scroll's existing overflow-x:auto then does its job (a
+     real horizontal scrollbar) instead of the numbers silently bleeding
+     into each other. Two tiers, since a bare Rs/Ltr figure and a combined
+     "this/avg + %" cell need very different widths: */
+  .age-table thead th:first-child { width: 100px; }
+  .age-table thead th:not(:first-child) { width: 92px; }
+  /* .age-table-wide - Dealer Review, 60+ overdue, Inactive dealers: a
+     long dealer name AND a long combined-metric cell in the same row. */
+  .age-table.age-table-wide thead th:first-child { width: 150px; }
+  .age-table.age-table-wide thead th:not(:first-child) { width: 210px; }
+  /* .age-table-namecol - Stock: a long item name but plain short
+     figures in every other column, so only the first column needs the
+     extra room. */
+  .age-table.age-table-namecol thead th:first-child { width: 150px; }
   .age-table thead th { font-weight: 700; color: var(--ink); border-bottom: 2px solid var(--border); }
   .age-table td.num { font-variant-numeric: tabular-nums; }
   .age-table tr.age-table-total td { font-weight: 700; color: var(--ink); border-top: 2px solid var(--border); border-bottom: none; }
@@ -761,7 +799,11 @@
   <!-- Needs Attention's own expand-to-20 modal, added 19 Sep 2026 - same
        overlay/sheet styling as the Dormant modal (shared CSS classes),
        separate ids/markup so it doesn't touch the already-proven Dormant
-       modal at all. -->
+       modal at all. Share button added to the head 26 Sep 2026 (see the
+       other 3 modals below for the same change + why) - each shares just
+       THIS DSR's own Needs Attention list, separately from the other 3
+       lists and separately from that DSR's own full "Share this DSR's
+       results" card button. -->
   <div class="dormant-overlay" id="attnOverlay" style="display:none;">
     <div class="dormant-sheet">
       <div class="dormant-sheet-head">
@@ -769,7 +811,7 @@
           <p class="dormant-sheet-title" id="attnSheetTitle"></p>
           <p class="dormant-sheet-sub" id="attnSheetSub"></p>
         </div>
-        <button type="button" class="dormant-close" id="attnCloseBtn" aria-label="Close">&times;</button>
+        <div style="display:flex;align-items:center;gap:4px;"><button type="button" class="share-icon-btn small" id="attnShareBtn" title="Share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg></button><button type="button" class="dormant-close" id="attnCloseBtn" aria-label="Close">&times;</button></div>
       </div>
       <div id="attnSheetList"></div>
     </div>
@@ -782,7 +824,7 @@
           <p class="dormant-sheet-title" id="dormantSheetTitle"></p>
           <p class="dormant-sheet-sub" id="dormantSheetSub"></p>
         </div>
-        <button type="button" class="dormant-close" id="dormantCloseBtn" aria-label="Close">&times;</button>
+        <div style="display:flex;align-items:center;gap:4px;"><button type="button" class="share-icon-btn small" id="dormantShareBtn" title="Share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg></button><button type="button" class="dormant-close" id="dormantCloseBtn" aria-label="Close">&times;</button></div>
       </div>
       <div id="dormantSheetList"></div>
     </div>
@@ -799,7 +841,7 @@
           <p class="dormant-sheet-title" id="sixtyPlusSheetTitle"></p>
           <p class="dormant-sheet-sub" id="sixtyPlusSheetSub"></p>
         </div>
-        <button type="button" class="dormant-close" id="sixtyPlusCloseBtn" aria-label="Close">&times;</button>
+        <div style="display:flex;align-items:center;gap:4px;"><button type="button" class="share-icon-btn small" id="sixtyPlusShareBtn" title="Share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg></button><button type="button" class="dormant-close" id="sixtyPlusCloseBtn" aria-label="Close">&times;</button></div>
       </div>
       <div id="sixtyPlusSheetList"></div>
     </div>
@@ -813,7 +855,16 @@
        earlier that same day, but the owner clarified the 6-mo-avg/
        last-month/current-month + Rs enrichment was only ever meant for
        the Dealer Lookup card (see renderLookupCard_() below), not this
-       popup - this stays the plain per-DSR dealer list it always was. -->
+       popup - this stays the plain per-DSR dealer list it always was.
+       Share button (a plain image-only share of this list, same as the
+       other 3 modals) added back 26 Sep 2026 at the owner's explicit
+       request ("need sharing in whatsapp for click of Dealer review...,
+       60+ days overdue..., Needs attention, Inactive dealers while
+       clicking seprate for each dsr") - this is a NARROWER, per-list
+       share than the 25 Sep share button this same modal briefly had
+       (which shared the enriched Rs/last-month view that got reverted
+       right below it), so it isn't reviving that earlier reverted
+       feature, just adding a share affordance to the plain list. -->
   <div class="dormant-overlay" id="dealerReviewOverlay" style="display:none;">
     <div class="dormant-sheet">
       <div class="dormant-sheet-head">
@@ -821,7 +872,7 @@
           <p class="dormant-sheet-title" id="dealerReviewSheetTitle"></p>
           <p class="dormant-sheet-sub" id="dealerReviewSheetSub"></p>
         </div>
-        <button type="button" class="dormant-close" id="dealerReviewCloseBtn" aria-label="Close">&times;</button>
+        <div style="display:flex;align-items:center;gap:4px;"><button type="button" class="share-icon-btn small" id="dealerReviewShareBtn" title="Share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg></button><button type="button" class="dormant-close" id="dealerReviewCloseBtn" aria-label="Close">&times;</button></div>
       </div>
       <div id="dealerReviewSheetList"></div>
     </div>
@@ -863,11 +914,20 @@
          one row per DSR. Needs the new salesByDsrItem field (see
          Code.gs's handleLiveGet_()/tally_live_watcher.py's
          dsr_item_totals) - a DSR with no live DSR-item data yet is simply
-         left off this list. -->
-    <div class="leaderboard-panel">
-      <p class="leaderboard-title">Top selling SKU — by DSR</p>
-      <div id="topSkuByDsr"></div>
-    </div>
+         left off this list. Wrapped in a collapsed-by-default <details>
+         (added 26 Sep 2026 at the owner's request: "MAKE AS CLICK TO
+         EXPAND") - one row per DSR times top-5 items each makes this the
+         tallest panel in the "This month" grid, so it now opens on click
+         instead of always showing in full - same native .dsr-row
+         "+/-" convention already used for the "Stocks" master <details>
+         above, reused here rather than inventing a new toggle. -->
+    <details class="dsr-row" id="topSkuByDsrDetails">
+      <summary class="dsr-row-summary">
+        <span class="dsr-row-toggle" aria-hidden="true"></span>
+        <span class="dsr-row-headtext"><span class="leaderboard-title" style="margin:0;">Top selling SKU — by DSR</span></span>
+      </summary>
+      <div class="dsr-row-body" id="topSkuByDsr"></div>
+    </details>
   </div>
 
   <!-- Items sold / Top customers modal, added 19 Sep 2026 - same expand-
@@ -947,6 +1007,64 @@
       </button>
     </div>
     <div id="petronasAreaWrap"></div>
+  </div>
+
+  <!-- "Full Petronas This Month Collection" summary table, added 26 Sep
+       2026 at the owner's request ("SAME AS PER Full Petronas This Month
+       Sales NEED COLLECTION AS PER GROUP NAME SHOWN IN SALES") - the exact
+       same AAA Direct/Madurai/Tirunelveli area-group roll-up as the Sales
+       table above, just summing d.monthCollected (Rs) instead of
+       d.monthLtr, and using the shared buildAreaTableRows_() helper (see
+       renderPetronasCollectionAreaTable_() below) so both tables stay in
+       lockstep rather than duplicating the grouping/expand logic twice.
+       Same day, both this table and the Sales one above also gained
+       Target + Balance columns (owner: "AFTER THAT IN SALES AND
+       COLLECTION NEED TO ADD COLOUMN FOR 6M AVG , TARGET , BALANCE") -
+       Balance = Target - This month, reusing the exact same convention
+       already used for each DSR's own card (cBalance <= 0 = "Target
+       reached", shown in green). 6M AVG is tracked separately as task
+       #43 (needs new backend aggregation) and will land as its own
+       column once that data exists. -->
+  <div id="capturePetronasCollectionArea">
+    <div class="section-label-row">
+      <p class="section-label">Full Petronas This Month Collection</p>
+      <button type="button" class="share-icon-btn small" id="sharePetronasCollectionAreaBtn" title="Share Full Petronas This Month Collection">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+      </button>
+    </div>
+    <div id="petronasCollectionAreaWrap"></div>
+  </div>
+
+  <!-- Day Book Excel export, added 26 Sep 2026 (owner's Round 5 request,
+       item 3 - the one held back for its own --dump-daybook diagnostic
+       first, per "ANY DOUBT ASK AND CONFIRM ME BEFORE PROCEED"). Matches
+       the owner's real "Petronas Day Book" Tally TDL: Sales - PETRONAS/
+       Sales - CBE vouchers only (plain "Sales" DROPPED 26 Sep 2026 at the
+       owner's own request - it's an unrelated auto-spares business
+       sharing this Tally company file, not Petronas lubricant sales),
+       ALL dealers (no DSR-group filtering, unlike every other table on
+       this dashboard), TATA MOTORS PASSENGER VEHICLES LIMITED,PUNE +
+       BUSINESS SUPPORT SERVICES excluded, Amount shown GST-inclusive
+       (owner-confirmed "incl gst 18% want"), Alt Qty parsed from Tally's
+       own embedded '= X.XXX LTR' text rather than this dashboard's own
+       catalog-based guess (see tally_live_watcher.py's fetch_daybook()
+       module comment for why - a real combo-pack item proved the
+       catalog guess can undercount). Scoped to the CURRENT calendar
+       month only, the owner's own explicit
+       choice (asked via AskUserQuestion) - a fresh GET to Code.gs's own
+       ?type=daybookMonth (row-level detail, deliberately NOT folded into
+       the aggregate-only ?type=live payload every other panel uses)
+       builds a real .xlsx workbook client-side via the same SheetJS
+       library the Stock export below already proved out - see the
+       exportDaybookXlsxBtn handler further down. -->
+  <div class="dsr-row" style="padding:14px 16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <span class="dsr-row-headtext"><span class="card-name">Day Book (Petronas)</span>
+        <span class="card-territory" id="dayBookMonthLabel"></span></span>
+      <button type="button" class="share-icon-btn small" id="exportDaybookXlsxBtn" title="Export as Excel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+      </button>
+    </div>
   </div>
 
   <!-- "Current Stock, MRP & Nett Price", added 25 Sep 2026 at the owner's
@@ -1106,12 +1224,12 @@
   }
 
   var DSRS = [
-    { name: "Prabha",     dsrName: "PETRONAS THENI AREA (PRABHA)",         territory: "Theni Area",        appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4200, collectionTarget: 1119523, todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null },
-    { name: "Arun",       dsrName: "PETRONAS DINDIGUL AREA (ARUN)",        territory: "Dindigul Area",     appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4100, collectionTarget: 1302920,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null },
-    { name: "Nagaraj",    dsrName: "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)", territory: "Virudhunagar Area", appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5100, collectionTarget: 2060761,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null },
-    { name: "Chellamani", dsrName: "PETRONAS MDU AREA (CHELLAMANI)",       territory: "MDU Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5330, collectionTarget: 1355606,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null },
-    { name: "Anandh",     dsrName: "PETRONAS TVL1 AREA (ANANDH)",          territory: "TVL1 Area",         appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 6100, collectionTarget: 2344746,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null },
-    { name: "Madhu",      dsrName: "PETRONAS NKL AREA (MADHU)",            territory: "NKL Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 2500, collectionTarget: 884005,   todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null },
+    { name: "Prabha",     dsrName: "PETRONAS THENI AREA (PRABHA)",         territory: "Theni Area",        appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4200, collectionTarget: 1119523, todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
+    { name: "Arun",       dsrName: "PETRONAS DINDIGUL AREA (ARUN)",        territory: "Dindigul Area",     appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4100, collectionTarget: 1302920,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
+    { name: "Nagaraj",    dsrName: "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)", territory: "Virudhunagar Area", appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5100, collectionTarget: 2060761,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
+    { name: "Chellamani", dsrName: "PETRONAS MDU AREA (CHELLAMANI)",       territory: "MDU Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5330, collectionTarget: 1355606,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
+    { name: "Anandh",     dsrName: "PETRONAS TVL1 AREA (ANANDH)",          territory: "TVL1 Area",         appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 6100, collectionTarget: 2344746,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
+    { name: "Madhu",      dsrName: "PETRONAS NKL AREA (MADHU)",            territory: "NKL Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 2500, collectionTarget: 884005,   todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
     // AAA Direct added 18 Sep 2026, per the owner's request. Same 6900 Ltr
     // target already baked into its own order-taking app. Collection
     // target (Rs 21,70,281) given by the owner the same day, so its
@@ -1123,7 +1241,7 @@
     // watcher now folds his real Tally Sales/Collection into her totals
     // instead (see _merge_saravanan_into_chellamani() in
     // tally_live_watcher.py).
-    { name: "AAA Direct", dsrName: "PETRONAS AAA DIRECT AREA SALES",       territory: "AAA Direct Area",   appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 6900, collectionTarget: 2170281,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null }
+    { name: "AAA Direct", dsrName: "PETRONAS AAA DIRECT AREA SALES",       territory: "AAA Direct Area",   appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 6900, collectionTarget: 2170281,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null }
   ];
 
   // Top 5 panels' state, added 17 Sep 2026, switched to Tally-sourced
@@ -1551,8 +1669,33 @@
   // AND that list's "+N more" modal (same head, same row-building
   // functions), so both views always stay visually and numerically in
   // sync.
-  function ageTableWrap_(theadHtml, bodyRowsHtml) {
-    return '<div class="age-table-scroll"><table class="age-table">' + theadHtml + '<tbody>' + bodyRowsHtml + '</tbody></table></div>';
+  // variant: undefined (plain single-figure columns, e.g. Owed/Days
+  // overdue), 'wide' (a long name column AND long combined-metric data
+  // columns - Dealer Review/60+ overdue/Inactive dealers), or 'namecol'
+  // (a long name column but plain short data columns - Stock). See the
+  // CSS comment above .age-table-wide/.age-table-namecol (26 Sep 2026)
+  // for why the table also needs its own inline pixel `width` here, not
+  // just the CSS column widths - table-layout:fixed silently re-shrinks
+  // unset-width tables back to 100%/min-width otherwise, which is the
+  // exact bug this fixes.
+  function ageTableWrap_(theadHtml, bodyRowsHtml, variant) {
+    var numCols = (theadHtml.match(/<th/g) || []).length;
+    var firstW = (variant === 'wide' || variant === 'namecol') ? 150 : 100;
+    var otherW = (variant === 'wide') ? 210 : 92;
+    var totalW = firstW + Math.max(0, numCols - 1) * otherW;
+    var cls = 'age-table' + (variant ? ' age-table-' + variant : '');
+    // width:100% + min-width:totalWpx (not a fixed width), added 26 Sep
+    // 2026 later the same day - a plain fixed pixel width fixed the phone
+    // squish bug above but broke the look on a system/iPad browser: the
+    // table stayed pinned at its small phone-sized width instead of
+    // filling the much wider card around it ("all cards previous it
+    // looks neat full screen in system and ipad view... now become small
+    // to view in system"). min-width still forces the same overflow-
+    // scroll on a narrow phone screen (nothing regresses there), while
+    // width:100% lets table-layout:fixed proportionally WIDEN every
+    // column to fill a wider container - which never re-introduces the
+    // overlap bug, since only shrinking a nowrap column caused that.
+    return '<div class="age-table-scroll"><table class="' + cls + '" style="width:100%;min-width:' + totalW + 'px;">' + theadHtml + '<tbody>' + bodyRowsHtml + '</tbody></table></div>';
   }
 
   var SIXTYPLUS_CARD_LIMIT = 5;
@@ -1584,13 +1727,19 @@
   function openSixtyPlusSheet_(dsrDisplayName, fullList) {
     document.getElementById('sixtyPlusSheetTitle').textContent = dsrDisplayName;
     document.getElementById('sixtyPlusSheetSub').textContent = fullList.length + ' dealer' + (fullList.length === 1 ? '' : 's') + ' in this month\'s 60+ day baseline';
-    document.getElementById('sixtyPlusSheetList').innerHTML = ageTableWrap_(SIXTYPLUS_TABLE_HEAD_, sixtyPlusRowsHtml_(fullList) + sixtyPlusTotalRowHtml_(fullList));
+    document.getElementById('sixtyPlusSheetList').innerHTML = ageTableWrap_(SIXTYPLUS_TABLE_HEAD_, sixtyPlusRowsHtml_(fullList) + sixtyPlusTotalRowHtml_(fullList), 'wide');
     document.getElementById('sixtyPlusOverlay').style.display = 'flex';
   }
   function closeSixtyPlusSheet_() {
     document.getElementById('sixtyPlusOverlay').style.display = 'none';
   }
   document.getElementById('sixtyPlusCloseBtn').addEventListener('click', closeSixtyPlusSheet_);
+  document.getElementById('sixtyPlusShareBtn').addEventListener('click', function () {
+    var title = document.getElementById('sixtyPlusSheetTitle').textContent;
+    var sub = document.getElementById('sixtyPlusSheetSub').textContent;
+    var captureEl = buildModalShareCaptureEl_('60+ days overdue — collected this month', title, sub, 'sixtyPlusSheetList');
+    openShareSheet_('Share ' + title + '\'s 60+ overdue list', captureEl, title + ' — 60+ days overdue — ' + dateHeaderLine_(), sub, false, captureEl);
+  });
   document.getElementById('sixtyPlusOverlay').addEventListener('click', function (e) {
     if (e.target.id === 'sixtyPlusOverlay') closeSixtyPlusSheet_();
   });
@@ -1708,13 +1857,19 @@
   function openDealerReviewSheet_(dsrDisplayName, fullList) {
     document.getElementById('dealerReviewSheetTitle').textContent = dsrDisplayName;
     document.getElementById('dealerReviewSheetSub').textContent = fullList.length + ' dealer' + (fullList.length === 1 ? '' : 's') + ' with 6-month history';
-    document.getElementById('dealerReviewSheetList').innerHTML = ageTableWrap_(DEALER_REVIEW_TABLE_HEAD_, dealerReviewRowsHtml_(fullList) + dealerReviewTotalRowHtml_(fullList));
+    document.getElementById('dealerReviewSheetList').innerHTML = ageTableWrap_(DEALER_REVIEW_TABLE_HEAD_, dealerReviewRowsHtml_(fullList) + dealerReviewTotalRowHtml_(fullList), 'wide');
     document.getElementById('dealerReviewOverlay').style.display = 'flex';
   }
   function closeDealerReviewSheet_() {
     document.getElementById('dealerReviewOverlay').style.display = 'none';
   }
   document.getElementById('dealerReviewCloseBtn').addEventListener('click', closeDealerReviewSheet_);
+  document.getElementById('dealerReviewShareBtn').addEventListener('click', function () {
+    var title = document.getElementById('dealerReviewSheetTitle').textContent;
+    var sub = document.getElementById('dealerReviewSheetSub').textContent;
+    var captureEl = buildModalShareCaptureEl_('Dealer review — this month vs 6-mo avg', title, sub, 'dealerReviewSheetList');
+    openShareSheet_('Share ' + title + '\'s dealer review', captureEl, title + ' — Dealer review — ' + dateHeaderLine_(), sub, false, captureEl);
+  });
   document.getElementById('dealerReviewOverlay').addEventListener('click', function (e) {
     if (e.target.id === 'dealerReviewOverlay') closeDealerReviewSheet_();
   });
@@ -1816,7 +1971,7 @@
         var drFull = dealerReviewByDsr[d.name] || [];
         var drShown = drFull.slice(0, DEALER_REVIEW_CARD_LIMIT);
         var drBody = drShown.length
-          ? ageTableWrap_(DEALER_REVIEW_TABLE_HEAD_, dealerReviewRowsHtml_(drShown) + dealerReviewTotalRowHtml_(drFull))
+          ? ageTableWrap_(DEALER_REVIEW_TABLE_HEAD_, dealerReviewRowsHtml_(drShown) + dealerReviewTotalRowHtml_(drFull), 'wide')
           : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No dealers with 6 months of Tally history yet.</p>';
         var drMore = drFull.length > DEALER_REVIEW_CARD_LIMIT
           ? '<p class="card-name-hint clickable" data-view-dealerreview="' + escapeAttr_(d.name) + '">+' + (drFull.length - DEALER_REVIEW_CARD_LIMIT) + ' more — tap to see all ' + drFull.length + '</p>'
@@ -1833,7 +1988,7 @@
         var spFull = sixtyPlusByDsr[d.name] || [];
         var spShown = spFull.slice(0, SIXTYPLUS_CARD_LIMIT);
         var spBody = spShown.length
-          ? ageTableWrap_(SIXTYPLUS_TABLE_HEAD_, sixtyPlusRowsHtml_(spShown) + sixtyPlusTotalRowHtml_(spFull))
+          ? ageTableWrap_(SIXTYPLUS_TABLE_HEAD_, sixtyPlusRowsHtml_(spShown) + sixtyPlusTotalRowHtml_(spFull), 'wide')
           : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No dealers in this month\'s 60+ day baseline.</p>';
         var spMore = spFull.length > SIXTYPLUS_CARD_LIMIT
           ? '<p class="card-name-hint clickable" data-view-sixtyplus="' + escapeAttr_(d.name) + '">+' + (spFull.length - SIXTYPLUS_CARD_LIMIT) + ' more — tap to see all ' + spFull.length + '</p>'
@@ -1866,7 +2021,7 @@
         var dormFull = lastDormantSummary.byDsr[d.name] || [];
         var dormShown = dormFull.slice(0, DORMANT_CARD_LIMIT);
         var dormBody = dormShown.length
-          ? ageTableWrap_(DORMANT_TABLE_HEAD_, dormantRowsHtml_(dormShown))
+          ? ageTableWrap_(DORMANT_TABLE_HEAD_, dormantRowsHtml_(dormShown), 'wide')
           : '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No inactive dealers.</p>';
         var dormMore = dormFull.length > DORMANT_CARD_LIMIT
           ? '<p class="card-name-hint clickable" data-view-dormant="' + escapeAttr_(d.name) + '">+' + (dormFull.length - DORMANT_CARD_LIMIT) + ' more — tap to see all ' + dormFull.length + '</p>'
@@ -1879,7 +2034,15 @@
         '<span class="dsr-row-headtext"><span class="card-name">' + d.name + '</span>' +
         '<span class="card-territory">' + d.territory + '</span></span>' +
         '<span class="dsr-row-headright">' + salesPill + cardShareBtn + '</span></summary>' +
-        '<div class="dsr-row-body">' + salesBody + appLine + collectionBlock + catalogSection + dealerReviewSection + sixtyPlusSection + attnSection + dormSection + '</div></details>';
+        // "dsr-share-scope" wrapper added 26 Sep 2026 ("in dsr card share
+        // show only the sales & collection details to share dont need
+        // from top selling and below that") - marks exactly the part of
+        // this card the DSR card's own "Share this DSR's results" button
+        // should capture (see buildDsrCardShareCaptureEl_() below);
+        // catalogSection ("Top selling SKU") and everything after it are
+        // deliberately left OUTSIDE this wrapper so they're excluded from
+        // that share, while still rendering normally on the live page.
+        '<div class="dsr-row-body"><div class="dsr-share-scope">' + salesBody + appLine + collectionBlock + '</div>' + catalogSection + dealerReviewSection + sixtyPlusSection + attnSection + dormSection + '</div></details>';
     }).join('');
 
     document.querySelectorAll('[data-view-attn]').forEach(function (el) {
@@ -2350,7 +2513,16 @@
       sums.map(function (s) { return '<td class="num">' + s.itemsCovered + ' / ' + cov.totalInStock + '</td>'; }).join('') +
       '<td class="num total-col">' + cov.soldCount + ' / ' + cov.totalInStock + '</td></tr>') : '';
 
-    wrap.innerHTML = '<div class="age-table-scroll"><table class="age-table">' +
+    // Explicit inline table min-width (+ width:100% to fill a wider
+    // container), matching ageTableWrap_()'s own fix (26 Sep 2026, later
+    // corrected the same day - see its own comment for why a plain fixed
+    // `width` broke the system/iPad view) for the same table-layout:fixed
+    // squish/overlap bug - this table builds its own markup directly
+    // instead of going through ageTableWrap_(), so it needs the same fix
+    // applied by hand. sums.length DSR columns + the fixed "Days"/"Total"
+    // columns.
+    var needsAttnTableW = 100 + (sums.length + 1) * 92;
+    wrap.innerHTML = '<div class="age-table-scroll"><table class="age-table" style="width:100%;min-width:' + needsAttnTableW + 'px;">' +
       '<thead>' + headHtml + '</thead>' +
       '<tbody>' +
       bandRow('0-29', 'b0') +
@@ -2405,6 +2577,12 @@
     document.getElementById('attnOverlay').style.display = 'none';
   }
   document.getElementById('attnCloseBtn').addEventListener('click', closeAttnSheet_);
+  document.getElementById('attnShareBtn').addEventListener('click', function () {
+    var title = document.getElementById('attnSheetTitle').textContent;
+    var sub = document.getElementById('attnSheetSub').textContent;
+    var captureEl = buildModalShareCaptureEl_('Needs attention', title, sub, 'attnSheetList');
+    openShareSheet_('Share ' + title + '\'s Needs attention list', captureEl, title + ' — Needs attention — ' + dateHeaderLine_(), sub, false, captureEl);
+  });
   document.getElementById('attnOverlay').addEventListener('click', function (e) {
     if (e.target.id === 'attnOverlay') closeAttnSheet_();
   });
@@ -2506,13 +2684,19 @@
   function openDormantSheet_(dsrDisplayName, fullList) {
     document.getElementById('dormantSheetTitle').textContent = dsrDisplayName;
     document.getElementById('dormantSheetSub').textContent = fullList.length + ' inactive dealer' + (fullList.length === 1 ? '' : 's');
-    document.getElementById('dormantSheetList').innerHTML = ageTableWrap_(DORMANT_TABLE_HEAD_, dormantRowsHtml_(fullList));
+    document.getElementById('dormantSheetList').innerHTML = ageTableWrap_(DORMANT_TABLE_HEAD_, dormantRowsHtml_(fullList), 'wide');
     document.getElementById('dormantOverlay').style.display = 'flex';
   }
   function closeDormantSheet_() {
     document.getElementById('dormantOverlay').style.display = 'none';
   }
   document.getElementById('dormantCloseBtn').addEventListener('click', closeDormantSheet_);
+  document.getElementById('dormantShareBtn').addEventListener('click', function () {
+    var title = document.getElementById('dormantSheetTitle').textContent;
+    var sub = document.getElementById('dormantSheetSub').textContent;
+    var captureEl = buildModalShareCaptureEl_('Inactive dealers', title, sub, 'dormantSheetList');
+    openShareSheet_('Share ' + title + '\'s inactive dealers', captureEl, title + ' — Inactive dealers — ' + dateHeaderLine_(), sub, false, captureEl);
+  });
   document.getElementById('dormantOverlay').addEventListener('click', function (e) {
     if (e.target.id === 'dormantOverlay') closeDormantSheet_();
   });
@@ -2655,7 +2839,11 @@
       return '<tr' + (extraCls ? ' class="' + extraCls + '"' : '') + '><td>' + label + '</td>' +
         rows.map(function (r) { return cell(r[field]); }).join('') + totalCell(grand[field]) + '</tr>';
     };
-    wrap.innerHTML = '<div class="age-table-scroll"><table class="age-table">' +
+    // Same explicit inline min-width (+ width:100%) fix as
+    // renderAgeTable_() above (26 Sep 2026, later corrected the same
+    // day) - this table also builds its own markup directly.
+    var inactiveVsBilledTableW = 100 + (rows.length + 1) * 92;
+    wrap.innerHTML = '<div class="age-table-scroll"><table class="age-table" style="width:100%;min-width:' + inactiveVsBilledTableW + 'px;">' +
       '<thead>' + headHtml + '</thead>' +
       '<tbody>' +
       metricRow('Billed', 'billed') +
@@ -2725,6 +2913,10 @@
   // using the new salesByDsrItemList (see stockMap/salesByDsrItemList's
   // own comment above, and Code.gs's handleLiveGet_()). A DSR with no
   // live DSR-item data synced yet simply has nothing under its name.
+  // The #topSkuByDsr div now sits inside a collapsed-by-default
+  // <details class="dsr-row"> (see the HTML above, added 26 Sep 2026) -
+  // this function only fills the inner div, the native <details> element
+  // itself needs no JS to expand/collapse.
   function renderTopSkuByDsr_() {
     var wrap = document.getElementById('topSkuByDsr');
     if (salesByDsrItemList === null) {
@@ -2764,30 +2956,142 @@
     { key: 'madurai', label: 'Madurai Total Area', members: ['Arun', 'Chellamani', 'Prabha'] },
     { key: 'tvl', label: 'Tirunelveli Total Area', members: ['Madhu', 'Anandh', 'Nagaraj'] }
   ];
-  function renderPetronasAreaTable_() {
-    var wrap = document.getElementById('petronasAreaWrap');
-    if (!wrap) return;
-    var byName = {};
-    DSRS.forEach(function (d) { byName[d.name] = d.monthLtr || 0; });
-    var aaa = byName['AAA Direct'] || 0;
+  // Shared row-builder for both the Sales (Ltr) and Collection (Rs) area
+  // tables, added 26 Sep 2026 - factored out of the original
+  // renderPetronasAreaTable_() so the owner's new Collection table (and
+  // both tables' new 6M AVG/Target/Balance columns) reuse the exact same
+  // AAA Direct/Madurai/Tirunelveli grouping + expand-to-show-members
+  // logic instead of copy-pasting it a second time. `valueField`/
+  // `targetField` are the DSRS[] field names to sum (monthLtr/target for
+  // Sales, monthCollected/collectionTarget for Collection); `fmtFn` is
+  // the formatter for both (fmt-with-" Ltr"-suffix for Sales, fmtRs for
+  // Collection - see the two thin wrapper functions below). `avgField`
+  // (added same day, owner: "NEED TO ADD COLOUMN FOR 6M AVG") is the
+  // DSRS[] field for the new 6M AVG column (avg6moLtr/avg6moCollectedRs -
+  // see tally_live_watcher.py's dsr_sixmo_totals comment for where these
+  // come from) - omit it to build a table with no 6M AVG column at all
+  // (not currently used, but keeps this helper usable for a future table
+  // that shouldn't show one).
+  function buildAreaTableRows_(valueField, targetField, fmtFn, avgField) {
+    var byVal = {}, byTarget = {}, byAvg = {};
+    DSRS.forEach(function (d) {
+      byVal[d.name] = d[valueField] || 0;
+      byTarget[d.name] = d[targetField] || 0;
+      byAvg[d.name] = avgField ? (d[avgField] || 0) : 0;
+    });
+    var aaaVal = byVal['AAA Direct'] || 0;
+    var aaaTarget = byTarget['AAA Direct'] || 0;
+    var aaaAvg = byAvg['AAA Direct'] || 0;
     // TODO(coimbatore): sum a 4th "Coimbatore Area" group here once that
     // territory's own real-Tally diagnostic is resolved - see this
     // section's HTML comment above.
-    var cell = function (v) { return v > 0 ? '<td class="num">' + fmt(v) + ' Ltr</td>' : '<td class="num zero">\u2014</td>'; };
-    var grand = aaa;
-    var rowsHtml = '<tr><td>AAA Direct</td>' + cell(aaa) + '</tr>';
+    var cell = function (v) { return v > 0 ? '<td class="num">' + fmtFn(v) + '</td>' : '<td class="num zero">\u2014</td>'; };
+    // Balance = Target - This month, same convention as each DSR's own
+    // card's cBalance - <=0 means the target's already been met/beaten,
+    // shown in green as "+<surplus>" (matching that card's "Target
+    // reached \u2014 +X over" wording) rather than a bare negative number.
+    var balCell = function (v) {
+      return v <= 0
+        ? '<td class="num done">+' + fmtFn(Math.abs(v)) + '</td>'
+        : '<td class="num">' + fmtFn(v) + '</td>';
+    };
+    // Per-DSR dealer breakdown, added 26 Sep 2026 at the owner's request
+    // ("in Full Petronas This Month Sales & Full Petronas This Month
+    // Collection click of dsr name then it should expand to its dealer
+    // name") - a SECOND, independent level of tap-to-expand nested under
+    // the existing Area-total toggle (Madurai/Tirunelveli), so a DSR's own
+    // row can now also expand into that DSR's dealers. valueField picks
+    // the matching per-dealer source the same way the DSR-level totals
+    // above already do (monthLtr -> Sales, monthCollected -> Collection) -
+    // see dealerBreakdownByDsr_() below.
+    var dealerBreakdown = dealerBreakdownByDsr_(valueField);
+    var otherColsCount = 2 + (avgField ? 1 : 0); // 6M AVG (if present) + Target + Balance
+    var dashCells = function (n) {
+      var s = '';
+      for (var i = 0; i < n; i++) s += '<td class="num zero">\u2014</td>';
+      return s;
+    };
+    var dsrChildRowsHtml = function (dsrName, areaKey) {
+      var dealers = dealerBreakdown[dsrName] || [];
+      var areaAttr = areaKey ? ' data-area-child="' + areaKey + '"' : '';
+      if (!dealers.length) {
+        return '<tr class="area-dsr-child" data-dsr-child="' + dsrName + '"' + areaAttr + ' style="display:none;">' +
+          '<td colspan="' + (2 + otherColsCount) + '" style="padding-left:26px;color:var(--ink-muted);text-align:left;">No dealers billed this month</td></tr>';
+      }
+      return dealers.map(function (m) {
+        return '<tr class="area-dsr-child" data-dsr-child="' + dsrName + '"' + areaAttr + ' style="display:none;">' +
+          '<td style="padding-left:26px;">' + m.name + '</td>' +
+          '<td class="num">' + fmtFn(m.value) + '</td>' + dashCells(otherColsCount) + '</tr>';
+      }).join('');
+    };
+    var dsrNameCell = function (dsrName) {
+      return '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + dsrName + '</td>';
+    };
+    var grandVal = aaaVal, grandTarget = aaaTarget, grandAvg = aaaAvg;
+    var rowsHtml = '<tr data-dsr-toggle="AAA Direct">' + dsrNameCell('AAA Direct') + cell(aaaVal) + (avgField ? cell(aaaAvg) : '') + cell(aaaTarget) + balCell(aaaTarget - aaaVal) + '</tr>' +
+      dsrChildRowsHtml('AAA Direct', null);
     PETRONAS_AREA_GROUPS_.forEach(function (g) {
-      var memberVals = g.members.map(function (name) { return { label: name, value: byName[name] || 0 }; });
+      var memberVals = g.members.map(function (name) {
+        return { label: name, value: byVal[name] || 0, target: byTarget[name] || 0, avg: byAvg[name] || 0 };
+      });
       var total = memberVals.reduce(function (s, m) { return s + m.value; }, 0);
-      grand += total;
+      var targetTotal = memberVals.reduce(function (s, m) { return s + m.target; }, 0);
+      var avgTotal = memberVals.reduce(function (s, m) { return s + m.avg; }, 0);
+      grandVal += total; grandTarget += targetTotal; grandAvg += avgTotal;
       rowsHtml += '<tr class="area-toggle-row" data-area-toggle="' + g.key + '">' +
-        '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + g.label + '</td>' + cell(total) + '</tr>';
+        '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + g.label + '</td>' + cell(total) + (avgField ? cell(avgTotal) : '') + cell(targetTotal) + balCell(targetTotal - total) + '</tr>';
       rowsHtml += memberVals.map(function (m) {
-        return '<tr class="area-child-row" data-area-child="' + g.key + '" style="display:none;"><td>' + m.label + '</td>' + cell(m.value) + '</tr>';
+        return '<tr class="area-child-row" data-area-child="' + g.key + '" data-dsr-toggle="' + m.label + '" style="display:none;">' + dsrNameCell(m.label) + cell(m.value) + (avgField ? cell(m.avg) : '') + cell(m.target) + balCell(m.target - m.value) + '</tr>' +
+          dsrChildRowsHtml(m.label, g.key);
       }).join('');
     });
-    var totalRow = '<tr class="age-table-total"><td>Total</td>' + cell(grand) + '</tr>';
-    wrap.innerHTML = ageTableWrap_('<thead><tr><th>Area</th><th>This month (Ltr)</th></tr></thead>', rowsHtml + totalRow);
+    var totalRow = '<tr class="age-table-total"><td>Total</td>' + cell(grandVal) + (avgField ? cell(grandAvg) : '') + cell(grandTarget) + balCell(grandTarget - grandVal) + '</tr>';
+    return rowsHtml + totalRow;
+  }
+  // {dealerName: dsrDisplayName} -> {dsrDisplayName: [{name, value}, ...]}
+  // sorted highest-value-first, for buildAreaTableRows_()'s per-DSR
+  // "click the name to expand" dealer breakdown above. valueField is the
+  // SAME string buildAreaTableRows_() already uses to pick the right DSR-
+  // level field ('monthLtr'/'monthCollected') - mapped here to the
+  // matching per-dealer source, since salesByDealer/collectionByDealer
+  // both key each dealer's OWN this-month figure as plain `.month`
+  // (Ltr for Sales, Rs for Collection - see fetch_sales()/fetch_collection()
+  // docstrings). Dealers with nothing billed/collected this month are left
+  // out, same "only show what's actually there" convention as Dealer
+  // Review/60+ overdue above.
+  function dealerBreakdownByDsr_(valueField) {
+    var out = {};
+    var source = (valueField === 'monthLtr') ? salesByDealer : collectionByDealer;
+    if (!source) return out;
+    var dealerDsr = knownDealerDsrMap_();
+    Object.keys(dealerDsr).forEach(function (dealerName) {
+      var dsrName = dealerDsr[dealerName];
+      var rec = source[dealerName];
+      var value = (rec && rec.month) || 0;
+      if (value <= 0) return;
+      (out[dsrName] = out[dsrName] || []).push({ name: dealerName, value: value });
+    });
+    Object.keys(out).forEach(function (dsrName) {
+      out[dsrName].sort(function (a, b) { return b.value - a.value; });
+    });
+    return out;
+  }
+  function renderPetronasAreaTable_() {
+    var wrap = document.getElementById('petronasAreaWrap');
+    if (!wrap) return;
+    var rows = buildAreaTableRows_('monthLtr', 'target', function (v) { return fmt(v) + ' Ltr'; }, 'avg6moLtr');
+    wrap.innerHTML = ageTableWrap_('<thead><tr><th>Area</th><th>This month (Ltr)</th><th>6M AVG (Ltr)</th><th>Target (Ltr)</th><th>Balance (Ltr)</th></tr></thead>', rows);
+  }
+  // Collection twin of the table above, added 26 Sep 2026 at the owner's
+  // request ("SAME AS PER Full Petronas This Month Sales NEED COLLECTION
+  // AS PER GROUP NAME SHOWN IN SALES") - identical grouping, just
+  // d.monthCollected/d.collectionTarget (Rs) via the shared
+  // buildAreaTableRows_() helper above instead of d.monthLtr/d.target.
+  function renderPetronasCollectionAreaTable_() {
+    var wrap = document.getElementById('petronasCollectionAreaWrap');
+    if (!wrap) return;
+    var rows = buildAreaTableRows_('monthCollected', 'collectionTarget', fmtRs, 'avg6moCollectedRs');
+    wrap.innerHTML = ageTableWrap_('<thead><tr><th>Area</th><th>This month (Rs)</th><th>6M AVG (Rs)</th><th>Target (Rs)</th><th>Balance (Rs)</th></tr></thead>', rows);
   }
 
   // Static catalog baseline - identical to claude/item-catalog.json /
@@ -2897,7 +3201,7 @@
         '<summary class="dsr-row-summary"><span class="dsr-row-toggle" aria-hidden="true"></span>' +
         '<span class="dsr-row-headtext"><span class="card-name">' + g + '</span>' +
         '<span class="card-territory">ALT QTY ' + fmt(groupLtr) + ' Ltr</span></span></summary>' +
-        '<div class="dsr-row-body">' + ageTableWrap_(STOCK_TABLE_HEAD_, rowsHtml) + '</div></details>';
+        '<div class="dsr-row-body">' + ageTableWrap_(STOCK_TABLE_HEAD_, rowsHtml, 'namecol') + '</div></details>';
     }).join('');
     if (totalEl) totalEl.textContent = 'Total ALT QTY ' + fmt(grandLtr) + ' Ltr';
   }
@@ -2949,6 +3253,70 @@
     });
   })();
 
+  // "Day Book" Export as Excel - UNLIKE the Stock export just above, Day
+  // Book row-level detail isn't part of the regular ?type=live payload
+  // (that stays aggregate-only, same as every other panel) - so this
+  // fetches fresh from Code.gs's own ?type=daybookMonth on click, then
+  // builds the .xlsx client-side the same way. Always the CURRENT
+  // calendar month (owner's own explicit scope choice), computed locally
+  // so it always matches whatever month the page happens to be open in.
+  (function () {
+    var btn = document.getElementById('exportDaybookXlsxBtn');
+    if (!btn) return;
+    var now = new Date();
+    var mm0 = now.getMonth() + 1; if (mm0 < 10) mm0 = '0' + mm0;
+    var monthKey = now.getFullYear() + '-' + mm0;
+    var labelEl = document.getElementById('dayBookMonthLabel');
+    if (labelEl) labelEl.textContent = monthKey;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof XLSX === 'undefined') {
+        alert('Excel export isn\'t available right now — the export library didn\'t load. Check your connection and try again.');
+        return;
+      }
+      var prevHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '…';
+      var url = ORDERS_API_URL + '?type=daybookMonth&month=' + encodeURIComponent(monthKey) + '&_ts=' + Date.now();
+      fetch(url, { cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (!res || !res.ok) throw new Error((res && res.error) || 'Server error');
+          var rows = [['Date', 'Voucher Number', 'Voucher Type', 'Party', 'Party Group',
+            'Item Name', 'Item Group', 'Qty', 'Alt Qty (Ltr)', 'Rate', 'Amount (incl GST)']];
+          (res.rows || []).forEach(function (r) {
+            rows.push([
+              r.date || '', r.voucherNumber || '', r.voucherType || '', r.party || '', r.partyGroup || '',
+              r.itemName || '', r.itemGroup || '',
+              (r.qty === null || r.qty === undefined || r.qty === '') ? '' : Number(r.qty),
+              (r.altQtyLtr === null || r.altQtyLtr === undefined || r.altQtyLtr === '') ? '' : Number(r.altQtyLtr),
+              (r.rate === null || r.rate === undefined || r.rate === '') ? '' : Number(r.rate),
+              (r.amount === null || r.amount === undefined || r.amount === '') ? '' : Number(r.amount)
+            ]);
+          });
+          if (rows.length === 1) {
+            alert('No Day Book rows synced for ' + monthKey + ' yet — the watcher may still be on its first ' +
+              'backfill, or hasn’t completed a Day Book cycle yet. Try again in a bit.');
+            return;
+          }
+          var ws = XLSX.utils.aoa_to_sheet(rows);
+          ws['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 34 }, { wch: 30 },
+            { wch: 34 }, { wch: 28 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 14 }];
+          var wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'DayBook_' + monthKey.replace('-', '_'));
+          XLSX.writeFile(wb, 'AAA_DayBook_' + monthKey + '.xlsx');
+        })
+        .catch(function (err) {
+          alert('Could not export the Day Book right now (' + err.message + '). Check your connection and try again.');
+        })
+        .then(function () {
+          btn.disabled = false;
+          btn.innerHTML = prevHtml;
+        });
+    });
+  })();
+
   // renderNeedsAttention()/renderDormant() moved BEFORE renderCards() 22
   // Sep 2026 - renderCards() now reads lastAttnSummary.byDsr/
   // lastDormantSummary.byDsr into each DSR's expandable row, so both need
@@ -2960,7 +3328,7 @@
     renderInactiveVsBilled_(); renderCoverage_(); renderCards(); renderLeaderboard();
     renderTop5(); renderTopSkuByDsr_(); renderTrend(); renderTrendBars();
     renderCollectionRatio_(); renderLookupCard_();
-    renderPetronasAreaTable_(); renderStockCatalog_();
+    renderPetronasAreaTable_(); renderPetronasCollectionAreaTable_(); renderStockCatalog_();
   }
 
   // Sales + Collection trend chart, rebuilt 20 Sep 2026 on Tally-verified
@@ -3374,19 +3742,34 @@
     }
     var totalOutText = totalOwed !== null ? fmtRs(totalOwed) : 'No dues on record';
     var totalOutColor = totalOwed !== null ? 'var(--warn)' : 'var(--ink)';
+    // "— <Ltr> Ltr" suffix added 26 Sep 2026 at the owner's request ("IN
+    // LAST ORDER (HOW MANY LTR GIVEN)") - sourced from salesByDealer's new
+    // lastSaleLtr field (see fetch_sales()'s last_sale_ltr_by_dealer
+    // fold-in and handleLiveGet_()'s salesByDealer reader in Code.gs).
+    // Only appended when lastSaleLtr is actually present (a dealer synced
+    // before this field existed, or with no matching last-sale-date at
+    // all, has it as null/undefined) - the date-only text is kept exactly
+    // as before in that case rather than showing "undefined Ltr".
     var lastOrderText = (salesRec && salesRec.lastSaleDate) ? (function () {
       var s = String(salesRec.lastSaleDate);
       var d = daysSinceYyyymmdd(s);
-      return s.slice(0, 4) + '-' + s.slice(4, 6) + '-' + s.slice(6, 8) + (d !== null ? ' (' + d + 'd ago)' : '');
+      var base = s.slice(0, 4) + '-' + s.slice(4, 6) + '-' + s.slice(6, 8) + (d !== null ? ' (' + d + 'd ago)' : '');
+      var ltr = salesRec.lastSaleLtr;
+      return (ltr !== null && ltr !== undefined && !isNaN(ltr)) ? (base + ' — ' + fmt(ltr) + ' Ltr') : base;
     })() : 'No recent sale on record';
     // Added 20 Sep 2026, alongside "Last order" above - same yyyymmdd-text
     // shape, sourced from collectionByDealer's new lastPaymentDate field
     // (see fetch_collection()'s lastPaymentDate fold-in and
     // handleLiveGet_()'s collectionByDealer reader in Code.gs).
+    // "— <Rs>" suffix added 26 Sep 2026 at the owner's request ("IN LAST
+    // PAYMENT (AMOUNT)") - same lastPaymentAmount-present guard as
+    // lastOrderText's Ltr suffix above.
     var lastPaymentText = (collRec && collRec.lastPaymentDate) ? (function () {
       var s = String(collRec.lastPaymentDate);
       var d = daysSinceYyyymmdd(s);
-      return s.slice(0, 4) + '-' + s.slice(4, 6) + '-' + s.slice(6, 8) + (d !== null ? ' (' + d + 'd ago)' : '');
+      var base = s.slice(0, 4) + '-' + s.slice(4, 6) + '-' + s.slice(6, 8) + (d !== null ? ' (' + d + 'd ago)' : '');
+      var amt = collRec.lastPaymentAmount;
+      return (amt !== null && amt !== undefined && !isNaN(amt)) ? (base + ' — ' + fmtRs(amt)) : base;
     })() : 'No recent payment on record';
 
     wrap.innerHTML = '<div class="lookup-card">' +
@@ -3424,10 +3807,60 @@
   // used elsewhere in this file for the same reason, just wider here
   // instead of row-capped. Removed again via openShareSheet_'s
   // cleanupEl parameter once the capture is done.
+  // Shared capture-clone builder for the 4 per-DSR "+N more" modals'
+  // own share buttons (Dealer review, 60+ overdue, Needs attention,
+  // Inactive dealers), added 26 Sep 2026 at the owner's explicit request
+  // ("need sharing in whatsapp for click of Dealer review..., 60+ days
+  // overdue..., Needs attention, Inactive dealers while clicking seprate
+  // for each dsr"). Same off-screen-clone-for-capture technique as
+  // buildLookupShareCaptureEl_() just below, for the same two reasons:
+  // (1) a fixed 560px width keeps the shared image's proportions legible
+  // in WhatsApp regardless of the live phone-screen width, and (2) more
+  // importantly here, these lists live inside a `.dormant-overlay`, and
+  // `.capturing .dormant-overlay { display:none }` (added 20 Sep 2026 to
+  // keep an incidental open modal out of an unrelated capture elsewhere
+  // on the page) would hide the very modal being shared and its list
+  // along with it if captured in place - cloning the list into a plain
+  // div directly under <body> sidesteps that rule entirely. Removed
+  // again via openShareSheet_'s cleanupEl parameter once the capture is
+  // done, same as the lookup card's own clone.
+  function buildModalShareCaptureEl_(sectionLabel, dsrName, subText, listElId) {
+    var el = document.createElement('div');
+    el.style.cssText = 'position:fixed;left:-9999px;top:0;width:560px;background:var(--surface);padding:18px 20px;border-radius:14px;';
+    el.innerHTML = '<p class="dormant-sheet-title" style="margin:0 0 2px;">' + sectionLabel + ' — ' + dsrName + '</p>' +
+      '<p class="dormant-sheet-sub" style="margin:0 0 10px;">' + subText + '</p>' +
+      document.getElementById(listElId).innerHTML;
+    document.body.appendChild(el);
+    return el;
+  }
   function buildLookupShareCaptureEl_(lookupCardEl) {
     var el = document.createElement('div');
     el.style.cssText = 'position:fixed;left:-9999px;top:0;width:560px;background:var(--surface);padding:18px 20px;border-radius:14px;';
     el.innerHTML = lookupCardEl.innerHTML;
+    document.body.appendChild(el);
+    return el;
+  }
+  // DSR card's own WhatsApp share, scoped to Sales & Collection only -
+  // added 26 Sep 2026 at the owner's explicit request ("in dsr card
+  // share show only the sales & collection details to share dont need
+  // from top selling and below that"). Previously this button captured
+  // the ENTIRE expanded row in place (Sales, Collection, Top selling
+  // SKU, Dealer review, 60+ overdue, Needs attention, Inactive dealers,
+  // all in one image - a deliberate "richer single share" added 22 Sep
+  // 2026). Same off-screen-clone-for-capture technique as
+  // buildLookupShareCaptureEl_()/buildModalShareCaptureEl_() above:
+  // clones just the DSR's own name/territory header plus the
+  // `.dsr-share-scope` wrapper (Sales+Collection only - see renderCards()
+  // above, where Top selling SKU and everything below it is deliberately
+  // left outside that wrapper) into a plain div directly under <body>.
+  // Removed again via openShareSheet_'s cleanupEl parameter once the
+  // capture is done, same as the other two clones.
+  function buildDsrCardShareCaptureEl_(d, scopeEl) {
+    var el = document.createElement('div');
+    el.style.cssText = 'position:fixed;left:-9999px;top:0;width:560px;background:var(--surface);padding:18px 20px;border-radius:14px;';
+    el.innerHTML = '<p class="card-name" style="margin:0 0 2px;">' + d.name + '</p>' +
+      '<p class="card-territory" style="margin:0 0 10px;">' + d.territory + '</p>' +
+      scopeEl.innerHTML;
     document.body.appendChild(el);
     return el;
   }
@@ -3899,6 +4332,32 @@
     return lines.join('\n');
   }
 
+  // Collection twin of buildShareTextPetronasArea_() above, added 26 Sep
+  // 2026 for the new "Full Petronas This Month Collection" share button -
+  // same AAA Direct/Madurai/Tirunelveli grouping, d.monthCollected (Rs)
+  // via fmtRs instead of d.monthLtr (Ltr). Kept as a plain mirror (value
+  // lines only, no Target/Balance) matching the Sales share text's own
+  // existing style rather than changing it - Target/Balance are shown in
+  // the table itself (see buildAreaTableRows_() above), not the share text.
+  function buildShareTextPetronasCollectionArea_() {
+    var lines = ['FULL PETRONAS THIS MONTH COLLECTION — ' + dateHeaderLine_(), ''];
+    var byName = {};
+    DSRS.forEach(function (d) { byName[d.name] = d.monthCollected || 0; });
+    var aaa = byName['AAA Direct'] || 0;
+    var grand = aaa;
+    lines.push('AAA Direct: ' + fmtRs(aaa));
+    PETRONAS_AREA_GROUPS_.forEach(function (g) {
+      var memberVals = g.members.map(function (name) { return { label: name, value: byName[name] || 0 }; });
+      var total = memberVals.reduce(function (s, m) { return s + m.value; }, 0);
+      grand += total;
+      lines.push(g.label + ': ' + fmtRs(total));
+      memberVals.forEach(function (m) { lines.push('  ' + m.label + ': ' + fmtRs(m.value)); });
+    });
+    lines.push('');
+    lines.push('Total: ' + fmtRs(grand));
+    return lines.join('\n');
+  }
+
   function buildShareTextAttn_() {
     var lines = ['NEEDS ATTENTION — ' + dateHeaderLine_(), ''];
     lines.push('Dealers who currently owe money, grouped by how long their oldest unpaid bill has been overdue. Total outstanding covers every genuinely-owed dealer regardless of age; the three bands below only cover debt that\'s 30+ days old, so they won\'t add up to the total (debt under 30 days isn\'t in any band).');
@@ -4289,21 +4748,66 @@
     openShareSheet_('Share Full Petronas This Month Sales', document.getElementById('capturePetronasArea'),
       'Full Petronas This Month Sales — ' + dateHeaderLine_(), buildShareTextPetronasArea_());
   });
+  // "Share Full Petronas This Month Collection", added 26 Sep 2026 -
+  // twin of the Sales share button above for the new Collection table.
+  document.getElementById('sharePetronasCollectionAreaBtn').addEventListener('click', function () {
+    openShareSheet_('Share Full Petronas This Month Collection', document.getElementById('capturePetronasCollectionArea'),
+      'Full Petronas This Month Collection — ' + dateHeaderLine_(), buildShareTextPetronasCollectionArea_());
+  });
   // Madurai/Tirunelveli Total row expand-to-show-member-DSRs toggle,
   // added 25 Sep 2026 - delegated on the wrap element (which persists
   // across renderPetronasAreaTable_() re-renders; only its innerHTML is
-  // replaced) rather than re-bound per row.
-  document.getElementById('petronasAreaWrap').addEventListener('click', function (e) {
-    var row = e.target.closest('[data-area-toggle]');
-    if (!row) return;
-    var key = row.getAttribute('data-area-toggle');
-    var icon = row.querySelector('.area-toggle-icon');
-    var expanded = icon.textContent === '−';
-    icon.textContent = expanded ? '+' : '−';
-    document.getElementById('petronasAreaWrap').querySelectorAll('[data-area-child="' + key + '"]').forEach(function (tr) {
-      tr.style.display = expanded ? 'none' : 'table-row';
+  // replaced) rather than re-bound per row. Factored into a shared
+  // bindAreaToggle_() helper 26 Sep 2026 so the new Collection table's
+  // wrap (petronasCollectionAreaWrap) gets the identical toggle behavior
+  // without copy-pasting this listener a second time.
+  function bindAreaToggle_(wrapId) {
+    var wrapEl = document.getElementById(wrapId);
+    if (!wrapEl) return;
+    wrapEl.addEventListener('click', function (e) {
+      // Per-DSR "click the name to expand its dealers" toggle, added
+      // 26 Sep 2026 - checked FIRST since it lives on the same kind of
+      // row (data-dsr-toggle) as the plain AAA Direct row and each area's
+      // own member rows, neither of which also carries data-area-toggle,
+      // so there's no ambiguity between the two toggles below.
+      var dsrRow = e.target.closest('[data-dsr-toggle]');
+      if (dsrRow) {
+        var dsrKey = dsrRow.getAttribute('data-dsr-toggle');
+        var dsrIcon = dsrRow.querySelector('.area-toggle-icon');
+        var dsrExpanded = dsrIcon.textContent === '−';
+        dsrIcon.textContent = dsrExpanded ? '+' : '−';
+        wrapEl.querySelectorAll('[data-dsr-child="' + dsrKey + '"]').forEach(function (tr) {
+          tr.style.display = dsrExpanded ? 'none' : 'table-row';
+        });
+        return;
+      }
+      var row = e.target.closest('[data-area-toggle]');
+      if (!row) return;
+      var key = row.getAttribute('data-area-toggle');
+      var icon = row.querySelector('.area-toggle-icon');
+      var expanded = icon.textContent === '−';
+      icon.textContent = expanded ? '+' : '−';
+      wrapEl.querySelectorAll('.area-child-row[data-area-child="' + key + '"]').forEach(function (tr) {
+        tr.style.display = expanded ? 'none' : 'table-row';
+      });
+      if (expanded) {
+        // Collapsing the whole area - cascade-close every DSR sub-toggle
+        // inside it too (added 26 Sep 2026 alongside the per-DSR toggle
+        // above), so a dealer breakdown left open under one of its DSRs
+        // doesn't end up floating visible below a now-hidden area group,
+        // and re-expanding the area later starts from a clean collapsed
+        // state rather than an icon stuck on "−" with nothing shown.
+        wrapEl.querySelectorAll('.area-dsr-child[data-area-child="' + key + '"]').forEach(function (tr) {
+          tr.style.display = 'none';
+        });
+        wrapEl.querySelectorAll('.area-child-row[data-area-child="' + key + '"] .area-toggle-icon').forEach(function (icn) {
+          icn.textContent = '+';
+        });
+      }
     });
-  });
+  }
+  bindAreaToggle_('petronasAreaWrap');
+  bindAreaToggle_('petronasCollectionAreaWrap');
   // "Share Inactive dealers" (whole-company) removed 22 Sep 2026 along
   // with the standalone Inactive Dealers section itself - inactive-dealer
   // detail is now per-DSR, inside each DSR's own expandable row, and
@@ -4331,8 +4835,33 @@
     var rowEl = btn.closest('.dsr-row');
     rowEl.open = true;
     requestAnimationFrame(function () {
-      openShareSheet_('Share ' + d.name + '\'s results', rowEl, d.name + ' — ' + dateHeaderLine_(), buildShareTextCard_(d),
-        false, null, buildShareTextCardShort_(d));
+      // Reverted 26 Sep 2026 to image-only, no attached text ("sharing
+      // dsr card i need only the 2nd attached screenshot no words
+      // attached") - this button's own short-text-above-the-image
+      // enhancement (Option 4, added 25 Sep 2026 after the owner picked
+      // it from 4 side-by-side samples, with his own explicit standing
+      // condition "if i don't like we can change the option ok") is
+      // exactly what's being changed back here. Omitting the waText
+      // argument (was buildShareTextCardShort_(d)) makes this button
+      // behave like every other share button on the page - WhatsApp
+      // gets the plain captured image alone. buildShareTextCardShort_()
+      // itself is left in place, unused, in case this is ever wanted
+      // again, same as this project's usual practice for a reversed
+      // feature (e.g. stockCatalogItemLtr_() 25 Sep 2026).
+      //
+      // Scoped to Sales & Collection only, added 26 Sep 2026, later
+      // still ("in dsr card share show only the sales & collection
+      // details to share dont need from top selling and below that") -
+      // was capturing the whole rowEl in place (every section); now
+      // clones just the `.dsr-share-scope` part (see renderCards() and
+      // buildDsrCardShareCaptureEl_() above) into an off-screen div and
+      // captures that instead, so Top selling SKU/Dealer review/60+
+      // overdue/Needs attention/Inactive dealers are left out of the
+      // shared image, same as buildLookupShareCaptureEl_()'s pattern.
+      var scopeEl = rowEl.querySelector('.dsr-share-scope');
+      var captureEl = buildDsrCardShareCaptureEl_(d, scopeEl);
+      openShareSheet_('Share ' + d.name + '\'s results', captureEl, d.name + ' — ' + dateHeaderLine_(), buildShareTextCard_(d),
+        false, captureEl);
     });
   });
 
@@ -4393,6 +4922,11 @@
           // `collection` map (see Code.gs's handleLiveGet_()).
           if (entry.lastMonthSameDate !== null && entry.lastMonthSameDate !== undefined) d.lastMonthSameDate = entry.lastMonthSameDate;
           if (entry.lastMonthFull !== null && entry.lastMonthFull !== undefined) d.lastMonthFull = entry.lastMonthFull;
+          // "6M AVG" (Collection), added 26 Sep 2026 for the "Full
+          // Petronas This Month Collection" area table's new column - see
+          // Code.gs's handleLiveGet_()/tally_live_watcher.py's
+          // fetch_collection() dsr_sixmo_totals comment.
+          if (entry.avg6moCollectedRs !== null && entry.avg6moCollectedRs !== undefined) d.avg6moCollectedRs = entry.avg6moCollectedRs;
         });
         // Added 17 Sep 2026 - same response, new field (see Code.gs's
         // handleLiveGet_()). Kept as the full map, not pre-sorted - top-5
@@ -4432,6 +4966,14 @@
           // `sales` map (see Code.gs's handleLiveGet_()).
           if (entry.lastMonthSameDateLtr !== null && entry.lastMonthSameDateLtr !== undefined) d.lastMonthSameDateLtr = entry.lastMonthSameDateLtr;
           if (entry.lastMonthFullLtr !== null && entry.lastMonthFullLtr !== undefined) d.lastMonthFullLtr = entry.lastMonthFullLtr;
+          // "6M AVG" (Sales), added 26 Sep 2026 for the "Full Petronas
+          // This Month Sales" area table's new column - see Code.gs's
+          // handleLiveGet_()/tally_live_watcher.py's fetch_sales()
+          // dsr_sixmo_totals comment. avg6moRs read too (not yet shown
+          // anywhere, kept for parity/future use - same reasoning as
+          // other Rs twins on this object).
+          if (entry.avg6moLtr !== null && entry.avg6moLtr !== undefined) d.avg6moLtr = entry.avg6moLtr;
+          if (entry.avg6moRs !== null && entry.avg6moRs !== undefined) d.avg6moRs = entry.avg6moRs;
         });
         if (res && res.ok && res.salesByDealer) salesByDealer = res.salesByDealer;
         if (res && res.ok && res.salesByItem) salesByItem = res.salesByItem;
