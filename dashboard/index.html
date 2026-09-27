@@ -672,6 +672,22 @@
   }
   .usage-table th { color: var(--ink-secondary); font-weight: 600; font-size: 12px; }
   .usage-empty { font-size: 13px; color: var(--ink-muted); padding: 8px 0; }
+  .usage-total-row td { font-weight: 600; border-top: 2px solid var(--border); border-bottom: none !important; }
+
+  /* Usage report date filter, added 27 Sep 2026 */
+  .usage-quick-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 8px; }
+  .usage-quick-btn {
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-secondary);
+    border-radius: 999px; padding: 5px 12px; font-size: 12px; cursor: pointer; font-family: inherit;
+  }
+  .usage-quick-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .usage-filter-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 10px; }
+  .usage-filter-field { display: flex; flex-direction: column; gap: 4px; }
+  .usage-filter-field label { font-size: 11px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+  .usage-filter-field input, .usage-filter-field select {
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 13px;
+    background: var(--bg); color: var(--ink); font-family: inherit;
+  }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a4a44">
@@ -712,9 +728,13 @@
           <input type="text" id="adminTargetNew" placeholder="…or type a new name">
           <select id="adminTargetRole">
             <option value="Manager">Manager</option>
+            <option value="Area Manager">Area Manager</option>
             <option value="DSR">DSR</option>
             <option value="Owner">Owner</option>
           </select>
+        </div>
+        <div class="admin-field-row">
+          <input type="text" id="adminTargetAreas" placeholder="Areas (Area Manager only - required)">
         </div>
         <div class="admin-field-row">
           <input type="password" id="adminNewPassword" placeholder="New password">
@@ -722,9 +742,30 @@
           <button type="button" id="adminSaveBtn" class="admin-save-btn">Save password</button>
         </div>
         <div id="adminMsg" class="admin-msg"></div>
+        <div class="admin-msg" style="opacity:0.75;">Manager sees every DSR. Area Manager sees only the areas you list below - type the exact DSR card names separated by commas, e.g. Prabha,Arun,Chellamani (required for this role - it won't save blank). Areas is ignored for DSR/Owner.</div>
       </div>
       <div class="admin-block">
         <h4>Login &amp; usage time</h4>
+        <div class="usage-quick-row">
+          <button type="button" class="usage-quick-btn" data-range="today">Today</button>
+          <button type="button" class="usage-quick-btn" data-range="week">This week</button>
+          <button type="button" class="usage-quick-btn" data-range="month">This month</button>
+          <button type="button" class="usage-quick-btn" data-range="custom">Custom</button>
+        </div>
+        <div class="usage-filter-row">
+          <div class="usage-filter-field">
+            <label for="usageFromDate">From date</label>
+            <input type="date" id="usageFromDate">
+          </div>
+          <div class="usage-filter-field">
+            <label for="usageToDate">To date</label>
+            <input type="date" id="usageToDate">
+          </div>
+          <div class="usage-filter-field">
+            <label for="usagePersonSelect">Person</label>
+            <select id="usagePersonSelect"><option value="">All</option></select>
+          </div>
+        </div>
         <div id="usageReportEl"><div class="usage-empty">Loading…</div></div>
       </div>
     </div>
@@ -1165,7 +1206,7 @@
        builds a real .xlsx workbook client-side via the same SheetJS
        library the Stock export below already proved out - see the
        exportDaybookXlsxBtn handler further down. -->
-  <div class="dsr-row" style="padding:14px 16px;">
+  <div class="dsr-row" id="dayBookRow" style="padding:14px 16px;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
       <span class="dsr-row-headtext"><span class="card-name">Day Book (Petronas)</span>
         <span class="card-territory" id="dayBookMonthLabel"></span></span>
@@ -1197,7 +1238,7 @@
        summary shows the total stock quantity in Ltr across every item -
        see stockCatalogItemLtr_()/renderStockCatalog_() below. See
        CATALOG_ITEMS/liveCatalogItems_() below. Purely additive. -->
-  <p class="section-label">Current Stock, MRP &amp; Nett Price</p>
+  <p class="section-label" id="stockSectionLabel">Current Stock, MRP &amp; Nett Price</p>
   <details class="dsr-row" id="stocksMasterDetails">
     <summary class="dsr-row-summary">
       <span class="dsr-row-toggle" aria-hidden="true"></span>
@@ -1489,8 +1530,8 @@
   // same "don't fake a number" rule already used for the Collection strip
   // below.
   function renderSummary() {
-    var withData = DSRS.filter(function (d) { return d.monthLtr !== null; });
-    var anyWaiting = DSRS.some(function (d) { return d.monthLtr === null; });
+    var withData = visibleDsrs_().filter(function (d) { return d.monthLtr !== null; });
+    var anyWaiting = visibleDsrs_().some(function (d) { return d.monthLtr === null; });
 
     var todayTotal = withData.reduce(function (a, d) { return a + (d.todayLtr || 0); }, 0);
     var monthTotal = withData.reduce(function (a, d) { return a + (d.monthLtr || 0); }, 0);
@@ -1539,8 +1580,8 @@
   // a DSR still waiting on its first Tally sync is left out of the
   // combined total rather than silently counted as ₹0.
   function renderSummaryMoney() {
-    var withData = DSRS.filter(function (d) { return d.collectionTarget > 0 && d.monthCollected !== null; });
-    var anyWaiting = DSRS.some(function (d) { return d.collectionTarget > 0 && d.monthCollected === null; });
+    var withData = visibleDsrs_().filter(function (d) { return d.collectionTarget > 0 && d.monthCollected !== null; });
+    var anyWaiting = visibleDsrs_().some(function (d) { return d.collectionTarget > 0 && d.monthCollected === null; });
 
     var todayTotal = withData.reduce(function (a, d) { return a + (d.todayCollected || 0); }, 0);
     var monthTotal = withData.reduce(function (a, d) { return a + (d.monthCollected || 0); }, 0);
@@ -1985,7 +2026,7 @@
   function renderCards() {
     var sixtyPlusByDsr = sixtyPlusByDsrDealerwise_();
     var dealerReviewByDsr = dealerReviewByDsr_();
-    document.getElementById('dsrList').innerHTML = DSRS.map(function (d) {
+    document.getElementById('dsrList').innerHTML = visibleDsrs_().map(function (d) {
       var salesPill, salesBody;
       if (d.salesError) {
         salesPill = '<span class="pill err">Couldn\'t load</span>';
@@ -2195,8 +2236,8 @@
     // fetchLive() above), so it's excluded from the ranked/sorted list and
     // shown as "Waiting for sync" instead, same waiting-list pattern the
     // Collection ranking directly below already uses.
-    var withSales = DSRS.filter(function (d) { return d.target > 0 && d.monthLtr !== null; });
-    var waitingSales = DSRS.filter(function (d) { return d.target > 0 && d.monthLtr === null; });
+    var withSales = visibleDsrs_().filter(function (d) { return d.target > 0 && d.monthLtr !== null; });
+    var waitingSales = visibleDsrs_().filter(function (d) { return d.target > 0 && d.monthLtr === null; });
     var salesRanked = withSales.slice().sort(function (a, b) {
       return (b.monthLtr / b.target) - (a.monthLtr / a.target);
     });
@@ -2215,8 +2256,8 @@
     document.getElementById('salesRanking').innerHTML = salesRows.join('') ||
       '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Sales targets set yet.</p>';
 
-    var withCollection = DSRS.filter(function (d) { return d.collectionTarget > 0 && d.monthCollected !== null; });
-    var waiting = DSRS.filter(function (d) { return d.collectionTarget > 0 && d.monthCollected === null; });
+    var withCollection = visibleDsrs_().filter(function (d) { return d.collectionTarget > 0 && d.monthCollected !== null; });
+    var waiting = visibleDsrs_().filter(function (d) { return d.collectionTarget > 0 && d.monthCollected === null; });
     var collectionRanked = withCollection.slice().sort(function (a, b) {
       return (b.monthCollected / b.collectionTarget) - (a.monthCollected / a.collectionTarget);
     });
@@ -2301,19 +2342,52 @@
   }
 
   function renderTop5() {
-    var itemsFull = salesByItem === null ? [] : Object.keys(salesByItem)
-      .map(function (name) { return { name: name, month: salesByItem[name].month }; })
-      .filter(function (r) { return r.month !== null && r.month !== undefined && r.month > 0; })
-      .sort(function (a, b) { return b.month - a.month; })
-      .map(function (r) { return { name: r.name, valueText: fmt(r.month) + ' Ltr' }; });
+    // 27 Sep 2026: these three panels are all company-wide maps with no
+    // per-DSR breakdown baked in the way DSRS[] itself has (salesByItem/
+    // salesByDealer/collectionByDealer aren't cross-referenced to a DSR at
+    // all) - for a restricted Area Manager (see visibleDsrs_() above) they
+    // must be scoped too, or a Top Customer/Item from an area they're not
+    // supposed to see would leak straight through. "Items sold" has no
+    // per-dealer owner to check, so it's recomputed from
+    // salesByDsrItemList (which DOES carry a dsrName) instead of the
+    // company-wide salesByItem map when restricted; "Top customers" is
+    // filtered against knownDealerDsrMap_() (already visibleDsrs_()-scoped)
+    // the same way Needs Attention/aging already are.
+    var restricted = !!CURRENT_ALLOWED_AREAS;
+    var dealerDsr = restricted ? knownDealerDsrMap_() : null;
+
+    var itemsFull;
+    if (restricted) {
+      var visibleLongNames = visibleDsrs_().map(function (d) { return d.dsrName; });
+      if (salesByDsrItemList === null) {
+        itemsFull = [];
+      } else {
+        var byItem = {};
+        salesByDsrItemList.forEach(function (r) {
+          if (visibleLongNames.indexOf(r.dsrName) === -1) return;
+          if (!(r.monthLtr > 0)) return;
+          byItem[r.itemName] = (byItem[r.itemName] || 0) + r.monthLtr;
+        });
+        itemsFull = Object.keys(byItem).map(function (name) { return { name: name, month: byItem[name] }; })
+          .sort(function (a, b) { return b.month - a.month; })
+          .map(function (r) { return { name: r.name, valueText: fmt(r.month) + ' Ltr' }; });
+      }
+    } else {
+      itemsFull = salesByItem === null ? [] : Object.keys(salesByItem)
+        .map(function (name) { return { name: name, month: salesByItem[name].month }; })
+        .filter(function (r) { return r.month !== null && r.month !== undefined && r.month > 0; })
+        .sort(function (a, b) { return b.month - a.month; })
+        .map(function (r) { return { name: r.name, valueText: fmt(r.month) + ' Ltr' }; });
+    }
     renderTop5Panel_({
       listElId: 'topItems', headElId: 'topItemsHead', key: 'items',
       fullRows: itemsFull,
-      emptyMsg: salesByItem === null ? 'Waiting for the next Tally sync…' : 'No Sales recorded yet this month.',
+      emptyMsg: (restricted ? salesByDsrItemList : salesByItem) === null ? 'Waiting for the next Tally sync…' : 'No Sales recorded yet this month.',
       panelLabel: 'Items sold'
     });
 
     var salesDealersFull = salesByDealer === null ? [] : Object.keys(salesByDealer)
+      .filter(function (name) { return !restricted || dealerDsr.hasOwnProperty(name); })
       .map(function (name) { return { name: name, month: salesByDealer[name].month }; })
       .filter(function (r) { return r.month !== null && r.month !== undefined && r.month > 0; })
       .sort(function (a, b) { return b.month - a.month; })
@@ -2326,6 +2400,7 @@
     });
 
     var collectionDealersFull = collectionByDealer === null ? [] : Object.keys(collectionByDealer)
+      .filter(function (name) { return !restricted || dealerDsr.hasOwnProperty(name); })
       .map(function (name) { return { name: name, month: collectionByDealer[name].month }; })
       .filter(function (r) { return r.month !== null && r.month !== undefined && r.month > 0; })
       .sort(function (a, b) { return b.month - a.month; })
@@ -2388,10 +2463,14 @@
   function knownDealerDsrMap_() {
     // {dealerName: dsrDisplayName} for exactly the 7 dashboard DSRs' own
     // real dealers (Saravanan's folded into Chellamani's, same as Sales/
-    // Collection).
+    // Collection). 27 Sep 2026: iterates visibleDsrs_() instead of the
+    // raw DSRS, so a restricted Area Manager's dealers-only-under-my-own-
+    // areas requirement cascades for free into every downstream reader of
+    // this map (Needs Attention, the aging table, MB/Dormant/Reactivated
+    // counts, Top 5 Customers, dealer lookup) - see visibleDsrs_() above.
     var map = {};
     if (!dealerRoster) return map;
-    DSRS.forEach(function (d) {
+    visibleDsrs_().forEach(function (d) {
       var names = (dealerRoster[d.dsrName] || []).slice();
       if (d.name === 'Chellamani' && dealerRoster['PETRONAS MDU AREA (SARAVANAN)']) {
         names = names.concat(dealerRoster['PETRONAS MDU AREA (SARAVANAN)']);
@@ -2853,7 +2932,7 @@
     var out = {};
     if (!newDealers || !salesByDealer) return out;
     var ym = currentYyyyMm_();
-    DSRS.forEach(function (d) {
+    visibleDsrs_().forEach(function (d) {
       var list = (newDealers[d.dsrName] || []).slice();
       if (d.name === 'Chellamani' && newDealers['PETRONAS MDU AREA (SARAVANAN)']) {
         list = list.concat(newDealers['PETRONAS MDU AREA (SARAVANAN)']);
@@ -2926,7 +3005,7 @@
     }
     var newDealersByDsr = newDealersBilledByDsr_();
     var reactByDsr = reactivatedByDsr_();
-    var rows = DSRS.map(function (d) {
+    var rows = visibleDsrs_().map(function (d) {
       return {
         dsrName: d.name,
         billed: countMB_(d.name, salesByDealer),
@@ -3036,7 +3115,7 @@
       (byDsr[row.dsrName] = byDsr[row.dsrName] || []).push(row);
     });
     var TOP_SKU_LIMIT = 5;
-    var sections = DSRS.map(function (d) {
+    var sections = visibleDsrs_().map(function (d) {
       var rows = (byDsr[d.dsrName] || []).slice().sort(function (a, b) { return b.monthLtr - a.monthLtr; }).slice(0, TOP_SKU_LIMIT);
       if (!rows.length) return '';
       var itemsHtml = rows.map(function (r) {
@@ -3081,15 +3160,22 @@
   // (not currently used, but keeps this helper usable for a future table
   // that shouldn't show one).
   function buildAreaTableRows_(valueField, targetField, fmtFn, avgField) {
+    // 27 Sep 2026: a restricted Area Manager (see visibleDsrs_()) only
+    // gets rows/totals for DSRs on their own allowed list - AAA Direct's
+    // own row is left out entirely if it's not visible, and each area
+    // group below is filtered down to just its visible members (the
+    // whole group is skipped if none of its members are visible).
+    var visibleNames = visibleDsrs_().map(function (d) { return d.name; });
     var byVal = {}, byTarget = {}, byAvg = {};
     DSRS.forEach(function (d) {
       byVal[d.name] = d[valueField] || 0;
       byTarget[d.name] = d[targetField] || 0;
       byAvg[d.name] = avgField ? (d[avgField] || 0) : 0;
     });
-    var aaaVal = byVal['AAA Direct'] || 0;
-    var aaaTarget = byTarget['AAA Direct'] || 0;
-    var aaaAvg = byAvg['AAA Direct'] || 0;
+    var aaaVisible = visibleNames.indexOf('AAA Direct') !== -1;
+    var aaaVal = aaaVisible ? (byVal['AAA Direct'] || 0) : 0;
+    var aaaTarget = aaaVisible ? (byTarget['AAA Direct'] || 0) : 0;
+    var aaaAvg = aaaVisible ? (byAvg['AAA Direct'] || 0) : 0;
     // TODO(coimbatore): sum a 4th "Coimbatore Area" group here once that
     // territory's own real-Tally diagnostic is resolved - see this
     // section's HTML comment above.
@@ -3136,10 +3222,14 @@
       return '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + dsrName + '</td>';
     };
     var grandVal = aaaVal, grandTarget = aaaTarget, grandAvg = aaaAvg;
-    var rowsHtml = '<tr data-dsr-toggle="AAA Direct">' + dsrNameCell('AAA Direct') + cell(aaaVal) + (avgField ? cell(aaaAvg) : '') + cell(aaaTarget) + balCell(aaaTarget - aaaVal) + '</tr>' +
-      dsrChildRowsHtml('AAA Direct', null);
+    var rowsHtml = aaaVisible
+      ? ('<tr data-dsr-toggle="AAA Direct">' + dsrNameCell('AAA Direct') + cell(aaaVal) + (avgField ? cell(aaaAvg) : '') + cell(aaaTarget) + balCell(aaaTarget - aaaVal) + '</tr>' +
+         dsrChildRowsHtml('AAA Direct', null))
+      : '';
     PETRONAS_AREA_GROUPS_.forEach(function (g) {
-      var memberVals = g.members.map(function (name) {
+      var visibleMembers = g.members.filter(function (name) { return visibleNames.indexOf(name) !== -1; });
+      if (!visibleMembers.length) return; // whole area hidden for this viewer
+      var memberVals = visibleMembers.map(function (name) {
         return { label: name, value: byVal[name] || 0, target: byTarget[name] || 0, avg: byAvg[name] || 0 };
       });
       var total = memberVals.reduce(function (s, m) { return s + m.value; }, 0);
@@ -3449,6 +3539,16 @@
   // else on this dashboard), "this month" solid, "last month" faded+dashed.
   function renderTrend() {
     var wrap = document.getElementById('trendWrap');
+    // 27 Sep 2026: salesTrendMap/collectionTrendMap are company-wide daily
+    // totals straight from ?type=live with no per-DSR breakdown at all (not
+    // even per-dealer, unlike Top 5/Needs Attention) - there's no way to
+    // scope this chart to just a restricted Area Manager's own areas, so
+    // per the "don't leak the other areas' numbers" rule it's hidden for
+    // them entirely rather than shown company-wide.
+    if (CURRENT_ALLOWED_AREAS) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Not available for your account - this chart only breaks down company-wide.</p>';
+      return;
+    }
     if (trendError) {
       wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Couldn\'t load the Sales & Collection trend right now.</p>';
       return;
@@ -3566,6 +3666,13 @@
     var thisMonthKey = todayISO().slice(0, 7);
     var labelEl = document.getElementById('trendBarsLabel');
     if (labelEl) labelEl.textContent = 'Daily spikes — ' + monthNameLabel_(thisMonthKey);
+    // Same reasoning as renderTrend() above - company-wide only, no
+    // per-DSR breakdown to scope, so hidden entirely for a restricted
+    // Area Manager.
+    if (CURRENT_ALLOWED_AREAS) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Not available for your account - this chart only breaks down company-wide.</p>';
+      return;
+    }
     if (trendError) {
       wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Couldn\'t load the daily spikes chart right now.</p>';
       return;
@@ -3731,7 +3838,7 @@
   function allKnownDealers_() {
     var out = [];
     if (!dealerRoster) return out;
-    DSRS.forEach(function (d) {
+    visibleDsrs_().forEach(function (d) {
       var names = (dealerRoster[d.dsrName] || []).slice();
       if (d.name === 'Chellamani' && dealerRoster['PETRONAS MDU AREA (SARAVANAN)']) {
         names = names.concat(dealerRoster['PETRONAS MDU AREA (SARAVANAN)']);
@@ -4067,7 +4174,7 @@
   function askDealerCandidates_() {
     var out = [];
     if (!dealerRoster) return out;
-    DSRS.forEach(function (d) {
+    visibleDsrs_().forEach(function (d) {
       var names = (dealerRoster[d.dsrName] || []).slice();
       if (d.name === 'Chellamani' && dealerRoster['PETRONAS MDU AREA (SARAVANAN)']) {
         names = names.concat(dealerRoster['PETRONAS MDU AREA (SARAVANAN)']);
@@ -4385,22 +4492,23 @@
   function pctOf_(part, whole) { return whole > 0 ? Math.round((part / whole) * 100) : 0; }
 
   function buildShareTextCombined_() {
+    var visible = visibleDsrs_();
     var lines = ['COMBINED — SALES & COLLECTION — ' + dateHeaderLine_(), ''];
-    lines.push('This is the company-wide total across all ' + DSRS.length + ' DSRs combined.');
+    lines.push('This is the company-wide total across all ' + visible.length + ' DSRs combined.');
     lines.push('');
-    var salesSynced = DSRS.filter(function (d) { return d.monthLtr !== null && !d.salesError; });
+    var salesSynced = visible.filter(function (d) { return d.monthLtr !== null && !d.salesError; });
     var todaySales = salesSynced.reduce(function (a, d) { return a + (d.todayLtr || 0); }, 0);
     var monthSales = salesSynced.reduce(function (a, d) { return a + (d.monthLtr || 0); }, 0);
-    var targetSales = DSRS.reduce(function (a, d) { return a + (d.target || 0); }, 0);
+    var targetSales = visible.reduce(function (a, d) { return a + (d.target || 0); }, 0);
     lines.push('SALES (Tally-verified)');
     lines.push('Today: ' + fmt(todaySales) + ' Ltr');
     lines.push('This month: ' + fmt(monthSales) + ' / ' + fmt(targetSales) + ' Ltr (' + pctOf_(monthSales, targetSales) + '%)');
-    if (salesSynced.length < DSRS.length) lines.push('(' + (DSRS.length - salesSynced.length) + ' DSR(s) still waiting on today\'s Tally sync, not counted above)');
+    if (salesSynced.length < visible.length) lines.push('(' + (visible.length - salesSynced.length) + ' DSR(s) still waiting on today\'s Tally sync, not counted above)');
     lines.push('');
-    var collSynced = DSRS.filter(function (d) { return d.collectionTarget > 0 && d.monthCollected !== null && !d.collectionError; });
+    var collSynced = visible.filter(function (d) { return d.collectionTarget > 0 && d.monthCollected !== null && !d.collectionError; });
     var todayColl = collSynced.reduce(function (a, d) { return a + (d.todayCollected || 0); }, 0);
     var monthColl = collSynced.reduce(function (a, d) { return a + (d.monthCollected || 0); }, 0);
-    var targetColl = DSRS.reduce(function (a, d) { return a + (d.collectionTarget || 0); }, 0);
+    var targetColl = visible.reduce(function (a, d) { return a + (d.collectionTarget || 0); }, 0);
     lines.push('COLLECTION (Tally-verified)');
     lines.push('Today: ' + fmtRs(todayColl));
     lines.push('This month: ' + fmtRs(monthColl) + ' / ' + fmtRs(targetColl) + ' (' + pctOf_(monthColl, targetColl) + '%)');
@@ -4412,12 +4520,12 @@
     lines.push('Each DSR ranked by their own % of monthly target reached. Sales and Collection are ranked separately since they\'re different units (Litres vs Rupees) with independent targets.');
     lines.push('');
     lines.push('SALES — % of target');
-    DSRS.filter(function (d) { return d.monthLtr !== null; })
+    visibleDsrs_().filter(function (d) { return d.monthLtr !== null; })
       .slice().sort(function (a, b) { return (b.monthLtr / b.target) - (a.monthLtr / a.target); })
       .forEach(function (d, i) { lines.push((i + 1) + '. ' + d.name + ' — ' + pctOf_(d.monthLtr, d.target) + '%'); });
     lines.push('');
     lines.push('COLLECTION — % of target');
-    DSRS.filter(function (d) { return d.collectionTarget > 0 && d.monthCollected !== null; })
+    visibleDsrs_().filter(function (d) { return d.collectionTarget > 0 && d.monthCollected !== null; })
       .slice().sort(function (a, b) { return (b.monthCollected / b.collectionTarget) - (a.monthCollected / a.collectionTarget); })
       .forEach(function (d, i) { lines.push((i + 1) + '. ' + d.name + ' — ' + pctOf_(d.monthCollected, d.collectionTarget) + '%'); });
     return lines.join('\n');
@@ -4427,14 +4535,18 @@
   // mirrors renderPetronasAreaTable_()'s own AAA Direct/Madurai/
   // Tirunelveli breakdown, member DSRs included under each area total.
   function buildShareTextPetronasArea_() {
+    var visibleNames = visibleDsrs_().map(function (d) { return d.name; });
     var lines = ['FULL PETRONAS THIS MONTH SALES — ' + dateHeaderLine_(), ''];
     var byName = {};
     DSRS.forEach(function (d) { byName[d.name] = d.monthLtr || 0; });
-    var aaa = byName['AAA Direct'] || 0;
+    var aaaVisible = visibleNames.indexOf('AAA Direct') !== -1;
+    var aaa = aaaVisible ? (byName['AAA Direct'] || 0) : 0;
     var grand = aaa;
-    lines.push('AAA Direct: ' + fmt(aaa) + ' Ltr');
+    if (aaaVisible) lines.push('AAA Direct: ' + fmt(aaa) + ' Ltr');
     PETRONAS_AREA_GROUPS_.forEach(function (g) {
-      var memberVals = g.members.map(function (name) { return { label: name, value: byName[name] || 0 }; });
+      var visibleMembers = g.members.filter(function (name) { return visibleNames.indexOf(name) !== -1; });
+      if (!visibleMembers.length) return;
+      var memberVals = visibleMembers.map(function (name) { return { label: name, value: byName[name] || 0 }; });
       var total = memberVals.reduce(function (s, m) { return s + m.value; }, 0);
       grand += total;
       lines.push(g.label + ': ' + fmt(total) + ' Ltr');
@@ -4453,14 +4565,18 @@
   // existing style rather than changing it - Target/Balance are shown in
   // the table itself (see buildAreaTableRows_() above), not the share text.
   function buildShareTextPetronasCollectionArea_() {
+    var visibleNames = visibleDsrs_().map(function (d) { return d.name; });
     var lines = ['FULL PETRONAS THIS MONTH COLLECTION — ' + dateHeaderLine_(), ''];
     var byName = {};
     DSRS.forEach(function (d) { byName[d.name] = d.monthCollected || 0; });
-    var aaa = byName['AAA Direct'] || 0;
+    var aaaVisible = visibleNames.indexOf('AAA Direct') !== -1;
+    var aaa = aaaVisible ? (byName['AAA Direct'] || 0) : 0;
     var grand = aaa;
-    lines.push('AAA Direct: ' + fmtRs(aaa));
+    if (aaaVisible) lines.push('AAA Direct: ' + fmtRs(aaa));
     PETRONAS_AREA_GROUPS_.forEach(function (g) {
-      var memberVals = g.members.map(function (name) { return { label: name, value: byName[name] || 0 }; });
+      var visibleMembers = g.members.filter(function (name) { return visibleNames.indexOf(name) !== -1; });
+      if (!visibleMembers.length) return;
+      var memberVals = visibleMembers.map(function (name) { return { label: name, value: byName[name] || 0 }; });
       var total = memberVals.reduce(function (s, m) { return s + m.value; }, 0);
       grand += total;
       lines.push(g.label + ': ' + fmtRs(total));
@@ -4498,7 +4614,7 @@
     if (!lastDormantSummary || !salesByDealer) { lines.push('(Waiting for the next Tally sync…)'); return lines.join('\n'); }
     var newDealersByDsr = newDealersBilledByDsr_();
     var reactByDsr = reactivatedByDsr_();
-    DSRS.forEach(function (d) {
+    visibleDsrs_().forEach(function (d) {
       var inactiveCount = (lastDormantSummary.byDsr[d.name] || []).length;
       var billedCount = countMB_(d.name, salesByDealer);
       lines.push(d.name + ': Billed ' + billedCount + ', Inactive ' + inactiveCount +
@@ -4575,7 +4691,7 @@
     var lines = ['DSR SALES & COLLECTION SUMMARY — ' + dateHeaderLine_(), ''];
     lines.push('Every DSR\'s own Sales and Collection % of target, followed by the company-wide combined total.');
     lines.push('');
-    DSRS.forEach(function (d) {
+    visibleDsrs_().forEach(function (d) {
       var salesPart = (d.monthLtr !== null && !d.salesError)
         ? fmt(d.monthLtr) + '/' + fmt(d.target) + ' Ltr (' + pctOf_(d.monthLtr, d.target) + '%)'
         : 'waiting for sync';
@@ -4831,7 +4947,7 @@
     // NOT the whole .page - see the HTML comment above #captureSummary
     // for why capturing every DSR/dealer card made the WhatsApp image
     // unreadably small.
-    openShareSheet_('Share full summary (all ' + DSRS.length + ' DSRs)', document.getElementById('captureSummary'),
+    openShareSheet_('Share full summary (all ' + visibleDsrs_().length + ' DSRs)', document.getElementById('captureSummary'),
       'DSR Sales & Collection Summary — ' + dateHeaderLine_(), buildShareTextAll_(), true);
   });
   document.getElementById('shareCombinedBtn').addEventListener('click', function () {
@@ -4993,6 +5109,25 @@
   var CURRENT_SESSION_ID = null;
   var loginHeartbeatTimer = null;
 
+  // Area-Manager scoping, added 27 Sep 2026 ("in manager can we split two
+  // type - 1 is area manager who cover particular areas... vimal is
+  // looking after only arun,prabha,chellamani and saravanan area"). null =
+  // unrestricted (Owner, and full Managers like Anbu/Bala); a non-empty
+  // array restricts every render/aggregation/share-text function to just
+  // those DSRS[] names - same total-isolation idea as each individual DSR
+  // app, just scoped to a subset of areas instead of exactly one. Set once
+  // in afterLogin_() below from the login response's allowedAreas string,
+  // and never changed after that until the next login. IMPORTANT: this
+  // must only ever gate RENDERING/aggregation - the data-fetch loop
+  // (fetchOne/fetchLive/refreshAll further down) always fetches all 8
+  // DSRs' data regardless of who's logged in, so a restricted manager's
+  // browser never even receives the numbers for areas they can't see.
+  var CURRENT_ALLOWED_AREAS = null;
+  function visibleDsrs_() {
+    if (!CURRENT_ALLOWED_AREAS) return DSRS;
+    return DSRS.filter(function (d) { return CURRENT_ALLOWED_AREAS.indexOf(d.name) !== -1; });
+  }
+
   function dashboardApiPost_(action, payload) {
     payload = payload || {};
     payload.action = action;
@@ -5023,9 +5158,42 @@
     return h + 'h ' + (m ? m + 'm' : '');
   }
 
-  // Dumb-on-purpose, same pattern as every other aggregation on this
-  // dashboard: the backend just hands back every raw session row, this
-  // groups by person+day and sums active minutes client-side.
+  // 27 Sep 2026: date-range filter added on top of the usage report, per
+  // the owner's own approved mockup. USAGE_RAW_SESSIONS_ caches the one
+  // fetch's worth of raw session rows so switching the date range/person
+  // filter re-renders instantly with no extra network call - the backend
+  // still just hands back every raw session row (dumb-on-purpose, same
+  // pattern as every other aggregation on this dashboard); all grouping/
+  // filtering happens here.
+  var USAGE_RAW_SESSIONS_ = [];
+
+  function todayIso_() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function isoDaysAgo_(n) {
+    var d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function isoMonthStart_() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-01';
+  }
+
+  // 28 Sep 2026 ("in usage owner want to see all the logins, managers also
+  // want to see all logins, but area manager does not want to see
+  // managers login"): Owner and full/unrestricted Managers (Anbu, Bala)
+  // see every login as before; a restricted Area Manager's own usage
+  // report/person-filter hides any OTHER manager-tier person's rows
+  // (their own rows still show - this is about not seeing peers'/other
+  // managers' login activity, not hiding their own).
+  function isManagerRole_(role) { return role === 'Manager' || role === 'Area Manager'; }
+  function usageRowVisibleToViewer_(s) {
+    if (!CURRENT_ALLOWED_AREAS) return true; // Owner/unrestricted Manager - see everyone
+    return s.name === CURRENT_USER_NAME || !isManagerRole_(s.role);
+  }
+
   function loadUsageReport_() {
     var el = document.getElementById('usageReportEl');
     if (!el) return;
@@ -5033,30 +5201,96 @@
       .then(function (r) { return r.json(); })
       .then(function (res) {
         if (!res || !res.ok) { el.innerHTML = '<div class="usage-empty">Could not load usage data.</div>'; return; }
-        var byPersonDay = {};
-        (res.sessions || []).forEach(function (s) {
-          if (!s.name || !s.loginAt) return;
-          var day = String(s.loginAt).slice(0, 10);
-          var key = s.name + '|' + day;
-          if (!byPersonDay[key]) byPersonDay[key] = { name: s.name, role: s.role, day: day, logins: 0, minutes: 0 };
-          byPersonDay[key].logins += 1;
-          var start = new Date(s.loginAt).getTime();
-          var end = new Date(s.lastSeenAt || s.loginAt).getTime();
-          if (end > start) byPersonDay[key].minutes += (end - start) / 60000;
-        });
-        var rows = Object.keys(byPersonDay).map(function (k) { return byPersonDay[k]; })
-          .sort(function (a, b) { return (b.day + b.name).localeCompare(a.day + a.name); })
-          .slice(0, 60);
-        if (!rows.length) { el.innerHTML = '<div class="usage-empty">No logins recorded yet.</div>'; return; }
-        var html = '<table class="usage-table"><thead><tr><th>Name</th><th>Role</th><th>Date</th><th>Logins</th><th>Time used</th></tr></thead><tbody>';
-        rows.forEach(function (r) {
-          html += '<tr><td>' + r.name + '</td><td>' + (r.role || '') + '</td><td>' + r.day + '</td><td>' + r.logins + '</td><td>' + formatMinutes_(r.minutes) + '</td></tr>';
-        });
-        html += '</tbody></table>';
-        el.innerHTML = html;
+        USAGE_RAW_SESSIONS_ = res.sessions || [];
+        var personSel = document.getElementById('usagePersonSelect');
+        if (personSel) {
+          var prevPerson = personSel.value;
+          var names = [];
+          USAGE_RAW_SESSIONS_.forEach(function (s) { if (s.name && names.indexOf(s.name) === -1 && usageRowVisibleToViewer_(s)) names.push(s.name); });
+          names.sort();
+          personSel.innerHTML = '<option value="">All</option>' + names.map(function (n) {
+            return '<option value="' + n + '">' + n + '</option>';
+          }).join('');
+          personSel.value = names.indexOf(prevPerson) !== -1 ? prevPerson : '';
+        }
+        renderUsageReport_();
       })
       .catch(function () { el.innerHTML = '<div class="usage-empty">Could not load usage data.</div>'; });
   }
+
+  // Re-groups/filters the already-fetched USAGE_RAW_SESSIONS_ by whatever
+  // From/To/Person the filter row is currently set to - no network call.
+  function renderUsageReport_() {
+    var el = document.getElementById('usageReportEl');
+    if (!el) return;
+    var fromEl = document.getElementById('usageFromDate');
+    var toEl = document.getElementById('usageToDate');
+    var personEl = document.getElementById('usagePersonSelect');
+    var from = fromEl ? fromEl.value : '';
+    var to = toEl ? toEl.value : '';
+    var person = personEl ? personEl.value : '';
+
+    var byPersonDay = {};
+    var totalMinutes = 0;
+    USAGE_RAW_SESSIONS_.forEach(function (s) {
+      if (!s.name || !s.loginAt) return;
+      if (!usageRowVisibleToViewer_(s)) return;
+      var day = String(s.loginAt).slice(0, 10);
+      if (from && day < from) return;
+      if (to && day > to) return;
+      if (person && s.name !== person) return;
+      var key = s.name + '|' + day;
+      if (!byPersonDay[key]) byPersonDay[key] = { name: s.name, role: s.role, day: day, logins: 0, minutes: 0 };
+      byPersonDay[key].logins += 1;
+      var start = new Date(s.loginAt).getTime();
+      var end = new Date(s.lastSeenAt || s.loginAt).getTime();
+      if (end > start) {
+        var mins = (end - start) / 60000;
+        byPersonDay[key].minutes += mins;
+        totalMinutes += mins;
+      }
+    });
+    var rows = Object.keys(byPersonDay).map(function (k) { return byPersonDay[k]; })
+      .sort(function (a, b) { return (b.day + b.name).localeCompare(a.day + a.name); });
+    if (!rows.length) { el.innerHTML = '<div class="usage-empty">No logins in this range.</div>'; return; }
+    var html = '<table class="usage-table"><thead><tr><th>Name</th><th>Role</th><th>Date</th><th>Logins</th><th>Time used</th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      html += '<tr><td>' + r.name + '</td><td>' + (r.role || '') + '</td><td>' + r.day + '</td><td>' + r.logins + '</td><td>' + formatMinutes_(r.minutes) + '</td></tr>';
+    });
+    html += '<tr class="usage-total-row"><td colspan="4">Total time used (this range)</td><td>' + formatMinutes_(totalMinutes) + '</td></tr>';
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  }
+
+  // Quick-range buttons + manual date/person changes, wired once.
+  function setUsageQuickRange_(range) {
+    var fromEl = document.getElementById('usageFromDate');
+    var toEl = document.getElementById('usageToDate');
+    if (!fromEl || !toEl) return;
+    var today = todayIso_();
+    if (range === 'today') { fromEl.value = today; toEl.value = today; }
+    else if (range === 'week') { fromEl.value = isoDaysAgo_(6); toEl.value = today; }
+    else if (range === 'month') { fromEl.value = isoMonthStart_(); toEl.value = today; }
+    // 'custom' leaves whatever the user already typed in the date boxes alone.
+    document.querySelectorAll('.usage-quick-btn').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-range') === range);
+    });
+    renderUsageReport_();
+  }
+  (function () {
+    document.querySelectorAll('.usage-quick-btn').forEach(function (b) {
+      b.addEventListener('click', function () { setUsageQuickRange_(b.getAttribute('data-range')); });
+    });
+    var fromEl = document.getElementById('usageFromDate');
+    var toEl = document.getElementById('usageToDate');
+    var personEl = document.getElementById('usagePersonSelect');
+    [fromEl, toEl].forEach(function (elx) {
+      if (elx) elx.addEventListener('change', function () { setUsageQuickRange_('custom'); });
+    });
+    if (personEl) personEl.addEventListener('change', renderUsageReport_);
+    // Defaults to Today on first load, same as the approved mockup.
+    setUsageQuickRange_('today');
+  })();
 
   function loadAdminUsersList_() {
     var sel = document.getElementById('adminTargetSelect');
@@ -5069,25 +5303,65 @@
         (res.users || []).forEach(function (u) {
           var opt = document.createElement('option');
           opt.value = u.name; opt.textContent = u.name + ' (' + u.role + ')';
+          // 27 Sep 2026 fix: stash each user's real stored role on the
+          // option itself, so picking an existing name can auto-set the
+          // Role box below to match - previously the Role box stayed on
+          // whatever it was last left at (default "Manager"), and saving
+          // a password for an existing DSR/Owner while the Role box still
+          // said "Manager" would silently overwrite their real role too
+          // (setUserPassword_() always trusts whatever role is sent).
+          opt.setAttribute('data-role', u.role || '');
+          // Same idea as data-role above, added 27 Sep 2026 for the new
+          // Area-Manager split ("vimal is looking after only arun,
+          // prabha,chellamani and saravanan area") - stash each user's
+          // current AllowedAreas so picking them autofills the Areas box
+          // instead of it staying blank/stale.
+          opt.setAttribute('data-areas', u.allowedAreas || '');
           sel.appendChild(opt);
         });
       })
       .catch(function () {});
   }
 
-  function afterLogin_(sessionId, name, role) {
+  function afterLogin_(sessionId, name, role, allowedAreas) {
     CURRENT_SESSION_ID = sessionId;
     CURRENT_USER_NAME = name;
     CURRENT_USER_ROLE = role;
+    // Parse the login response's allowedAreas string ("Prabha,Arun,
+    // Chellamani" or "" for unrestricted) into CURRENT_ALLOWED_AREAS - see
+    // its declaration above for what this gates. Blank/missing = null =
+    // unrestricted (Owner, and full Managers like Anbu/Bala).
+    var areasList = String(allowedAreas || '').split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s; });
+    CURRENT_ALLOWED_AREAS = areasList.length ? areasList : null;
     var overlay = document.getElementById('loginGateOverlay');
     if (overlay) overlay.style.display = 'none';
     var accountPanel = document.getElementById('accountPanel');
     if (accountPanel) accountPanel.hidden = false;
     var whoEl = document.getElementById('accountWhoName');
-    if (whoEl) whoEl.textContent = name + (role ? ' (' + role + ')' : '');
+    // 28 Sep 2026: "Area Manager" is now its own real Role value (see
+    // handleProvisionUsers_()'s own comment in Code.gs), so this no longer
+    // needs to be inferred - but a restricted account is labeled "Area
+    // Manager" here regardless of the exact stored Role string, so an
+    // older "Manager" row that already has AllowedAreas set (from before
+    // this round) still displays correctly without needing every such
+    // row's Role column updated by hand.
+    var roleLabel = CURRENT_ALLOWED_AREAS ? 'Area Manager' : role;
+    if (whoEl) whoEl.textContent = name + (roleLabel ? ' (' + roleLabel + ')' : '');
     var adminBlock = document.getElementById('adminBlock');
     if (adminBlock) adminBlock.hidden = (role !== 'Owner');
     if (role === 'Owner') loadAdminUsersList_();
+    // 28 Sep 2026 ("area manager role did not want to see the stocks and
+    // daybook"): both are company-wide, ALL-dealer panels with no
+    // per-area breakdown at all (unlike everything visibleDsrs_() scopes),
+    // so - same "hide rather than leak/half-show" rule as the trend
+    // charts above - they're hidden outright for a restricted Area
+    // Manager rather than shown company-wide or awkwardly filtered.
+    var dayBookRow = document.getElementById('dayBookRow');
+    if (dayBookRow) dayBookRow.hidden = !!CURRENT_ALLOWED_AREAS;
+    var stockLabel = document.getElementById('stockSectionLabel');
+    if (stockLabel) stockLabel.hidden = !!CURRENT_ALLOWED_AREAS;
+    var stockDetails = document.getElementById('stocksMasterDetails');
+    if (stockDetails) stockDetails.hidden = !!CURRENT_ALLOWED_AREAS;
     loadUsageReport_();
     startLoginHeartbeat_();
     render();
@@ -5117,7 +5391,7 @@
         errEl.hidden = false;
         return;
       }
-      afterLogin_(res.sessionId, res.name, res.role);
+      afterLogin_(res.sessionId, res.name, res.role, res.allowedAreas);
     }).catch(function () {
       btnEl.disabled = false;
       errEl.textContent = 'Could not reach the server - check your connection';
@@ -5137,26 +5411,63 @@
       location.reload();
     });
 
+    // 27 Sep 2026 fix: picking an existing user from "Select user..." now
+    // auto-fills the Role box with THEIR real stored role (from the
+    // data-role stashed on each option in loadAdminUsersList_()) instead
+    // of leaving the Role box on whatever it was last set to - also
+    // clears the "...or type a new name" box, since the two are meant to
+    // be either/or.
+    var adminTargetSelectEl = document.getElementById('adminTargetSelect');
+    if (adminTargetSelectEl) adminTargetSelectEl.addEventListener('change', function () {
+      var chosen = adminTargetSelectEl.selectedOptions && adminTargetSelectEl.selectedOptions[0];
+      var role = chosen ? chosen.getAttribute('data-role') : '';
+      var areas = chosen ? chosen.getAttribute('data-areas') : '';
+      var roleEl = document.getElementById('adminTargetRole');
+      var areasEl = document.getElementById('adminTargetAreas');
+      var newNameEl = document.getElementById('adminTargetNew');
+      if (role && roleEl) roleEl.value = role;
+      // 27 Sep 2026: same autofill idea as the Role box above, for the new
+      // Areas box - picking an existing user shows THEIR current
+      // AllowedAreas (blank for an unrestricted Manager/DSR/Owner) instead
+      // of leaving whatever was last typed there.
+      if (areasEl) areasEl.value = areas || '';
+      if (adminTargetSelectEl.value && newNameEl) newNameEl.value = '';
+    });
+    var adminTargetNewEl = document.getElementById('adminTargetNew');
+    if (adminTargetNewEl) adminTargetNewEl.addEventListener('input', function () {
+      if (adminTargetNewEl.value && adminTargetSelectEl) adminTargetSelectEl.value = '';
+      var areasEl = document.getElementById('adminTargetAreas');
+      if (adminTargetNewEl.value && areasEl) areasEl.value = '';
+    });
+
     var adminSaveBtn = document.getElementById('adminSaveBtn');
     if (adminSaveBtn) adminSaveBtn.addEventListener('click', function () {
       var sel = document.getElementById('adminTargetSelect');
       var newNameEl = document.getElementById('adminTargetNew');
       var roleEl = document.getElementById('adminTargetRole');
+      var areasEl = document.getElementById('adminTargetAreas');
       var newPwEl = document.getElementById('adminNewPassword');
       var confirmPwEl = document.getElementById('adminConfirmYourPassword');
       var msgEl = document.getElementById('adminMsg');
       var targetName = (newNameEl.value || '').trim() || sel.value;
       var targetRole = roleEl.value;
+      var targetAreas = (areasEl && areasEl.value || '').trim();
       var newPassword = newPwEl.value || '';
       var confirmPassword = confirmPwEl.value || '';
       msgEl.className = 'admin-msg';
       msgEl.textContent = '';
       if (!targetName) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'Pick or type a user'; return; }
+      // 28 Sep 2026: "Area Manager" is a restricted role by definition - a
+      // blank Areas box would silently create/leave someone labeled
+      // "Area Manager" who actually sees everything, which defeats the
+      // whole point of picking this role. Caught here before it's ever
+      // sent, not just left to the admin to notice later.
+      if (targetRole === 'Area Manager' && !targetAreas) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'Area Manager needs at least one area in the Areas box'; return; }
       if (!newPassword || newPassword.length < 4) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'New password must be at least 4 characters'; return; }
       if (!confirmPassword) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'Enter your own password to confirm'; return; }
       adminSaveBtn.disabled = true;
       dashboardApiPost_('setPassword', {
-        targetName: targetName, targetRole: targetRole, newPassword: newPassword,
+        targetName: targetName, targetRole: targetRole, allowedAreas: targetAreas, newPassword: newPassword,
         auth: { name: CURRENT_USER_NAME, password: confirmPassword }
       }).then(function (res) {
         adminSaveBtn.disabled = false;
