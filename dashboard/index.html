@@ -611,6 +611,67 @@
     font-size: 12.5px; color: var(--ink-muted); line-height: 1.6;
   }
   footer a { color: var(--accent); }
+
+  /* ===== Login gate + admin panel + usage report - added 26 Sep 2026 ===== */
+  .login-gate-overlay {
+    position: fixed; inset: 0; background: var(--bg); z-index: 99999;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .login-gate-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 28px 24px; max-width: 340px; width: 100%; box-shadow: var(--shadow);
+    text-align: center; box-sizing: border-box;
+  }
+  .login-gate-title { font-size: 19px; font-weight: 700; margin: 0 0 4px; color: var(--ink); }
+  .login-gate-sub { font-size: 13px; color: var(--ink-secondary); margin: 0 0 18px; }
+  .login-gate-select, .login-gate-input {
+    width: 100%; box-sizing: border-box; padding: 12px; font-size: 16px;
+    border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px;
+    background: var(--surface); color: var(--ink); font-family: inherit;
+  }
+  .login-gate-btn {
+    width: 100%; padding: 12px; font-size: 16px; font-weight: 600; border: none;
+    border-radius: 8px; background: var(--accent); color: var(--accent-ink); cursor: pointer;
+  }
+  .login-gate-btn:disabled { opacity: 0.6; }
+  .login-gate-error { color: var(--warn); font-size: 13px; margin-top: 10px; }
+
+  .account-panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 4px 16px; margin-bottom: 18px; box-shadow: var(--shadow);
+  }
+  .account-panel summary {
+    cursor: pointer; padding: 10px 0; font-weight: 600; font-size: 14px; color: var(--ink);
+  }
+  .account-panel .account-body { padding: 4px 0 16px; }
+  .account-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .account-row .who { font-size: 13px; color: var(--ink-secondary); }
+  .account-row .logout-btn {
+    margin-left: auto; font-size: 12.5px; padding: 5px 10px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--ink); cursor: pointer;
+  }
+  .admin-block { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px; }
+  .admin-block h4 { margin: 0 0 8px; font-size: 13px; color: var(--ink-secondary); font-weight: 600; }
+  .admin-field-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .admin-field-row select, .admin-field-row input {
+    flex: 1 1 140px; padding: 9px 10px; font-size: 14px; border: 1px solid var(--border);
+    border-radius: 7px; background: var(--surface); color: var(--ink); font-family: inherit;
+  }
+  .admin-save-btn {
+    padding: 9px 16px; font-size: 14px; font-weight: 600; border: none; border-radius: 7px;
+    background: var(--accent); color: var(--accent-ink); cursor: pointer;
+  }
+  .admin-save-btn:disabled { opacity: 0.6; }
+  .admin-msg { font-size: 12.5px; margin-top: 6px; }
+  .admin-msg.err { color: var(--warn); }
+  .admin-msg.ok { color: var(--good); }
+
+  .usage-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+  .usage-table th, .usage-table td {
+    text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  .usage-table th { color: var(--ink-secondary); font-weight: 600; font-size: 12px; }
+  .usage-empty { font-size: 13px; color: var(--ink-muted); padding: 8px 0; }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a4a44">
@@ -620,7 +681,54 @@
 <meta name="apple-mobile-web-app-title" content="Dashboard">
 </head>
 <body>
+<div id="loginGateOverlay" class="login-gate-overlay">
+  <div class="login-gate-card">
+    <div class="login-gate-title">DSR Sales Dashboard</div>
+    <div class="login-gate-sub">Sign in to continue</div>
+    <select id="loginGateName" class="login-gate-select">
+      <option value="">Select your name…</option>
+      <option value="Alagu">Alagu</option>
+      <option value="Anbu">Anbu</option>
+      <option value="Bala">Bala</option>
+      <option value="Vimal">Vimal</option>
+    </select>
+    <input type="password" id="loginGatePassword" class="login-gate-input" placeholder="Password" autocomplete="current-password">
+    <button type="button" id="loginGateBtn" class="login-gate-btn">Login</button>
+    <div id="loginGateError" class="login-gate-error" hidden></div>
+  </div>
+</div>
 <div class="page">
+  <details id="accountPanel" class="account-panel" hidden>
+    <summary>Account &amp; usage</summary>
+    <div class="account-body">
+      <div class="account-row">
+        <span class="who">Signed in as <b id="accountWhoName"></b></span>
+        <button type="button" id="logoutBtn" class="logout-btn">Sign out</button>
+      </div>
+      <div id="adminBlock" class="admin-block" hidden>
+        <h4>Set / reset a password (Owner only)</h4>
+        <div class="admin-field-row">
+          <select id="adminTargetSelect"><option value="">Select user…</option></select>
+          <input type="text" id="adminTargetNew" placeholder="…or type a new name">
+          <select id="adminTargetRole">
+            <option value="Manager">Manager</option>
+            <option value="DSR">DSR</option>
+            <option value="Owner">Owner</option>
+          </select>
+        </div>
+        <div class="admin-field-row">
+          <input type="password" id="adminNewPassword" placeholder="New password">
+          <input type="password" id="adminConfirmYourPassword" placeholder="Your password (confirm)">
+          <button type="button" id="adminSaveBtn" class="admin-save-btn">Save password</button>
+        </div>
+        <div id="adminMsg" class="admin-msg"></div>
+      </div>
+      <div class="admin-block">
+        <h4>Login &amp; usage time</h4>
+        <div id="usageReportEl"><div class="usage-empty">Loading…</div></div>
+      </div>
+    </div>
+  </details>
   <header class="top">
     <div>
       <p class="eyebrow">Petronas Lubricants</p>
@@ -3937,10 +4045,15 @@
   function askLogQuery_(question, understood) {
     if (!question || typeof ORDERS_API_URL !== 'string' || ORDERS_API_URL.indexOf('http') !== 0) return;
     try {
+      // 26 Sep 2026: the dashboard now has real per-manager logins (see the
+      // login-gate code below), so "who asked" can finally be recorded here
+      // the same way each DSR app already records its own dsrName - this
+      // reuses that same column rather than adding a new one.
+      var askedBy = (typeof CURRENT_USER_NAME !== 'undefined' && CURRENT_USER_NAME) || '';
       fetch(ORDERS_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'logAsk', source: 'Dashboard', dsrName: '', question: question, understood: !!understood })
+        body: JSON.stringify({ action: 'logAsk', source: 'Dashboard', dsrName: askedBy, question: question, understood: !!understood })
       }).catch(function () {});
     } catch (e) { /* ignore */ }
   }
@@ -4865,7 +4978,204 @@
     });
   });
 
-  render();
+  // ===== Login gate + heartbeat + admin password panel + usage report =====
+  // Added 26 Sep 2026 ("create password for dashboard and dsr app, and
+  // record login time... in dashboard we have 4 managers incl me"). render()
+  // (the dashboard's own data fetch/paint, previously called unconditionally
+  // right here) now only runs after a successful login - see afterLogin_()
+  // near the bottom of this block. A "still here" heartbeat ping is sent
+  // every 3 minutes while the tab is visible so the usage report below can
+  // show real active time, not just a bare login timestamp - a background/
+  // closed tab simply stops advancing LastSeenAt on the backend rather than
+  // needing a "logout" event (which mobile browsers don't fire reliably).
+  var CURRENT_USER_NAME = null;
+  var CURRENT_USER_ROLE = null;
+  var CURRENT_SESSION_ID = null;
+  var loginHeartbeatTimer = null;
+
+  function dashboardApiPost_(action, payload) {
+    payload = payload || {};
+    payload.action = action;
+    return fetch(ORDERS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json(); });
+  }
+
+  function loginHeartbeatPing_() {
+    if (document.visibilityState !== 'visible' || !CURRENT_SESSION_ID) return;
+    dashboardApiPost_('heartbeat', {
+      sessionId: CURRENT_SESSION_ID, name: CURRENT_USER_NAME, role: CURRENT_USER_ROLE, app: 'Dashboard'
+    }).catch(function () {});
+  }
+  function startLoginHeartbeat_() {
+    loginHeartbeatPing_();
+    loginHeartbeatTimer = setInterval(loginHeartbeatPing_, 180000);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') loginHeartbeatPing_();
+    });
+  }
+
+  function formatMinutes_(mins) {
+    if (mins < 60) return Math.round(mins) + ' min';
+    var h = Math.floor(mins / 60), m = Math.round(mins % 60);
+    return h + 'h ' + (m ? m + 'm' : '');
+  }
+
+  // Dumb-on-purpose, same pattern as every other aggregation on this
+  // dashboard: the backend just hands back every raw session row, this
+  // groups by person+day and sums active minutes client-side.
+  function loadUsageReport_() {
+    var el = document.getElementById('usageReportEl');
+    if (!el) return;
+    fetch(ORDERS_API_URL + '?type=usageSummary&_ts=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.ok) { el.innerHTML = '<div class="usage-empty">Could not load usage data.</div>'; return; }
+        var byPersonDay = {};
+        (res.sessions || []).forEach(function (s) {
+          if (!s.name || !s.loginAt) return;
+          var day = String(s.loginAt).slice(0, 10);
+          var key = s.name + '|' + day;
+          if (!byPersonDay[key]) byPersonDay[key] = { name: s.name, role: s.role, day: day, logins: 0, minutes: 0 };
+          byPersonDay[key].logins += 1;
+          var start = new Date(s.loginAt).getTime();
+          var end = new Date(s.lastSeenAt || s.loginAt).getTime();
+          if (end > start) byPersonDay[key].minutes += (end - start) / 60000;
+        });
+        var rows = Object.keys(byPersonDay).map(function (k) { return byPersonDay[k]; })
+          .sort(function (a, b) { return (b.day + b.name).localeCompare(a.day + a.name); })
+          .slice(0, 60);
+        if (!rows.length) { el.innerHTML = '<div class="usage-empty">No logins recorded yet.</div>'; return; }
+        var html = '<table class="usage-table"><thead><tr><th>Name</th><th>Role</th><th>Date</th><th>Logins</th><th>Time used</th></tr></thead><tbody>';
+        rows.forEach(function (r) {
+          html += '<tr><td>' + r.name + '</td><td>' + (r.role || '') + '</td><td>' + r.day + '</td><td>' + r.logins + '</td><td>' + formatMinutes_(r.minutes) + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        el.innerHTML = html;
+      })
+      .catch(function () { el.innerHTML = '<div class="usage-empty">Could not load usage data.</div>'; });
+  }
+
+  function loadAdminUsersList_() {
+    var sel = document.getElementById('adminTargetSelect');
+    if (!sel) return;
+    fetch(ORDERS_API_URL + '?type=usersList&_ts=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.ok) return;
+        sel.innerHTML = '<option value="">Select user…</option>';
+        (res.users || []).forEach(function (u) {
+          var opt = document.createElement('option');
+          opt.value = u.name; opt.textContent = u.name + ' (' + u.role + ')';
+          sel.appendChild(opt);
+        });
+      })
+      .catch(function () {});
+  }
+
+  function afterLogin_(sessionId, name, role) {
+    CURRENT_SESSION_ID = sessionId;
+    CURRENT_USER_NAME = name;
+    CURRENT_USER_ROLE = role;
+    var overlay = document.getElementById('loginGateOverlay');
+    if (overlay) overlay.style.display = 'none';
+    var accountPanel = document.getElementById('accountPanel');
+    if (accountPanel) accountPanel.hidden = false;
+    var whoEl = document.getElementById('accountWhoName');
+    if (whoEl) whoEl.textContent = name + (role ? ' (' + role + ')' : '');
+    var adminBlock = document.getElementById('adminBlock');
+    if (adminBlock) adminBlock.hidden = (role !== 'Owner');
+    if (role === 'Owner') loadAdminUsersList_();
+    loadUsageReport_();
+    startLoginHeartbeat_();
+    render();
+    // The real data fetch (refreshAll(), defined further down this same
+    // script - safe to call here since function declarations are hoisted
+    // and this only ever runs after a login click, long after the whole
+    // script has parsed) now starts here instead of unconditionally at
+    // page load - see the removed bare refreshAll() call near the bottom.
+    if (typeof refreshAll === 'function') refreshAll();
+  }
+
+  function doLoginGateSubmit_() {
+    var nameEl = document.getElementById('loginGateName');
+    var pwEl = document.getElementById('loginGatePassword');
+    var errEl = document.getElementById('loginGateError');
+    var btnEl = document.getElementById('loginGateBtn');
+    var name = (nameEl && nameEl.value) || '';
+    var password = (pwEl && pwEl.value) || '';
+    if (!name) { errEl.textContent = 'Select your name'; errEl.hidden = false; return; }
+    if (!password) { errEl.textContent = 'Enter your password'; errEl.hidden = false; return; }
+    btnEl.disabled = true;
+    errEl.hidden = true;
+    dashboardApiPost_('login', { name: name, password: password, app: 'Dashboard' }).then(function (res) {
+      btnEl.disabled = false;
+      if (!res || !res.ok) {
+        errEl.textContent = (res && res.error) || 'Login failed';
+        errEl.hidden = false;
+        return;
+      }
+      afterLogin_(res.sessionId, res.name, res.role);
+    }).catch(function () {
+      btnEl.disabled = false;
+      errEl.textContent = 'Could not reach the server - check your connection';
+      errEl.hidden = false;
+    });
+  }
+
+  (function () {
+    var btnEl = document.getElementById('loginGateBtn');
+    var pwEl = document.getElementById('loginGatePassword');
+    if (btnEl) btnEl.addEventListener('click', doLoginGateSubmit_);
+    if (pwEl) pwEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') doLoginGateSubmit_(); });
+
+    var logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.addEventListener('click', function () {
+      if (loginHeartbeatTimer) clearInterval(loginHeartbeatTimer);
+      location.reload();
+    });
+
+    var adminSaveBtn = document.getElementById('adminSaveBtn');
+    if (adminSaveBtn) adminSaveBtn.addEventListener('click', function () {
+      var sel = document.getElementById('adminTargetSelect');
+      var newNameEl = document.getElementById('adminTargetNew');
+      var roleEl = document.getElementById('adminTargetRole');
+      var newPwEl = document.getElementById('adminNewPassword');
+      var confirmPwEl = document.getElementById('adminConfirmYourPassword');
+      var msgEl = document.getElementById('adminMsg');
+      var targetName = (newNameEl.value || '').trim() || sel.value;
+      var targetRole = roleEl.value;
+      var newPassword = newPwEl.value || '';
+      var confirmPassword = confirmPwEl.value || '';
+      msgEl.className = 'admin-msg';
+      msgEl.textContent = '';
+      if (!targetName) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'Pick or type a user'; return; }
+      if (!newPassword || newPassword.length < 4) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'New password must be at least 4 characters'; return; }
+      if (!confirmPassword) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'Enter your own password to confirm'; return; }
+      adminSaveBtn.disabled = true;
+      dashboardApiPost_('setPassword', {
+        targetName: targetName, targetRole: targetRole, newPassword: newPassword,
+        auth: { name: CURRENT_USER_NAME, password: confirmPassword }
+      }).then(function (res) {
+        adminSaveBtn.disabled = false;
+        if (!res || !res.ok) {
+          msgEl.className = 'admin-msg err';
+          msgEl.textContent = (res && res.error) || 'Could not save';
+          return;
+        }
+        msgEl.className = 'admin-msg ok';
+        msgEl.textContent = 'Password saved for ' + targetName + '.';
+        newPwEl.value = ''; confirmPwEl.value = ''; newNameEl.value = '';
+        loadAdminUsersList_();
+      }).catch(function () {
+        adminSaveBtn.disabled = false;
+        msgEl.className = 'admin-msg err';
+        msgEl.textContent = 'Could not reach the server - check your connection';
+      });
+    });
+  })();
 
   function setNote(msg, isErr) {
     var el = document.getElementById('refreshNote');
@@ -5027,7 +5337,11 @@
   }
 
   document.getElementById('refreshBtn').addEventListener('click', refreshAll);
-  refreshAll();
+  // The initial refreshAll() call (which does the real ?type=live /
+  // per-DSR fetch) now only fires after a successful login too - see
+  // afterLogin_() above, added 26 Sep 2026. Without this, live data was
+  // still being fetched (just visually hidden behind the login overlay)
+  // before anyone signed in.
 </script>
 <script>
 // Register the PWA service worker (added 15 Sep 2026) so this app is

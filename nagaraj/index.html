@@ -960,6 +960,16 @@
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
   }
+
+/* Login gate - added 26 Sep 2026 */
+.login-gate-overlay{position:fixed;inset:0;background:#f4f5f7;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;}
+.login-gate-card{background:#fff;border-radius:14px;padding:28px 24px;max-width:340px;width:100%;box-shadow:0 6px 24px rgba(0,0,0,0.15);text-align:center;box-sizing:border-box;}
+.login-gate-title{font-size:19px;font-weight:700;margin:0 0 4px;color:#1a1a1a;}
+.login-gate-sub{font-size:13px;color:#666;margin:0 0 18px;}
+.login-gate-input{width:100%;box-sizing:border-box;padding:12px;font-size:16px;border:1px solid #ccc;border-radius:8px;margin-bottom:12px;}
+.login-gate-btn{width:100%;padding:12px;font-size:16px;font-weight:600;border:none;border-radius:8px;background:#1a73e8;color:#fff;cursor:pointer;}
+.login-gate-btn:disabled{opacity:0.6;}
+.login-gate-error{color:#c62828;font-size:13px;margin-top:10px;}
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a4a44">
@@ -969,6 +979,15 @@
 <meta name="apple-mobile-web-app-title" content="Petronas Order">
 </head>
 <body>
+<div id="loginGateOverlay" class="login-gate-overlay">
+  <div class="login-gate-card">
+    <div class="login-gate-title">Nagaraj Order Slip</div>
+    <div class="login-gate-sub">Enter your password to continue</div>
+    <input type="password" id="loginGatePassword" class="login-gate-input" placeholder="Password" autocomplete="current-password">
+    <button type="button" id="loginGateBtn" class="login-gate-btn">Login</button>
+    <div id="loginGateError" class="login-gate-error" hidden></div>
+  </div>
+</div>
 <div class="app">
   <header>
     <div class="title-row">
@@ -2578,8 +2597,9 @@
       .catch(function () { /* best-effort - silently skip on any failure */ });
   }
 
-  fetchLiveOverlay_();
-  setInterval(fetchLiveOverlay_, LIVE_OVERLAY_POLL_MS);
+  // fetchLiveOverlay_()'s initial call + its setInterval now start only
+  // after a successful login - see the login gate block below (added
+  // 26 Sep 2026), which calls both from doLoginGateSubmit()'s success path.
 
 
   // POST with a text/plain content-type (not application/json) so the browser sends this
@@ -4190,7 +4210,62 @@
   renderCollection();
   renderCollectionHealth();
   renderDormant();
-  initOrders();
+  // Login gate - added 26 Sep 2026. initOrders() now only runs after a
+  // successful password login (checked server-side against the Users
+  // sheet) instead of unconditionally on page load. A "still here" ping
+  // (heartbeat) is sent every 3 minutes while the tab is visible, so the
+  // dashboard's usage report can show real time-in-app, not just a bare
+  // login timestamp.
+  (function () {
+    var APP_LOGIN_NAME = "Nagaraj";
+    var APP_DISPLAY = "Nagaraj Order Slip";
+    var loginSessionId = null;
+    var loginHeartbeatTimer = null;
+
+    function loginHeartbeatPing() {
+      if (document.visibilityState !== "visible" || !loginSessionId) return;
+      postToApi("heartbeat", { sessionId: loginSessionId, name: APP_LOGIN_NAME, role: "DSR", app: APP_DISPLAY }).catch(function () {});
+    }
+    function startLoginHeartbeat() {
+      loginHeartbeatPing();
+      loginHeartbeatTimer = setInterval(loginHeartbeatPing, 180000);
+      document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState === "visible") loginHeartbeatPing();
+      });
+    }
+    function doLoginGateSubmit() {
+      var pwEl = document.getElementById("loginGatePassword");
+      var errEl = document.getElementById("loginGateError");
+      var btnEl = document.getElementById("loginGateBtn");
+      var password = (pwEl && pwEl.value) || "";
+      if (!password) { errEl.textContent = "Enter your password"; errEl.hidden = false; return; }
+      btnEl.disabled = true;
+      errEl.hidden = true;
+      postToApi("login", { name: APP_LOGIN_NAME, password: password, app: APP_DISPLAY }).then(function (res) {
+        btnEl.disabled = false;
+        if (!res || !res.ok) {
+          errEl.textContent = (res && res.error) || "Login failed";
+          errEl.hidden = false;
+          return;
+        }
+        loginSessionId = res.sessionId;
+        var overlay = document.getElementById("loginGateOverlay");
+        if (overlay) overlay.style.display = "none";
+        startLoginHeartbeat();
+        initOrders();
+        fetchLiveOverlay_();
+        setInterval(fetchLiveOverlay_, LIVE_OVERLAY_POLL_MS);
+      }).catch(function () {
+        btnEl.disabled = false;
+        errEl.textContent = "Could not reach the server - check your connection";
+        errEl.hidden = false;
+      });
+    }
+    var gateBtnEl = document.getElementById("loginGateBtn");
+    var gatePwEl = document.getElementById("loginGatePassword");
+    if (gateBtnEl) gateBtnEl.addEventListener("click", doLoginGateSubmit);
+    if (gatePwEl) gatePwEl.addEventListener("keydown", function (e) { if (e.key === "Enter") doLoginGateSubmit(); });
+  })();
   checkReportBlock();
 })();
 </script>
