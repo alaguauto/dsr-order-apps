@@ -737,12 +737,16 @@
           <input type="text" id="adminTargetAreas" placeholder="Areas (Area Manager only - required)">
         </div>
         <div class="admin-field-row">
+          <input type="text" id="adminTargetHideLogins" placeholder="Hide these people's logins from THIS person (comma-separated)">
+        </div>
+        <div class="admin-field-row">
           <input type="password" id="adminNewPassword" placeholder="New password">
           <input type="password" id="adminConfirmYourPassword" placeholder="Your password (confirm)">
           <button type="button" id="adminSaveBtn" class="admin-save-btn">Save password</button>
         </div>
         <div id="adminMsg" class="admin-msg"></div>
         <div class="admin-msg" style="opacity:0.75;">Manager sees every DSR. Area Manager sees only the areas you list below - type the exact DSR card names separated by commas, e.g. Prabha,Arun,Chellamani (required for this role - it won't save blank). Areas is ignored for DSR/Owner.</div>
+        <div class="admin-msg" style="opacity:0.75;">"Hide these people's logins" is about the usage report only, not the DSR data above - it's one-directional and per-person: e.g. type "Anbu" while Bala is selected to stop Bala (only) from seeing Anbu's logins; Anbu's own view is unaffected unless you set something on his row too. Leave blank to hide nobody.</div>
       </div>
       <div class="admin-block">
         <h4>Login &amp; usage time</h4>
@@ -5128,6 +5132,16 @@
     return DSRS.filter(function (d) { return CURRENT_ALLOWED_AREAS.indexOf(d.name) !== -1; });
   }
 
+  // Per-viewer usage-report exclusion list, added 28 Sep 2026 ("bala also
+  // dont want to see anbu login but anbu wants bala login to see") - a
+  // one-off, per-person preference, completely separate from the
+  // role-based Area-Manager rule above. null/empty = hides nobody (the
+  // default, and Anbu's own setting - he still sees Bala's logins).
+  // Bala's own list is ["Anbu"] - one-directional on purpose, since this
+  // lives on the VIEWER's own row, not the target's. Set once in
+  // afterLogin_() below from the login response's hiddenUsageFor string.
+  var CURRENT_HIDDEN_USAGE_NAMES = null;
+
   function dashboardApiPost_(action, payload) {
     payload = payload || {};
     payload.action = action;
@@ -5189,8 +5203,14 @@
   // (their own rows still show - this is about not seeing peers'/other
   // managers' login activity, not hiding their own).
   function isManagerRole_(role) { return role === 'Manager' || role === 'Area Manager'; }
+  // 28 Sep 2026: layered with the per-viewer CURRENT_HIDDEN_USAGE_NAMES
+  // exclusion list above (e.g. Bala hiding Anbu) - both checks run
+  // independently and either one hides a row; a restricted Area Manager
+  // could in principle also have their own explicit hidden-names list on
+  // top of the automatic role-based one, though that's not used today.
   function usageRowVisibleToViewer_(s) {
-    if (!CURRENT_ALLOWED_AREAS) return true; // Owner/unrestricted Manager - see everyone
+    if (CURRENT_HIDDEN_USAGE_NAMES && CURRENT_HIDDEN_USAGE_NAMES.indexOf(s.name) !== -1) return false;
+    if (!CURRENT_ALLOWED_AREAS) return true; // Owner/unrestricted Manager - see everyone (subject to the check above)
     return s.name === CURRENT_USER_NAME || !isManagerRole_(s.role);
   }
 
@@ -5317,13 +5337,18 @@
           // current AllowedAreas so picking them autofills the Areas box
           // instead of it staying blank/stale.
           opt.setAttribute('data-areas', u.allowedAreas || '');
+          // Same idea again, added 28 Sep 2026 for the new per-viewer
+          // usage-report exclusion list ("bala also dont want to see anbu
+          // login") - stash each user's own HiddenUsageFor so picking
+          // them autofills the new "Hide these people's logins" box.
+          opt.setAttribute('data-hidden', u.hiddenUsageFor || '');
           sel.appendChild(opt);
         });
       })
       .catch(function () {});
   }
 
-  function afterLogin_(sessionId, name, role, allowedAreas) {
+  function afterLogin_(sessionId, name, role, allowedAreas, hiddenUsageFor) {
     CURRENT_SESSION_ID = sessionId;
     CURRENT_USER_NAME = name;
     CURRENT_USER_ROLE = role;
@@ -5333,6 +5358,10 @@
     // unrestricted (Owner, and full Managers like Anbu/Bala).
     var areasList = String(allowedAreas || '').split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s; });
     CURRENT_ALLOWED_AREAS = areasList.length ? areasList : null;
+    // Same parse for the 28 Sep 2026 per-viewer usage exclusion list (see
+    // CURRENT_HIDDEN_USAGE_NAMES's own declaration above).
+    var hiddenList = String(hiddenUsageFor || '').split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s; });
+    CURRENT_HIDDEN_USAGE_NAMES = hiddenList.length ? hiddenList : null;
     var overlay = document.getElementById('loginGateOverlay');
     if (overlay) overlay.style.display = 'none';
     var accountPanel = document.getElementById('accountPanel');
@@ -5391,7 +5420,7 @@
         errEl.hidden = false;
         return;
       }
-      afterLogin_(res.sessionId, res.name, res.role, res.allowedAreas);
+      afterLogin_(res.sessionId, res.name, res.role, res.allowedAreas, res.hiddenUsageFor);
     }).catch(function () {
       btnEl.disabled = false;
       errEl.textContent = 'Could not reach the server - check your connection';
@@ -5422,8 +5451,10 @@
       var chosen = adminTargetSelectEl.selectedOptions && adminTargetSelectEl.selectedOptions[0];
       var role = chosen ? chosen.getAttribute('data-role') : '';
       var areas = chosen ? chosen.getAttribute('data-areas') : '';
+      var hidden = chosen ? chosen.getAttribute('data-hidden') : '';
       var roleEl = document.getElementById('adminTargetRole');
       var areasEl = document.getElementById('adminTargetAreas');
+      var hideLoginsEl = document.getElementById('adminTargetHideLogins');
       var newNameEl = document.getElementById('adminTargetNew');
       if (role && roleEl) roleEl.value = role;
       // 27 Sep 2026: same autofill idea as the Role box above, for the new
@@ -5431,6 +5462,9 @@
       // AllowedAreas (blank for an unrestricted Manager/DSR/Owner) instead
       // of leaving whatever was last typed there.
       if (areasEl) areasEl.value = areas || '';
+      // 28 Sep 2026: same again for the new "Hide these people's logins"
+      // box - shows THIS person's own current HiddenUsageFor.
+      if (hideLoginsEl) hideLoginsEl.value = hidden || '';
       if (adminTargetSelectEl.value && newNameEl) newNameEl.value = '';
     });
     var adminTargetNewEl = document.getElementById('adminTargetNew');
@@ -5438,6 +5472,8 @@
       if (adminTargetNewEl.value && adminTargetSelectEl) adminTargetSelectEl.value = '';
       var areasEl = document.getElementById('adminTargetAreas');
       if (adminTargetNewEl.value && areasEl) areasEl.value = '';
+      var hideLoginsEl = document.getElementById('adminTargetHideLogins');
+      if (adminTargetNewEl.value && hideLoginsEl) hideLoginsEl.value = '';
     });
 
     var adminSaveBtn = document.getElementById('adminSaveBtn');
@@ -5446,12 +5482,14 @@
       var newNameEl = document.getElementById('adminTargetNew');
       var roleEl = document.getElementById('adminTargetRole');
       var areasEl = document.getElementById('adminTargetAreas');
+      var hideLoginsEl = document.getElementById('adminTargetHideLogins');
       var newPwEl = document.getElementById('adminNewPassword');
       var confirmPwEl = document.getElementById('adminConfirmYourPassword');
       var msgEl = document.getElementById('adminMsg');
       var targetName = (newNameEl.value || '').trim() || sel.value;
       var targetRole = roleEl.value;
       var targetAreas = (areasEl && areasEl.value || '').trim();
+      var targetHiddenUsageFor = (hideLoginsEl && hideLoginsEl.value || '').trim();
       var newPassword = newPwEl.value || '';
       var confirmPassword = confirmPwEl.value || '';
       msgEl.className = 'admin-msg';
@@ -5467,7 +5505,8 @@
       if (!confirmPassword) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'Enter your own password to confirm'; return; }
       adminSaveBtn.disabled = true;
       dashboardApiPost_('setPassword', {
-        targetName: targetName, targetRole: targetRole, allowedAreas: targetAreas, newPassword: newPassword,
+        targetName: targetName, targetRole: targetRole, allowedAreas: targetAreas,
+        hiddenUsageFor: targetHiddenUsageFor, newPassword: newPassword,
         auth: { name: CURRENT_USER_NAME, password: confirmPassword }
       }).then(function (res) {
         adminSaveBtn.disabled = false;
