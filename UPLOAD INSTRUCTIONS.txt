@@ -1,263 +1,81 @@
-LOGIN / PASSWORD / USAGE-TIME TRACKING — UPLOAD INSTRUCTIONS
-(built 26 Sep 2026, updated 27 Sep 2026 and 28 Sep 2026 - see the two
-"UPDATE" sections below)
+SCHEME + NETT-PRICE UPDATE - 28 SEP 2026
+==========================================
 
-WHAT THIS ZIP CONTAINS
------------------------
-backend/Code.gs        - updated Apps Script backend (adds login/password/
-                          usage-tracking support, plus the 27/28 Sep
-                          Area-Manager-role and privacy changes - nothing
-                          existing removed)
-dashboard/index.html   - updated manager dashboard (login gate + usage
-                          report with date filter + admin password/role/
-                          areas panel)
-arun/index.html
-prabha/index.html
-nagaraj/index.html
-chellamani/index.html
-anandh/index.html
-madhu/index.html
-saravanan/index.html
-aaadirect/index.html   - all 8 DSR apps, each with its own login gate
-                          (password only - no name to pick, since each
-                          app already knows who it belongs to) - UNCHANGED
-                          since the 26 Sep round, included only so the zip
-                          stays a complete set
+WHAT CHANGED
+------------
+1. CI4+ 15W40 2.5 LIT URANIA 3000 (6) and CH4 15W40 3 LIT URANIA 1000(6):
+   now "buy 6 case, get 1 case free" - order 6+ case (in exact multiples
+   of 6) to get 1 free case per 6 ordered. Less than 6 case = no free
+   stock at all. This also shows in the item list and in the order text
+   as "Buy 6 Case, get 1 Case free" before you pick a quantity.
 
-WHAT'S NEW (26 SEP 2026)
+2. 20W50 3 LIT SYNTIUM 300 SL (6): unchanged, still 11+1 at 2 case
+   (1 case = no free).
+
+3. 5W30 3.5 LIT SYNTIUM 3000 (SP) FULLY SYN (4): corrected to 7+1 at
+   2 case (was showing the wrong 11+1 before).
+
+4. 3 WHEELER LIFE ENGINE OIL 500 ML PETRONAS (20) and MOTOLUB CF4
+   15W40 0.5 LIT (20): no free scheme, but a nett price kicks in once
+   you select 6 or more case - Rs 195/pc and Rs 181/pc respectively.
+   A "Nett price" tag shows on the item itself, and once you actually
+   pick 6+ case, the order text shows "(Nett Rs 195/pc)" in the line,
+   like you asked.
+
+WHERE TO UPLOAD EACH FILE
 --------------------------
-1. Every app (dashboard + all 8 DSR apps) now asks for a login before
-   showing anything. Nobody stays logged in across a page reload/reopen -
-   everyone logs in fresh every time, exactly as you asked.
-2. Each of the 8 DSR apps has ITS OWN password (not one shared password
-   for all DSRs).
-3. The dashboard has a name picker (Alagu / Anbu / Bala / Vimal) + password.
-4. Every login and every few minutes of active use is quietly recorded, so
-   you can see how much time each person actually spent in the app that
-   day - see "Usage report" below.
-5. Only you (Alagu, the Owner) see the "Admin" panel on the dashboard,
-   where you can set/reset ANYONE's password at any time.
-6. The dashboard's "Ask a question" panel now also records WHICH manager
-   asked each question (previously this was always blank on the
-   dashboard - the DSR apps already recorded this correctly).
+This zip has the SAME folder structure as your GitHub repo. Open the
+extracted folder, select everything INSIDE it (not the folder itself),
+and upload:
 
-WHAT'S NEW - 27 SEP 2026 UPDATE
+- order-slip-template.html -> goes to the REPO ROOT (same place the
+  existing order-slip-template.html already is)
+- aaadirect/index.html -> INTO the existing "aaadirect" folder
+- anandh/index.html -> INTO the existing "anandh" folder
+- arun/index.html -> INTO the existing "arun" folder
+- chellamani/index.html -> INTO the existing "chellamani" folder
+- madhu/index.html -> INTO the existing "madhu" folder
+- nagaraj/index.html -> INTO the existing "nagaraj" folder
+- prabha/index.html -> INTO the existing "prabha" folder
+- saravanan/index.html -> INTO the existing "saravanan" folder
+
+Each file uploads INTO its own existing folder on GitHub, overwriting
+the current index.html there - same as every past update. Do not put
+any of the 8 index.html files at the repo root, and do not put
+order-slip-template.html inside a DSR folder.
+
+WHAT TO UPDATE IN THE GOOGLE SHEET (Daily Stock Update.xlsx)
+--------------------------------------------------------------
+- CI4+ 15W40 2.5 LIT URANIA 3000 (6): Scheme Paid Qty = 36, Scheme
+  Free Qty = 6 (plain numbers, no "case" word)
+- CH4 15W40 3 LIT URANIA 1000(6): Scheme Paid Qty = 36, Scheme Free
+  Qty = 6
+- 20W50 3 LIT SYNTIUM 300 SL (6): unchanged, already 11 / 1
+- 5W30 3.5 LIT SYNTIUM 3000 (SP) FULLY SYN (4): Scheme Paid Qty = 7,
+  Scheme Free Qty = 1
+- 3 WHEELER LIFE ENGINE OIL 500 ML PETRONAS (20): note in the scheme
+  cell, e.g. "buy 6+ case for nett price 195"
+- MOTOLUB CF4 15W40 0.5 LIT (20): note in the scheme cell, e.g.
+  "buy 6+ case for nett price 181"
+
+Note: the sheet itself doesn't feed the nett price into the app
+automatically (that pipeline is retired, per the usual scheme-only
+ad-hoc update process) - the nett price is already baked into the
+files in this zip. Updating the sheet is just for your own records.
+
+VERIFICATION DONE BEFORE SENDING
 ----------------------------------
-1. USAGE REPORT DATE FILTER - the usage report now has Today/This week/
-   This month/Custom buttons plus your own From/To dates and a per-person
-   filter, instead of just an unfiltered list. Defaults to "Today" when
-   you open it.
+- All 9 files pass a JavaScript syntax check (node --check).
+- All 9 files' item data passes a full JSON validity check.
+- A logic test reproduced every example from your message exactly:
+  no FOC below 6 case for CI4+/CH4, 36+6 at 6 case, 72+12 at 12 case,
+  no FOC at 1 case for the two 11+1/7+1 items, 11+1 and 7+1 correctly
+  at 2 case, and the nett-price bracket appearing only at 6+ case (not
+  at 5 case) for both nett-price items.
+- Every pre-existing scheme item (the ~30 items already using a
+  single-case scheme like 18+2) was checked to still behave exactly
+  as before - no regression.
+- A real browser test on the actual updated file confirmed the scheme
+  badges and the order-preview text match all of the above.
 
-2. ROLE BOX NO LONGER RISKS OVERWRITING SOMEONE'S ROLE - picking an
-   existing person from "Select user..." now auto-fills the Role box (and
-   the Areas box) with what they ALREADY are, so a routine password reset
-   can never silently change someone's role or areas by accident the way
-   it could before.
-
-3. YOUR OWN (ALAGU'S) LOGINS ARE NEVER TRACKED, AND NEVER SHOWN TO ANYONE -
-   per your request, the Owner's login/usage activity is no longer written
-   anywhere at all. The usage report - even when you look at it yourself -
-   will simply never contain an "Alagu" row. This can't be turned back on
-   from the dashboard; it would need another code change.
-
-4. MANAGERS CAN BE RESTRICTED TO CERTAIN AREAS - Anbu and Bala see
-   everything, same as always. Vimal only sees Prabha, Arun and
-   Chellamani's areas (Saravanan's numbers are already folded into
-   Chellamani's card, same as everywhere else on this dashboard) - cards,
-   totals, rankings, Top 5 lists, and share texts are all scoped to just
-   those areas for him.
-
-WHAT'S NEW - 28 SEP 2026 UPDATE
-----------------------------------
-1. "AREA MANAGER" IS NOW ITS OWN ROLE, PICKABLE DIRECTLY - the Role
-   dropdown in the Admin panel now has 4 options: Owner, Manager, Area
-   Manager, DSR. Previously "Area Manager" only existed as a Manager with
-   an area restriction typed in below it; now you can set it up directly
-   when adding someone new. The Areas box is REQUIRED when Role is set to
-   "Area Manager" - the page will refuse to save a blank one, so you can't
-   accidentally create a restricted account that actually sees everything.
-
-   RECOMMENDED (not required) - update Vimal's own Role: he already works
-   correctly as-is (his restriction is driven by his Areas box, which
-   you already set), but for a clean Users list going forward, select him
-   from the dropdown, change Role from "Manager" to "Area Manager", leave
-   his Areas box as Prabha,Arun,Chellamani (already auto-filled), enter a
-   password and your own confirm password, and Save.
-
-2. AREA MANAGERS NO LONGER SEE "STOCKS" OR "DAY BOOK" - both of those two
-   panels only ever show COMPANY-WIDE, all-dealer figures with no way to
-   split them by area, so per your request they're now hidden completely
-   for anyone logged in as a restricted Area Manager (Vimal). Owner and
-   full Managers (Anbu, Bala) see them exactly as before - nothing
-   changed for them.
-
-3. USAGE REPORT - AREA MANAGERS NO LONGER SEE OTHER MANAGERS' LOGINS - as
-   you asked: you (Owner) and full Managers (Anbu, Bala) still see every
-   login, exactly as before. A restricted Area Manager (Vimal) now sees
-   only DSR logins and his own login - any other Manager's or Area
-   Manager's login rows (and the person-filter dropdown entries for them)
-   are left out of his usage report.
-
-4. YOU CAN NOW HIDE ONE SPECIFIC PERSON'S LOGINS FROM ANOTHER SPECIFIC
-   PERSON - per your follow-up ("bala also dont want to see anbu login but
-   anbu wants bala login to see"). This is separate from the Area Manager
-   rule above (that one is automatic, based on role) - this is a one-off
-   choice you set per person in the Admin panel, and it's ONE-DIRECTIONAL:
-   Bala is now set up so he never sees Anbu's logins, while Anbu's own
-   view is untouched - he still sees Bala's logins exactly as before.
-
-   ONE-TIME STEP FOR BALA: because his account already exists, this needs
-   the same manual save as Vimal's areas did:
-     a. Log into the dashboard as Alagu (Owner).
-     b. Open the account panel -> Admin section.
-     c. Select "Bala" from the dropdown.
-     d. In the new "Hide these people's logins from THIS person" box,
-        type exactly: Anbu
-     e. Enter a password for him (his current one is fine if you just
-        want to save this setting), re-type YOUR OWN password to confirm,
-        and Save.
-   Leave that box blank for Anbu (and anyone else who shouldn't hide
-   anyone) - blank means they see every login they're otherwise allowed
-   to see.
-
-WHAT'S NEW - 28 SEP 2026 UPDATE (PART 3)
-----------------------------------
-1. USAGE REPORT NOW SHOWS WHO'S LIVE RIGHT NOW - a new "Live" column on
-   the left of the usage report table, plus a one-line summary above it
-   ("2 live now: Bala, Prabha" or "No one is using the app right now").
-   A person counts as live if the app is open and active on their phone/
-   computer at this moment - it goes by the same "still here" signal
-   already used for usage time (a ping every 3 minutes while the tab is
-   open and in view); if nobody's pinged in the last 6 minutes they're
-   shown as offline, same as everyone else in the table. The report also
-   now quietly refreshes itself every 60 seconds while the account panel
-   is open, so the Live column stays current without you needing to
-   close and reopen the panel.
-
-   This respects all the same visibility rules as before - a restricted
-   Area Manager (Vimal) won't see another manager's "Live" status any
-   more than he sees their login rows, and Bala still won't see Anbu's
-   (or vice versa isn't touched either) - if a person's login is hidden
-   from you, their live status is hidden right along with it.
-
-   NO BACKEND CHANGE FOR THIS ONE - only dashboard/index.html changed,
-   so if you've already redeployed Code.gs for the 28 Sep update above,
-   you can skip straight to Step 3 (re-upload the dashboard file) for
-   this part.
-
-STEP 1 - REDEPLOY THE BACKEND (do this first, before anything else)
----------------------------------------------------------------------
-1. Open your Apps Script project (script.google.com), the same one behind
-   every DSR app and the dashboard.
-2. Select all the existing code in Code.gs, delete it, and paste in
-   backend/Code.gs from this zip.
-3. Deploy > Manage deployments > pick the existing web app deployment >
-   Edit (pencil icon) > Version: "New version" > Deploy.
-   IMPORTANT: use "New version" on the EXISTING deployment, not "New
-   deployment" - a brand new deployment would change the URL and break
-   every app.
-
-STEP 2 - CREATE THE 12 DEFAULT LOGINS (one-time, only needed on a brand-new
-setup - SKIP THIS if you already did it during the 26 Sep round)
----------------------------------------------------------------------
-Open this URL once in any browser (replace <YOUR_EXEC_URL> with your
-Apps Script web app's own /exec URL, the same one already baked into
-every app's ORDERS_API_URL):
-
-  <YOUR_EXEC_URL>?type=provisionUsers&key=c1a2ecd5610741281838e57e687f47a3a57a7e0d459553e2
-
-You should see a reply like {"ok":true,"created":["Alagu","Anbu",...]}.
-This creates 12 accounts with simple starting passwords (below) - it will
-NEVER overwrite a password (or role, or areas) that already exists, so
-it's always safe to open this link again by mistake; it just won't do
-anything for accounts that already exist.
-
-STARTING PASSWORDS (tell each person theirs verbally - not shown inside
-any app):
-  Alagu (Owner)          -> Alagu123
-  Anbu (Manager)         -> Anbu123
-  Bala (Manager)         -> Bala123
-  Vimal (Area Manager)   -> Vimal123
-  Prabha (DSR)           -> Prabha123
-  Arun (DSR)             -> Arun123
-  Nagaraj (DSR)          -> Nagaraj123
-  Chellamani (DSR)       -> Chellamani123
-  Anandh (DSR)           -> Anandh123
-  Madhu (DSR)            -> Madhu123
-  Saravanan (DSR)        -> Saravanan123
-  AAA Direct (DSR)       -> Aaadirect123
-
-Everyone should change their own password whenever you like - see Step 4.
-On a brand-new setup, Vimal is created with the Role "Area Manager"
-already, scoped to Prabha,Arun,Chellamani, and Bala is created already set
-to hide Anbu's logins from himself (Anbu stays unrestricted) - nothing
-further needed for either.
-
-STEP 3 - UPLOAD THE APP FILES
--------------------------------
-Same as always: upload dashboard/index.html and each DSR's index.html
-into its existing folder on GitHub Pages (open the matching folder
-first, don't drop it at the repo root - see the DSR app registry notes
-about this exact mistake happening before). The 8 DSR app files are
-unchanged this round, but are included so the zip stays a complete,
-self-consistent set - re-uploading them is harmless.
-
-STEP 4 - CHANGING A PASSWORD, ROLE OR AREAS LATER (any time, no redeploy
-needed) - ALSO HOW TO ADD A NEW AREA MANAGER
----------------------------------------------------------------------
-Log into the dashboard as Alagu (Owner). Open the small account panel
-near the top (tap it to expand) - you'll see an "Admin" section that
-only you can see.
-
-To add a brand-new Area Manager (a new person who should only see certain
-DSR areas): type their name in "...or type a new name", set Role to
-"Area Manager", type the exact DSR card names they should see in the
-Areas box separated by commas (e.g. Prabha,Arun), set a starting
-password, re-type YOUR OWN current password to confirm, and Save. Yes -
-whatever you list in the Areas box is the ONLY data that person will ever
-see anywhere on the dashboard (cards, totals, rankings, Top 5, share
-texts, usage report of DSR logins) - everything outside those areas is
-left out completely, the same way each individual DSR app only ever
-shows that one DSR's own data.
-
-To change an EXISTING person: pick them from "Select user..." (this
-auto-fills their current Role, Areas, and "Hide these people's logins"
-box so you can't accidentally change any of them by mistake), adjust
-whichever box needs changing, type their new password, re-type YOUR OWN
-current password to confirm, and save. Takes effect immediately - that
-person's next login uses the new password/role/areas/hidden-logins list.
-
-Areas is required and can't be left blank when Role is "Area Manager" -
-the page will stop you and ask for at least one area. Leave it blank for
-Manager/DSR/Owner (Manager = sees everything).
-
-"Hide these people's logins from THIS person" is a separate box, for the
-usage report only - it doesn't affect Areas/DSR data at all. It's
-one-directional: whatever names you type there are hidden ONLY from the
-currently-selected person, not from anyone else. Leave it blank for
-anyone who shouldn't have anyone hidden from them.
-
-WHERE TO SEE USAGE TIME
---------------------------
-Same account panel on the dashboard - shows each person's recent logins
-and how many minutes they were actually active (not just "logged in",
-but how long the app stayed open and in front of them), with Today/This
-week/This month/Custom date filters and a per-person filter. Your own
-(Alagu's) logins are deliberately never recorded, so you will never see
-an "Alagu" row here. You and full Managers see every login by default; a
-restricted Area Manager (Vimal) only sees DSR logins and his own - other
-managers' logins are left out of his view automatically. On top of that,
-Bala specifically no longer sees Anbu's logins (his own individual
-setting - Anbu is otherwise a full Manager and still sees everyone,
-including Bala).
-
-A "Live" column and a one-line summary at the top now show who's using
-the app at this exact moment (updates on its own every 60 seconds while
-the panel is open) - same visibility rules apply, so anyone whose logins
-you can't see also won't show up as "live" for you.
-
-A NOTE ON "ASK EVERY TIME"
------------------------------
-As requested, nobody's login is remembered between visits - closing the
-app/browser or reloading the page always asks for the password again,
-on every device.
+Not yet confirmed live - please check after uploading.
