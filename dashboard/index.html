@@ -1263,11 +1263,112 @@
   <div class="dsr-row" id="dayBookRow" style="padding:14px 16px;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
       <span class="dsr-row-headtext"><span class="card-name">Day Book (Petronas)</span>
-        <span class="card-territory" id="dayBookMonthLabel"></span></span>
+        <span class="card-territory" id="dayBookMonthLabel"></span>
+        <!-- Total Alt Qty (Ltr) across the 17 real Petronas item groups
+             this month, added 28 Sep 2026 at the owner's request ("need
+             the total 19293 near to the heading Day Book (Petronas)") -
+             set by renderDaybookItemGroupSummary_() below, from the exact
+             same grandTotal the "Sales by Item Group" panel's own Grand
+             Total row uses, so the two figures can never drift apart. -->
+        <span class="card-territory" id="dayBookItemGroupTotalLabel"></span></span>
       <button type="button" class="share-icon-btn small" id="exportDaybookXlsxBtn" title="Export as Excel">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
       </button>
     </div>
+  </div>
+
+  <!-- Day Book - Sales by Item Group (Alt Qty), added 28 Sep 2026 at the
+       owner's request: "how you created the Collection Group Summary same
+       i want in Day Book (Petronas) also i need the sales data for only
+       alt qty main group below sub group , no dealers name need but i
+       want all the group in which the item group Petronas Group India
+       items are sold out in all the vouchers so manager can find not only
+       the madurai or tirunelveli sales he can know all the sales did in
+       that month" - simplified in a same-day follow-up to "main group
+       name expand to dsr name and their alt qty sales" (a pivot-style
+       table, same "+/-" convention as Collection Group Summary, NOT a
+       graphical chart - matches the owner's own "how you created the
+       Collection Group Summary" reference, which is a table).
+
+       UNLIKE Collection Group Summary, this needed NO new Tally fetch or
+       watcher change at all - the existing Day Book feed (?type=
+       daybookMonth, same endpoint the Export button above already uses)
+       already carries "Item Group" and "Alt Qty (Ltr)" per row, company-
+       wide, with no DSR-group filtering - exactly the "not only madurai
+       or tirunelveli, ALL sales" scope the owner asked for. This is a pure
+       client-side aggregation of that same already-verified data.
+
+       Real data checked directly (Google Sheet, DayBook_2026_09, 1,827
+       rows) before building, per this project's own "never guess a new
+       Tally structure" rule: the Day Book feed mixes AAA's Petronas
+       lubricant sales with a COMPLETELY SEPARATE auto-spares/tractor-
+       parts trading line that shares the same Sales-PETRONAS/Sales-CBE
+       voucher types (130 distinct Item Group values total; only 17 of
+       them actually start with "PETRONAS" - the rest are things like
+       "BOLT (73181500 18%)", "MINDA SWITCHES...", "TVS NUTS...",
+       "KAFILA YOKES..." - a different business entirely, confirmed by
+       Alt Qty (Ltr) being blank/0 on every single one of those 113 non-
+       Petronas rows, never populated - a second independent signal
+       confirming the filter boundary). The literal string "Petronas
+       Group India" does NOT exist anywhere in the real sheet - not in
+       Item Group, not in Party Group, not in any of the 21 tabs checked -
+       so "Main Group" here is built from the 17 real "PETRONAS ..."
+       Item Group values instead, isPetronasItemGroup_() filtering to
+       exactly those 17. daybookMainGroup_() strips a trailing " (N)"
+       Tally-generated disambiguation suffix (e.g. "PETRONAS PCMO (2)" and
+       "PETRONAS PCMO (0)" collapse into one "PETRONAS PCMO" Main Group) -
+       confirmed via real sample rows that both variants are the exact
+       same product line (16 SKUs in one node, 1 SKU - "15W40 7 LIT
+       SYNTIUM 500 CI4+ DIESEL" - split off into the other, same dealers/
+       territories both ways), i.e. a Tally item-master quirk, not a real
+       second group; every OTHER Petronas-prefixed base name only had one
+       variant, so this collapsing never merges two genuinely different
+       product lines. Flagged plainly to the owner in the delivery message
+       in case Tally's own item master should be tidied up instead.
+
+       ONE level of expand (Main Group -> DSR, via the same
+       knownDealerDsrMap_() join Collection Group Summary's own DSR
+       breakdown uses) - no dealer-name drill-down, per the owner's own
+       "no dealers name need". A dealer that doesn't resolve to any of the
+       7 DSR rosters (Coimbatore, Ramnad Other, OE AM WS, etc. - exactly
+       the areas the owner named as currently invisible elsewhere on this
+       dashboard) falls into an "Other Areas / Dealers" bucket rather than
+       being silently dropped - this is the whole point of the feature
+       ("not only the madurai or tirunelveli sales... all the sales").
+       Reuses bindAreaToggle_('daybookItemGroupWrap') as-is, same markup
+       shape as every other single-level expand table on this dashboard.
+
+       Fetched once per refreshAll() cycle (on load + every manual
+       Refresh tap, alongside everything else) via the SAME ?type=
+       daybookMonth endpoint the Export button above already calls on
+       click - not on a faster poll, since Day Book itself only syncs
+       hourly server-side. Hidden for a restricted Area Manager the same
+       way dayBookRow/Collection Group Summary are (company-wide, no
+       per-area breakdown).
+
+       Restructured 28 Sep 2026 at the owner's request ("Day Book — Sales
+       by Item Group (Alt Qty) little allign down and rename as Sales by
+       Item Group (Alt Qty) with the expand button here to show the below
+       sales") - dropped the "Day Book —" prefix from the title, moved
+       from a plain always-open .section-label-row into the SAME native
+       <details>/<summary> "+/-" collapsible-card convention already used
+       for "Stocks" (stocksMasterDetails above) - collapsed by default,
+       taps to expand, no new JS needed since <details> handles this
+       natively. The summary line also shows the same running Alt Qty
+       total as the Day Book (Petronas) heading above (owner: "need the
+       total 19293 near to the heading Day Book (Petronas)") - both set
+       together in renderDaybookItemGroupSummary_() below. -->
+  <div id="captureDaybookItemGroup" style="margin-top:22px;">
+    <details class="dsr-row" id="daybookItemGroupDetails">
+      <summary class="dsr-row-summary">
+        <span class="dsr-row-toggle" aria-hidden="true"></span>
+        <span class="dsr-row-headtext"><span class="card-name">Sales by Item Group (Alt Qty)</span>
+          <span class="card-territory" id="daybookItemGroupTotal">Loading…</span></span>
+      </summary>
+      <div class="dsr-row-body">
+        <div id="daybookItemGroupWrap"></div>
+      </div>
+    </details>
   </div>
 
   <!-- "Current Stock, MRP & Nett Price", added 25 Sep 2026 at the owner's
@@ -3380,13 +3481,22 @@
 
   // Collection Group Summary table, added 28 Sep 2026 - see
   // captureGroupSummary's own HTML comment above for the full request/
-  // design history. ONE level of expand (group -> dealer, via the same
-  // data-area-toggle/area-child-row markup buildAreaTableRows_() above
-  // already uses, so bindAreaToggle_('groupSummaryWrap') below handles
-  // the click behavior for free, no new toggle logic needed) - simpler
-  // than buildAreaTableRows_()'s own two-level Area->DSR->dealer nesting,
-  // since a "group" here already IS the finest grouping Tally itself
-  // offers before individual dealers.
+  // design history.
+  //
+  // Was ONE level of expand (group -> dealer). Changed same night (second
+  // round, same day the feature shipped) to TWO levels (group -> DSR ->
+  // dealer), per the owner's "why can expand main group PETRONAS
+  // TIRUNELVELI TOTAL AREA and sub group that dsr wise name is not
+  // coming" - a multi-DSR group like Tirunelveli Total Area (Madhu+
+  // Anandh+Nagaraj, per claude/collection-group-summary-2026-09-28.md)
+  // was showing a flat list of every dealer with no per-DSR breakdown.
+  // Reuses knownDealerDsrMap_() (dealer name -> DSR display name), the
+  // SAME join dealerBreakdownByDsr_() above already uses for the Full
+  // Petronas Sales/Collection tables' own Area->DSR->dealer nesting - and
+  // reuses bindAreaToggle_('groupSummaryWrap') below AS-IS, since it
+  // already handles exactly this two-level data-area-toggle/data-dsr-
+  // toggle markup shape for those tables, so no new toggle JS is needed
+  // here either.
   function renderGroupSummaryTable_() {
     var wrap = document.getElementById('groupSummaryWrap');
     if (!wrap) return;
@@ -3400,12 +3510,45 @@
       if (r.monthKey !== monthKey) return;
       (dealersByGroup[r.group] = dealersByGroup[r.group] || []).push(r);
     });
+    // Dedupe by Group+Dealer, keeping the freshest updatedAt - added
+    // 28 Sep 2026 alongside the DSR breakdown above, per the same report
+    // ("some dealer name are in twice"). Root cause: a backend upsert-key
+    // bug (handleLiveGroupSummaryByDealerUpdate_()'s existingKeyFn read
+    // the Month column back from the Sheet with a bare String() - Google
+    // Sheets silently auto-converts that cell into a real Date after the
+    // first write, so every push after a dealer's first one failed to
+    // match its own existing row and got appended as a brand-new one
+    // instead of overwriting it - two rows, same dealer, different
+    // Credit/Closing from two different sync times). Fixed server-side
+    // (Code.gs now normalizes that readback the same way handleLiveGet_()
+    // already does), but this front-end dedupe is a defensive safety net
+    // on top of that fix - same pattern as dedupeSalesByDsrItem_() (24
+    // Sep 2026's "Top Selling SKU" duplicate fix) - so any duplicate rows
+    // still sitting in the Sheet from before the backend fix went live
+    // display correctly right away, no manual Sheet cleanup needed first.
     Object.keys(dealersByGroup).forEach(function (g) {
+      var byDealer = {};
+      dealersByGroup[g].forEach(function (r) {
+        var prev = byDealer[r.dealer];
+        if (!prev || new Date(r.updatedAt || 0).getTime() >= new Date(prev.updatedAt || 0).getTime()) {
+          byDealer[r.dealer] = r;
+        }
+      });
+      dealersByGroup[g] = Object.keys(byDealer).map(function (k) { return byDealer[k]; });
       dealersByGroup[g].sort(function (a, b) { return a.dealer < b.dealer ? -1 : a.dealer > b.dealer ? 1 : 0; });
     });
+    var dealerDsrMap = knownDealerDsrMap_();
 
+    // Shown as a plain magnitude, no minus sign - added 28 Sep 2026 at the
+    // owner's request ("remove the - symbol in front of the amount").
+    // Opening/Closing come back negative from Tally here (credit-balance
+    // ledger convention), which read as confusing/wrong to a non-accountant
+    // glancing at the table - Math.abs() only affects the DISPLAY digits,
+    // the underlying grand-total math below still sums the real signed
+    // values first, so the totals stay arithmetically correct even though
+    // every cell (including totals) renders without a sign.
     var cell = function (v) {
-      return (v === null || v === undefined) ? '<td class="num zero">—</td>' : '<td class="num">' + fmtRs(v) + '</td>';
+      return (v === null || v === undefined) ? '<td class="num zero">—</td>' : '<td class="num">' + fmtRs(Math.abs(v)) + '</td>';
     };
     var rowsHtml = '';
     var grand = { opening: 0, debit: 0, credit: 0, closing: 0 };
@@ -3426,11 +3569,39 @@
         rowsHtml += '<tr class="area-child-row" data-area-child="' + gname + '" style="display:none;">' +
           '<td colspan="5" style="padding-left:26px;color:var(--ink-muted);text-align:left;">No dealer-level data synced yet</td></tr>';
       } else {
-        rowsHtml += dealers.map(function (d) {
-          return '<tr class="area-child-row" data-area-child="' + gname + '" style="display:none;">' +
-            '<td style="padding-left:26px;">' + d.dealer + '</td>' +
-            cell(d.opening) + cell(d.debit) + cell(d.credit) + cell(d.closing) + '</tr>';
-        }).join('');
+        // Group -> DSR -> dealer, added 28 Sep 2026 (see this function's
+        // own header comment for the full story). A dealer whose ledger
+        // isn't in any of the 7 DSR apps' own rosters (some dealers in
+        // the smaller groups - OE AM WS Sales, Other Area, etc. - aren't
+        // assigned to any of them) falls into a final "Other Dealers"
+        // bucket instead of being silently dropped. dsrKey is scoped as
+        // "group||dsrName" (not just dsrName) so "Other Dealers" - which
+        // can legitimately appear under several different groups - gets
+        // its own independent toggle per group, instead of one click
+        // expanding/collapsing every group's "Other Dealers" row at once.
+        var byDsr = {};
+        dealers.forEach(function (d) {
+          var dsrName = dealerDsrMap[d.dealer] || 'Other Dealers';
+          (byDsr[dsrName] = byDsr[dsrName] || []).push(d);
+        });
+        var dsrOrder = DSRS.map(function (d) { return d.name; }).filter(function (n) { return byDsr[n]; });
+        Object.keys(byDsr).forEach(function (n) { if (dsrOrder.indexOf(n) === -1) dsrOrder.push(n); });
+        dsrOrder.forEach(function (dsrName) {
+          var dsrDealers = byDsr[dsrName];
+          var dsrTotals = dsrDealers.reduce(function (s, d) {
+            s.opening += d.opening || 0; s.debit += d.debit || 0; s.credit += d.credit || 0; s.closing += d.closing || 0;
+            return s;
+          }, { opening: 0, debit: 0, credit: 0, closing: 0 });
+          var dsrKey = gname + '||' + dsrName;
+          rowsHtml += '<tr class="area-child-row" data-area-child="' + gname + '" data-dsr-toggle="' + dsrKey + '" style="display:none;">' +
+            '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + dsrName + '</td>' +
+            cell(dsrTotals.opening) + cell(dsrTotals.debit) + cell(dsrTotals.credit) + cell(dsrTotals.closing) + '</tr>';
+          rowsHtml += dsrDealers.map(function (d) {
+            return '<tr class="area-dsr-child" data-dsr-child="' + dsrKey + '" data-area-child="' + gname + '" style="display:none;">' +
+              '<td style="padding-left:26px;">' + d.dealer + '</td>' +
+              cell(d.opening) + cell(d.debit) + cell(d.credit) + cell(d.closing) + '</tr>';
+          }).join('');
+        });
       }
     });
     if (!anyData) {
@@ -3442,6 +3613,133 @@
     wrap.innerHTML = ageTableWrap_(
       '<thead><tr><th>Group</th><th>Opening</th><th>Debit</th><th>Credit</th><th>Closing</th></tr></thead>',
       rowsHtml + totalRow, 'namecol');
+  }
+
+  // Day Book - Sales by Item Group (Alt Qty), added 28 Sep 2026 - see
+  // captureDaybookItemGroup's own HTML comment above for the full request/
+  // design history and the real-data findings (17 real "PETRONAS ..."
+  // Item Groups out of 130 total; the literal "Petronas Group India"
+  // string doesn't exist anywhere in the real Sheet).
+  //
+  // daybookItemGroupRows holds the raw ?type=daybookMonth rows for the
+  // CURRENT month only (same shape the Export button's own fetch already
+  // uses: {date, voucherNumber, voucherType, party, partyGroup, itemName,
+  // itemGroup, qty, altQtyLtr, rate, amount}) - null before the first
+  // fetch completes, so renderDaybookItemGroupSummary_() can tell "not
+  // fetched yet" apart from "fetched, but genuinely zero Petronas rows".
+  var daybookItemGroupRows = null;
+  var daybookItemGroupFetchFailed = false;
+
+  // Only the 17 real "PETRONAS ..." Item Groups found in the actual Sheet
+  // data should count - everything else in this same Day Book feed is a
+  // completely different auto-spares/tractor-parts trading line (BOLT,
+  // MINDA SWITCHES, TVS NUTS, KAFILA YOKES, etc.) that happens to share
+  // the same Sales-PETRONAS/Sales-CBE voucher types. A simple "starts with
+  // PETRONAS" (case-insensitive) check cleanly separates the two - every
+  // one of the 17 real Petronas groups starts with it, none of the other
+  // 113 do, and Alt Qty (Ltr) is confirmed blank on every single one of
+  // those 113 non-Petronas rows too (a second, independent signal - that
+  // field is simply never populated for non-lubricant items).
+  function isPetronasItemGroup_(itemGroup) {
+    return /^petronas/i.test(String(itemGroup || '').trim());
+  }
+  // Strips a trailing " (N)" Tally-generated disambiguation suffix so
+  // e.g. "PETRONAS PCMO (2)" and "PETRONAS PCMO (0)" collapse into one
+  // "PETRONAS PCMO" Main Group - confirmed via real sample rows this is
+  // the SAME product line split across two Tally item-group tree nodes
+  // (16 SKUs under one, 1 SKU - "15W40 7 LIT SYNTIUM 500 CI4+ DIESEL" -
+  // under the other, same dealers/territories both ways), not a real
+  // second group. Every other Petronas-prefixed base name only ever had
+  // one bracket-number variant in the real data, so this never merges two
+  // genuinely different product lines.
+  function daybookMainGroup_(itemGroup) {
+    return String(itemGroup || '').trim().replace(/\s*\(\d+\)\s*$/, '');
+  }
+  // Fetches the CURRENT month's Day Book rows fresh from the same
+  // ?type=daybookMonth endpoint the Export button already uses - no new
+  // Tally fetch or watcher change needed, this is a pure aggregation of
+  // already-flowing, already-verified data. Never rejects (matches
+  // fetchLive()'s own error-tolerant convention) so one failed fetch
+  // doesn't break the rest of refreshAll()'s Promise.all.
+  function fetchDaybookItemGroupRows_() {
+    var monthKey = currentMonthKey_();
+    var url = ORDERS_API_URL + '?type=daybookMonth&month=' + encodeURIComponent(monthKey) + '&_ts=' + Date.now();
+    return fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'Server error');
+        daybookItemGroupRows = res.rows || [];
+        daybookItemGroupFetchFailed = false;
+      })
+      .catch(function () {
+        daybookItemGroupFetchFailed = true;
+      });
+  }
+  // ONE level of expand (Main Group -> DSR, via the same knownDealerDsrMap_()
+  // join Collection Group Summary's own DSR breakdown uses) - no dealer-
+  // name drill-down, per the owner's own "no dealers name need". A dealer
+  // that doesn't resolve to any of the 7 DSR rosters (Coimbatore, Ramnad
+  // Other, OE AM WS, etc.) falls into "Other Areas / Dealers" instead of
+  // being silently dropped - the whole point of this feature. Main Groups
+  // sorted by total Alt Qty descending (most-sold product line first),
+  // same convention as this dashboard's other rankings (Top 5, Top
+  // selling SKU). Reuses bindAreaToggle_('daybookItemGroupWrap') as-is.
+  function renderDaybookItemGroupSummary_() {
+    var wrap = document.getElementById('daybookItemGroupWrap');
+    // Two total displays kept in lockstep from the same grandTotal below -
+    // the panel's own <summary> line, and a copy near the Day Book
+    // (Petronas) heading above (owner's "need the total ... near to the
+    // heading Day Book (Petronas)" request, 28 Sep 2026).
+    var summaryTotalEl = document.getElementById('daybookItemGroupTotal');
+    var headerTotalEl = document.getElementById('dayBookItemGroupTotalLabel');
+    if (!wrap) return;
+    if (daybookItemGroupRows === null) {
+      wrap.innerHTML = daybookItemGroupFetchFailed
+        ? '<p style="padding:10px 4px;color:var(--ink-muted);">Couldn’t load the Day Book for this month right now — tap Refresh to try again.</p>'
+        : '<p style="padding:10px 4px;color:var(--ink-muted);">Loading this month’s Day Book…</p>';
+      if (summaryTotalEl) summaryTotalEl.textContent = daybookItemGroupFetchFailed ? 'Couldn’t load' : 'Loading…';
+      if (headerTotalEl) headerTotalEl.textContent = '';
+      return;
+    }
+    var dealerDsr = knownDealerDsrMap_();
+    var byMainGroup = {};
+    daybookItemGroupRows.forEach(function (r) {
+      if (!isPetronasItemGroup_(r.itemGroup)) return;
+      var ltr = Number(r.altQtyLtr) || 0;
+      var mainGroup = daybookMainGroup_(r.itemGroup);
+      var dsrName = dealerDsr[r.party] || 'Other Areas / Dealers';
+      var g = (byMainGroup[mainGroup] = byMainGroup[mainGroup] || { total: 0, byDsr: {} });
+      g.total += ltr;
+      g.byDsr[dsrName] = (g.byDsr[dsrName] || 0) + ltr;
+    });
+    var mainGroupNames = Object.keys(byMainGroup).sort(function (a, b) { return byMainGroup[b].total - byMainGroup[a].total; });
+    if (!mainGroupNames.length) {
+      wrap.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);">No Petronas item-group sales synced for ' + currentMonthKey_() + ' yet.</p>';
+      if (summaryTotalEl) summaryTotalEl.textContent = 'Total ALT QTY 0 Ltr';
+      if (headerTotalEl) headerTotalEl.textContent = 'Total ALT QTY 0 Ltr';
+      return;
+    }
+    var cell = function (v) { return '<td class="num">' + fmt(v) + ' Ltr</td>'; };
+    var rowsHtml = '';
+    var grandTotal = 0;
+    mainGroupNames.forEach(function (mainGroup) {
+      var g = byMainGroup[mainGroup];
+      grandTotal += g.total;
+      rowsHtml += '<tr class="area-toggle-row" data-area-toggle="' + mainGroup + '">' +
+        '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + mainGroup + '</td>' + cell(g.total) + '</tr>';
+      var dsrOrder = DSRS.map(function (d) { return d.name; }).filter(function (n) { return g.byDsr[n]; });
+      Object.keys(g.byDsr).forEach(function (n) { if (dsrOrder.indexOf(n) === -1) dsrOrder.push(n); });
+      rowsHtml += dsrOrder.map(function (dsrName) {
+        return '<tr class="area-child-row" data-area-child="' + mainGroup + '" style="display:none;">' +
+          '<td style="padding-left:26px;">' + dsrName + '</td>' + cell(g.byDsr[dsrName]) + '</tr>';
+      }).join('');
+    });
+    var totalRow = '<tr class="age-table-total"><td>Grand Total</td>' + cell(grandTotal) + '</tr>';
+    wrap.innerHTML = ageTableWrap_(
+      '<thead><tr><th>Item Group Name</th><th>Alt Qty (Ltr)</th></tr></thead>',
+      rowsHtml + totalRow, 'namecol');
+    if (summaryTotalEl) summaryTotalEl.textContent = 'Total ALT QTY ' + fmt(grandTotal) + ' Ltr';
+    if (headerTotalEl) headerTotalEl.textContent = 'Total ALT QTY ' + fmt(grandTotal) + ' Ltr';
   }
 
   // Static catalog baseline - identical to claude/item-catalog.json /
@@ -3699,10 +3997,35 @@
         if (r.monthKey !== monthKey) return;
         (dealersByGroup[r.group] = dealersByGroup[r.group] || []).push(r);
       });
+      // Dedupe by Group+Dealer, keeping the freshest updatedAt - same
+      // 28 Sep 2026 fix/reasoning as renderGroupSummaryTable_()'s own
+      // dedupe above, applied here too so the Excel export doesn't hand
+      // the owner the same duplicate-dealer rows the on-screen table
+      // used to show.
       Object.keys(dealersByGroup).forEach(function (g) {
+        var byDealer = {};
+        dealersByGroup[g].forEach(function (r) {
+          var prev = byDealer[r.dealer];
+          if (!prev || new Date(r.updatedAt || 0).getTime() >= new Date(prev.updatedAt || 0).getTime()) {
+            byDealer[r.dealer] = r;
+          }
+        });
+        dealersByGroup[g] = Object.keys(byDealer).map(function (k) { return byDealer[k]; });
         dealersByGroup[g].sort(function (a, b) { return a.dealer < b.dealer ? -1 : a.dealer > b.dealer ? 1 : 0; });
       });
-      var rows = [['Group', 'Dealer', 'Opening', 'Debit', 'Credit', 'Closing']];
+      // DSR column added 28 Sep 2026 alongside the on-screen table's own
+      // Group->DSR->dealer breakdown, same knownDealerDsrMap_() join -
+      // "Other Dealers" for a dealer not in any of the 7 DSR apps' rosters.
+      var dealerDsrMap = knownDealerDsrMap_();
+      // Shown as a plain magnitude, no minus sign - same 28 Sep 2026 request
+      // as the on-screen table's own cell() above, applied here too so the
+      // Excel export matches what's on screen. absOrBlank_() only affects
+      // the value WRITTEN into each cell - grand's own running totals below
+      // still sum the real signed values first, so COMPANY GRAND TOTAL is
+      // arithmetically correct even though every number in this file is
+      // unsigned.
+      var absOrBlank_ = function (v) { return (v === null || v === undefined) ? '' : Math.abs(v); };
+      var rows = [['Group', 'DSR', 'Dealer', 'Opening', 'Debit', 'Credit', 'Closing']];
       var grand = { opening: 0, debit: 0, credit: 0, closing: 0 };
       var anyData = false;
       GROUP_SUMMARY_GROUPS_.forEach(function (gname) {
@@ -3711,17 +4034,11 @@
         anyData = true;
         var dealers = dealersByGroup[gname] || [];
         dealers.forEach(function (d) {
-          rows.push([gname, d.dealer,
-            (d.opening === null || d.opening === undefined) ? '' : d.opening,
-            (d.debit === null || d.debit === undefined) ? '' : d.debit,
-            (d.credit === null || d.credit === undefined) ? '' : d.credit,
-            (d.closing === null || d.closing === undefined) ? '' : d.closing]);
+          rows.push([gname, dealerDsrMap[d.dealer] || 'Other Dealers', d.dealer,
+            absOrBlank_(d.opening), absOrBlank_(d.debit), absOrBlank_(d.credit), absOrBlank_(d.closing)]);
         });
-        rows.push([gname + ' - Grand Total', '',
-          rec.opening === null || rec.opening === undefined ? '' : rec.opening,
-          rec.debit === null || rec.debit === undefined ? '' : rec.debit,
-          rec.credit === null || rec.credit === undefined ? '' : rec.credit,
-          rec.closing === null || rec.closing === undefined ? '' : rec.closing]);
+        rows.push([gname + ' - Grand Total', '', '',
+          absOrBlank_(rec.opening), absOrBlank_(rec.debit), absOrBlank_(rec.credit), absOrBlank_(rec.closing)]);
         grand.opening += rec.opening || 0;
         grand.debit += rec.debit || 0;
         grand.credit += rec.credit || 0;
@@ -3732,9 +4049,9 @@
           'times a day, not every poll. Try again in a bit.');
         return;
       }
-      rows.push(['COMPANY GRAND TOTAL', '', grand.opening, grand.debit, grand.credit, grand.closing]);
+      rows.push(['COMPANY GRAND TOTAL', '', '', Math.abs(grand.opening), Math.abs(grand.debit), Math.abs(grand.credit), Math.abs(grand.closing)]);
       var ws = XLSX.utils.aoa_to_sheet(rows);
-      ws['!cols'] = [{ wch: 34 }, { wch: 40 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+      ws['!cols'] = [{ wch: 34 }, { wch: 16 }, { wch: 40 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
       var wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'GroupSummary_' + monthKey.replace('-', '_'));
       XLSX.writeFile(wb, 'AAA_CollectionGroupSummary_' + monthKey + '.xlsx');
@@ -3753,7 +4070,7 @@
     renderTop5(); renderTopSkuByDsr_(); renderTrend(); renderTrendBars();
     renderCollectionRatio_(); renderLookupCard_();
     renderPetronasAreaTable_(); renderPetronasCollectionAreaTable_(); renderStockCatalog_();
-    renderGroupSummaryTable_();
+    renderGroupSummaryTable_(); renderDaybookItemGroupSummary_();
   }
 
   // Sales + Collection trend chart, rebuilt 20 Sep 2026 on Tally-verified
@@ -5270,6 +5587,9 @@
   // deep (no data-dsr-toggle rows at all, so that half of the handler
   // simply never matches here).
   bindAreaToggle_('groupSummaryWrap');
+  // Day Book - Sales by Item Group's own wrap, added 28 Sep 2026 - same
+  // reasoning, one level deep (group -> DSR, no dealer-child rows).
+  bindAreaToggle_('daybookItemGroupWrap');
   // "Share Inactive dealers" (whole-company) removed 22 Sep 2026 along
   // with the standalone Inactive Dealers section itself - inactive-dealer
   // detail is now per-DSR, inside each DSR's own expandable row, and
@@ -5661,6 +5981,8 @@
     // to area manager") - company-wide/all-group, no per-area breakdown.
     var groupSummaryBlock = document.getElementById('captureGroupSummary');
     if (groupSummaryBlock) groupSummaryBlock.hidden = !!CURRENT_ALLOWED_AREAS;
+    var daybookItemGroupBlock = document.getElementById('captureDaybookItemGroup');
+    if (daybookItemGroupBlock) daybookItemGroupBlock.hidden = !!CURRENT_ALLOWED_AREAS;
     var stockLabel = document.getElementById('stockSectionLabel');
     if (stockLabel) stockLabel.hidden = !!CURRENT_ALLOWED_AREAS;
     var stockDetails = document.getElementById('stocksMasterDetails');
@@ -5947,7 +6269,7 @@
     btn.classList.add('loading');
     setNote('');
 
-    Promise.all(DSRS.map(fetchOne).concat([fetchLive()])).then(function () {
+    Promise.all(DSRS.map(fetchOne).concat([fetchLive(), fetchDaybookItemGroupRows_()])).then(function () {
       render();
       var failed = DSRS.filter(function (d) { return d.error; }).length;
       document.getElementById('sourceLabel').textContent = 'Updated ' + nowStamp();
