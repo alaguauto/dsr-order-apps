@@ -674,6 +674,16 @@
   .usage-empty { font-size: 13px; color: var(--ink-muted); padding: 8px 0; }
   .usage-total-row td { font-weight: 600; border-top: 2px solid var(--border); border-bottom: none !important; }
 
+  /* "Who's live now" indicator, added 28 Sep 2026 */
+  .usage-live-summary { font-size: 12.5px; color: var(--good); font-weight: 600; margin: 2px 0 8px; }
+  .usage-live-summary.none { color: var(--ink-muted); font-weight: 400; }
+  .usage-live-dot {
+    display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--good); margin-right: 5px; vertical-align: 1px;
+  }
+  .usage-live-cell { font-size: 12px; font-weight: 600; color: var(--good); white-space: nowrap; }
+  .usage-live-cell.offline { color: var(--ink-muted); font-weight: 400; }
+
   /* Usage report date filter, added 27 Sep 2026 */
   .usage-quick-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 8px; }
   .usage-quick-btn {
@@ -5112,6 +5122,12 @@
   var CURRENT_USER_ROLE = null;
   var CURRENT_SESSION_ID = null;
   var loginHeartbeatTimer = null;
+  // Usage report auto-refresh, added 28 Sep 2026 ("add me a column if any
+  // users are in live - currently using the app") - see startLoginHeartbeat_
+  // and loadUsageReport_/renderUsageReport_ further down. Refetches every
+  // 60s so the "Live now" badge doesn't go stale between opens of the
+  // account panel; harmless to leave running, same as the heartbeat timer.
+  var usageReportRefreshTimer = null;
 
   // Area-Manager scoping, added 27 Sep 2026 ("in manager can we split two
   // type - 1 is area manager who cover particular areas... vimal is
@@ -5166,10 +5182,32 @@
     });
   }
 
+  // Keeps the "Live now" badge (and summary line) accurate while the
+  // account panel is left open - added 28 Sep 2026. Re-fetches the usage
+  // report every 60s; loadUsageReport_ already re-renders once the fetch
+  // returns, so nothing else needs to poll.
+  function startUsageReportAutoRefresh_() {
+    if (usageReportRefreshTimer) clearInterval(usageReportRefreshTimer);
+    usageReportRefreshTimer = setInterval(loadUsageReport_, 60000);
+  }
+
   function formatMinutes_(mins) {
     if (mins < 60) return Math.round(mins) + ' min';
     var h = Math.floor(mins / 60), m = Math.round(mins % 60);
     return h + 'h ' + (m ? m + 'm' : '');
+  }
+
+  // "Live now" detection, added 28 Sep 2026. Heartbeats ping every 3 min
+  // (180000ms) while a tab is visible (see loginHeartbeatPing_ above), so a
+  // session whose LastSeenAt is within the last two ping cycles is treated
+  // as still open right now; past that, the person closed the tab/went
+  // background and LastSeenAt simply stopped advancing (there's no explicit
+  // "logout" event - see the 26 Sep 2026 comment on this same design).
+  var LIVE_THRESHOLD_MS_ = 6 * 60 * 1000;
+  function isRecentlySeen_(iso) {
+    if (!iso) return false;
+    var t = new Date(iso).getTime();
+    return !isNaN(t) && (Date.now() - t) < LIVE_THRESHOLD_MS_;
   }
 
   // 27 Sep 2026: date-range filter added on top of the usage report, per
@@ -5260,7 +5298,7 @@
       if (to && day > to) return;
       if (person && s.name !== person) return;
       var key = s.name + '|' + day;
-      if (!byPersonDay[key]) byPersonDay[key] = { name: s.name, role: s.role, day: day, logins: 0, minutes: 0 };
+      if (!byPersonDay[key]) byPersonDay[key] = { name: s.name, role: s.role, day: day, logins: 0, minutes: 0, live: false };
       byPersonDay[key].logins += 1;
       var start = new Date(s.loginAt).getTime();
       var end = new Date(s.lastSeenAt || s.loginAt).getTime();
@@ -5269,15 +5307,27 @@
         byPersonDay[key].minutes += mins;
         totalMinutes += mins;
       }
+      // "Live now" - added 28 Sep 2026. A person can have more than one
+      // session row (e.g. logged in on phone and desktop); any ONE of them
+      // being recently active is enough to mark the person live.
+      if (isRecentlySeen_(s.lastSeenAt)) byPersonDay[key].live = true;
     });
     var rows = Object.keys(byPersonDay).map(function (k) { return byPersonDay[k]; })
       .sort(function (a, b) { return (b.day + b.name).localeCompare(a.day + a.name); });
     if (!rows.length) { el.innerHTML = '<div class="usage-empty">No logins in this range.</div>'; return; }
-    var html = '<table class="usage-table"><thead><tr><th>Name</th><th>Role</th><th>Date</th><th>Logins</th><th>Time used</th></tr></thead><tbody>';
+    // Distinct names currently live, for the one-line summary above the
+    // table - dedupes a person appearing on more than one day/session row.
+    var liveNames = [];
+    rows.forEach(function (r) { if (r.live && liveNames.indexOf(r.name) === -1) liveNames.push(r.name); });
+    var summaryHtml = liveNames.length
+      ? '<div class="usage-live-summary"><span class="usage-live-dot"></span>' + liveNames.length + ' live now: ' + liveNames.join(', ') + '</div>'
+      : '<div class="usage-live-summary none">No one is using the app right now.</div>';
+    var html = summaryHtml + '<table class="usage-table"><thead><tr><th>Live</th><th>Name</th><th>Role</th><th>Date</th><th>Logins</th><th>Time used</th></tr></thead><tbody>';
     rows.forEach(function (r) {
-      html += '<tr><td>' + r.name + '</td><td>' + (r.role || '') + '</td><td>' + r.day + '</td><td>' + r.logins + '</td><td>' + formatMinutes_(r.minutes) + '</td></tr>';
+      var liveCell = r.live ? '<span class="usage-live-cell"><span class="usage-live-dot"></span>Live now</span>' : '<span class="usage-live-cell offline">—</span>';
+      html += '<tr><td>' + liveCell + '</td><td>' + r.name + '</td><td>' + (r.role || '') + '</td><td>' + r.day + '</td><td>' + r.logins + '</td><td>' + formatMinutes_(r.minutes) + '</td></tr>';
     });
-    html += '<tr class="usage-total-row"><td colspan="4">Total time used (this range)</td><td>' + formatMinutes_(totalMinutes) + '</td></tr>';
+    html += '<tr class="usage-total-row"><td colspan="5">Total time used (this range)</td><td>' + formatMinutes_(totalMinutes) + '</td></tr>';
     html += '</tbody></table>';
     el.innerHTML = html;
   }
@@ -5393,6 +5443,7 @@
     if (stockDetails) stockDetails.hidden = !!CURRENT_ALLOWED_AREAS;
     loadUsageReport_();
     startLoginHeartbeat_();
+    startUsageReportAutoRefresh_();
     render();
     // The real data fetch (refreshAll(), defined further down this same
     // script - safe to call here since function declarations are hoisted
