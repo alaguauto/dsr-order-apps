@@ -1198,6 +1198,46 @@
     <div id="petronasCollectionAreaWrap"></div>
   </div>
 
+  <!-- Collection Group Summary, added 28 Sep 2026 at the owner's request
+       ("need collection data as downloadable in excel as we did in
+       daybook, but that has to be displayed with+ button as expandable
+       and download to in the format of attached for all the group shown
+       there, with the total of group should be displayed as show in the
+       screenshot, data should be need from this month start, and
+       download current month only, data should be saved in the same tab
+       for all months") - Opening/Debit/Credit/Closing per Petronas
+       sales-area group (all 7 KNOWN_COLLECTION_GROUP_NAMES, ALL voucher
+       types - not just Receipts, unlike the plain Collection panels
+       above), each expandable via the SAME "+/-" area-toggle pattern the
+       Sales/Collection area tables above already use (reusing
+       bindAreaToggle_() as-is - see renderGroupSummaryTable_() below,
+       which emits the identical data-area-toggle/area-child-row markup
+       those tables use, just one level deep: group -> dealer, no nested
+       DSR level), with its own "Grand Total" row across all 7 groups.
+       Method fully validated against the owner's real Tally "Group
+       Summary - My View" report across 7 diagnostic rounds before this
+       was wired in - see tally_live_watcher.py's dump_group_summary()/
+       fetch_group_summary() docstrings (the post-dated-voucher
+       correction was the owner's own diagnosis). "This should be not
+       shown to area manager" - hidden outright for a restricted Area
+       Manager the same way Day Book/Stocks are (see afterLogin_()), since
+       this is company-wide/all-group with no per-area breakdown. Scoped
+       to the CURRENT calendar month for display (data itself is kept for
+       EVERY month it's ever synced, per "data should be saved in the same
+       tab for all months" - see LIVE_GROUP_SUMMARY_SHEET in Code.gs);
+       Export as Excel covers the full dealer-level breakdown for the
+       current month only, across all 7 groups, per "download current
+       month only" + "while export in excel full data to be exported". -->
+  <div id="captureGroupSummary">
+    <div class="section-label-row">
+      <p class="section-label">Collection Group Summary</p>
+      <button type="button" class="share-icon-btn small" id="exportGroupSummaryXlsxBtn" title="Export as Excel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+      </button>
+    </div>
+    <div id="groupSummaryWrap"></div>
+  </div>
+
   <!-- Day Book Excel export, added 26 Sep 2026 (owner's Round 5 request,
        item 3 - the one held back for its own --dump-daybook diagnostic
        first, per "ANY DOUBT ASK AND CONFIRM ME BEFORE PROCEED"). Matches
@@ -1443,6 +1483,38 @@
   var sixtyPlusByDealer = null;
   // feature, read by this dashboard for the first time 18 Sep 2026 to
   // scope "Needs attention" to real dealers only - see renderNeedsAttention().
+
+  // Collection Group Summary, added 28 Sep 2026 - flat arrays straight
+  // from ?type=live's own groupSummary/groupSummaryByDealer fields (see
+  // Code.gs's handleLiveGet_()), same "no separate network request"
+  // pattern as collectionByDealer/salesByDealer above. Every month ever
+  // synced is included (not just the current one) - renderGroupSummaryTable_()
+  // below filters to the current month itself for display/export.
+  var groupSummaryList = null; // [{group, monthKey, opening, debit, credit, closing}, ...]
+  var groupSummaryByDealerList = null; // [{group, monthKey, dealer, opening, debit, credit, closing}, ...]
+  // Fixed display order, matching tally_live_watcher.py's own
+  // KNOWN_COLLECTION_GROUP_NAMES exactly (7 groups; "PETRONAS LEFT OUT
+  // DEALERS" deliberately excluded per the owner's explicit instruction -
+  // see that file's own comment).
+  var GROUP_SUMMARY_GROUPS_ = [
+    "PETRONAS AAA DIRECT AREA SALES",
+    "PETRONAS MADURAI TOTAL AREA",
+    "PETRONAS OE AM WS SALES",
+    "PETRONAS OTHER AREA",
+    "PETRONAS RAMNAD AREA (OTHER)",
+    "PETRONAS RAMNAD AREA (PIONEER)",
+    "PETRONAS TIRUNELVELI TOTAL AREA"
+  ];
+  // "yyyy-MM" for the current calendar month, matching the monthKey the
+  // watcher itself stamps on every row it pushes (see
+  // tally_live_watcher.py's fetch_group_summary()) - same inline
+  // computation the Day Book export button above already uses.
+  function currentMonthKey_() {
+    var d = new Date();
+    var mm = d.getMonth() + 1;
+    if (mm < 10) mm = "0" + mm;
+    return d.getFullYear() + "-" + mm;
+  }
 
   // Sales + Collection trend, rebuilt 20 Sep 2026 on real Tally data at
   // the owner's request ("i dont want log data chart" - he didn't want
@@ -3306,6 +3378,72 @@
     wrap.innerHTML = ageTableWrap_('<thead><tr><th>Area</th><th>This month (Rs)</th><th>6M AVG (Rs)</th><th>Target (Rs)</th><th>Balance (Rs)</th></tr></thead>', rows);
   }
 
+  // Collection Group Summary table, added 28 Sep 2026 - see
+  // captureGroupSummary's own HTML comment above for the full request/
+  // design history. ONE level of expand (group -> dealer, via the same
+  // data-area-toggle/area-child-row markup buildAreaTableRows_() above
+  // already uses, so bindAreaToggle_('groupSummaryWrap') below handles
+  // the click behavior for free, no new toggle logic needed) - simpler
+  // than buildAreaTableRows_()'s own two-level Area->DSR->dealer nesting,
+  // since a "group" here already IS the finest grouping Tally itself
+  // offers before individual dealers.
+  function renderGroupSummaryTable_() {
+    var wrap = document.getElementById('groupSummaryWrap');
+    if (!wrap) return;
+    var monthKey = currentMonthKey_();
+    var rowsByGroup = {};
+    (groupSummaryList || []).forEach(function (r) {
+      if (r.monthKey === monthKey) rowsByGroup[r.group] = r;
+    });
+    var dealersByGroup = {};
+    (groupSummaryByDealerList || []).forEach(function (r) {
+      if (r.monthKey !== monthKey) return;
+      (dealersByGroup[r.group] = dealersByGroup[r.group] || []).push(r);
+    });
+    Object.keys(dealersByGroup).forEach(function (g) {
+      dealersByGroup[g].sort(function (a, b) { return a.dealer < b.dealer ? -1 : a.dealer > b.dealer ? 1 : 0; });
+    });
+
+    var cell = function (v) {
+      return (v === null || v === undefined) ? '<td class="num zero">—</td>' : '<td class="num">' + fmtRs(v) + '</td>';
+    };
+    var rowsHtml = '';
+    var grand = { opening: 0, debit: 0, credit: 0, closing: 0 };
+    var anyData = false;
+    GROUP_SUMMARY_GROUPS_.forEach(function (gname) {
+      var rec = rowsByGroup[gname];
+      if (!rec) return; // no sync yet this month for this group - leave it out rather than show a false zero row
+      anyData = true;
+      grand.opening += rec.opening || 0;
+      grand.debit += rec.debit || 0;
+      grand.credit += rec.credit || 0;
+      grand.closing += rec.closing || 0;
+      rowsHtml += '<tr class="area-toggle-row" data-area-toggle="' + gname + '">' +
+        '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + gname + '</td>' +
+        cell(rec.opening) + cell(rec.debit) + cell(rec.credit) + cell(rec.closing) + '</tr>';
+      var dealers = dealersByGroup[gname] || [];
+      if (!dealers.length) {
+        rowsHtml += '<tr class="area-child-row" data-area-child="' + gname + '" style="display:none;">' +
+          '<td colspan="5" style="padding-left:26px;color:var(--ink-muted);text-align:left;">No dealer-level data synced yet</td></tr>';
+      } else {
+        rowsHtml += dealers.map(function (d) {
+          return '<tr class="area-child-row" data-area-child="' + gname + '" style="display:none;">' +
+            '<td style="padding-left:26px;">' + d.dealer + '</td>' +
+            cell(d.opening) + cell(d.debit) + cell(d.credit) + cell(d.closing) + '</tr>';
+        }).join('');
+      }
+    });
+    if (!anyData) {
+      wrap.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);">Waiting for Collection Group Summary to sync from Tally (updates a few times a day, not every poll)…</p>';
+      return;
+    }
+    var totalRow = '<tr class="age-table-total"><td>Grand Total</td>' +
+      cell(grand.opening) + cell(grand.debit) + cell(grand.credit) + cell(grand.closing) + '</tr>';
+    wrap.innerHTML = ageTableWrap_(
+      '<thead><tr><th>Group</th><th>Opening</th><th>Debit</th><th>Credit</th><th>Closing</th></tr></thead>',
+      rowsHtml + totalRow, 'namecol');
+  }
+
   // Static catalog baseline - identical to claude/item-catalog.json /
   // every DSR app's own DEFAULT_ITEMS: {id, name, unit, nosPerUnit,
   // sizeLtr, rate, mrp, stock, group, schemePaid?, schemeFree?, imgUrl?}.
@@ -3529,6 +3667,80 @@
     });
   })();
 
+  // "Collection Group Summary" Export as Excel, added 28 Sep 2026 - UNLIKE
+  // Day Book's export just above, this data IS already part of the
+  // regular ?type=live payload (groupSummaryByDealerList/groupSummaryList,
+  // see their own comments near the var declarations above) - the whole
+  // dataset is small (7 groups' worth of dealers, not every invoice line
+  // company-wide like Day Book), so no separate fetch is needed here, just
+  // build the workbook from what's already loaded. Full dealer-level data
+  // for the CURRENT month only, across all 7 groups (per the owner's
+  // "download current month only" + "while export in excel full data to
+  // be exported"), with each group's own Grand Total row (per "the total
+  // of group should be displayed as show in the screenshot") plus one
+  // overall Grand Total row at the very end.
+  (function () {
+    var btn = document.getElementById('exportGroupSummaryXlsxBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof XLSX === 'undefined') {
+        alert('Excel export isn\'t available right now — the export library didn\'t load. Check your connection and try again.');
+        return;
+      }
+      var monthKey = currentMonthKey_();
+      var rowsByGroup = {};
+      (groupSummaryList || []).forEach(function (r) {
+        if (r.monthKey === monthKey) rowsByGroup[r.group] = r;
+      });
+      var dealersByGroup = {};
+      (groupSummaryByDealerList || []).forEach(function (r) {
+        if (r.monthKey !== monthKey) return;
+        (dealersByGroup[r.group] = dealersByGroup[r.group] || []).push(r);
+      });
+      Object.keys(dealersByGroup).forEach(function (g) {
+        dealersByGroup[g].sort(function (a, b) { return a.dealer < b.dealer ? -1 : a.dealer > b.dealer ? 1 : 0; });
+      });
+      var rows = [['Group', 'Dealer', 'Opening', 'Debit', 'Credit', 'Closing']];
+      var grand = { opening: 0, debit: 0, credit: 0, closing: 0 };
+      var anyData = false;
+      GROUP_SUMMARY_GROUPS_.forEach(function (gname) {
+        var rec = rowsByGroup[gname];
+        if (!rec) return;
+        anyData = true;
+        var dealers = dealersByGroup[gname] || [];
+        dealers.forEach(function (d) {
+          rows.push([gname, d.dealer,
+            (d.opening === null || d.opening === undefined) ? '' : d.opening,
+            (d.debit === null || d.debit === undefined) ? '' : d.debit,
+            (d.credit === null || d.credit === undefined) ? '' : d.credit,
+            (d.closing === null || d.closing === undefined) ? '' : d.closing]);
+        });
+        rows.push([gname + ' - Grand Total', '',
+          rec.opening === null || rec.opening === undefined ? '' : rec.opening,
+          rec.debit === null || rec.debit === undefined ? '' : rec.debit,
+          rec.credit === null || rec.credit === undefined ? '' : rec.credit,
+          rec.closing === null || rec.closing === undefined ? '' : rec.closing]);
+        grand.opening += rec.opening || 0;
+        grand.debit += rec.debit || 0;
+        grand.credit += rec.credit || 0;
+        grand.closing += rec.closing || 0;
+      });
+      if (!anyData) {
+        alert('No Collection Group Summary data synced for ' + monthKey + ' yet — the watcher updates this a few ' +
+          'times a day, not every poll. Try again in a bit.');
+        return;
+      }
+      rows.push(['COMPANY GRAND TOTAL', '', grand.opening, grand.debit, grand.credit, grand.closing]);
+      var ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 34 }, { wch: 40 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'GroupSummary_' + monthKey.replace('-', '_'));
+      XLSX.writeFile(wb, 'AAA_CollectionGroupSummary_' + monthKey + '.xlsx');
+    });
+  })();
+
   // renderNeedsAttention()/renderDormant() moved BEFORE renderCards() 22
   // Sep 2026 - renderCards() now reads lastAttnSummary.byDsr/
   // lastDormantSummary.byDsr into each DSR's expandable row, so both need
@@ -3541,6 +3753,7 @@
     renderTop5(); renderTopSkuByDsr_(); renderTrend(); renderTrendBars();
     renderCollectionRatio_(); renderLookupCard_();
     renderPetronasAreaTable_(); renderPetronasCollectionAreaTable_(); renderStockCatalog_();
+    renderGroupSummaryTable_();
   }
 
   // Sales + Collection trend chart, rebuilt 20 Sep 2026 on Tally-verified
@@ -5051,6 +5264,12 @@
   }
   bindAreaToggle_('petronasAreaWrap');
   bindAreaToggle_('petronasCollectionAreaWrap');
+  // Collection Group Summary's own wrap, added 28 Sep 2026 - reuses
+  // bindAreaToggle_() as-is since renderGroupSummaryTable_() above emits
+  // the identical data-area-toggle/area-child-row markup, just one level
+  // deep (no data-dsr-toggle rows at all, so that half of the handler
+  // simply never matches here).
+  bindAreaToggle_('groupSummaryWrap');
   // "Share Inactive dealers" (whole-company) removed 22 Sep 2026 along
   // with the standalone Inactive Dealers section itself - inactive-dealer
   // detail is now per-DSR, inside each DSR's own expandable row, and
@@ -5437,6 +5656,11 @@
     // Manager rather than shown company-wide or awkwardly filtered.
     var dayBookRow = document.getElementById('dayBookRow');
     if (dayBookRow) dayBookRow.hidden = !!CURRENT_ALLOWED_AREAS;
+    // Collection Group Summary, added 28 Sep 2026 - same reasoning as
+    // Day Book/Stocks just above/below (owner: "this should be not shown
+    // to area manager") - company-wide/all-group, no per-area breakdown.
+    var groupSummaryBlock = document.getElementById('captureGroupSummary');
+    if (groupSummaryBlock) groupSummaryBlock.hidden = !!CURRENT_ALLOWED_AREAS;
     var stockLabel = document.getElementById('stockSectionLabel');
     if (stockLabel) stockLabel.hidden = !!CURRENT_ALLOWED_AREAS;
     var stockDetails = document.getElementById('stocksMasterDetails');
@@ -5695,6 +5919,10 @@
         // Added 23 Sep 2026 - see sixtyPlusByDealer's own comment near the
         // var declaration above.
         if (res && res.ok && res.sixtyPlusByDealer) sixtyPlusByDealer = res.sixtyPlusByDealer;
+        // Added 28 Sep 2026 - see groupSummaryList's own comment near the
+        // var declaration above.
+        if (res && res.ok && res.groupSummary) groupSummaryList = res.groupSummary;
+        if (res && res.ok && res.groupSummaryByDealer) groupSummaryByDealerList = res.groupSummaryByDealer;
 
         // Sales + Collection trend, rebuilt 20 Sep 2026 on the same
         // ?type=live response - see salesTrendMap's own comment above.
