@@ -215,6 +215,13 @@
     color: var(--ink-muted); padding: 2px 6px; border-radius: 6px;
   }
   .dormant-close:hover { background: var(--surface-2); color: var(--ink); }
+  /* Item Group share picker rows, added 29 Sep 2026 - same row weight as
+     .lookup-dropdown-row elsewhere on this page, laid out as a
+     name/value pair since each row also shows that group's own total. */
+  .itemgroup-picker-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 11px 4px; font-size: 14px; cursor: pointer; border-top: 1px solid var(--border); }
+  .itemgroup-picker-row:first-child { border-top: none; }
+  .itemgroup-picker-row:hover { background: var(--surface-2); }
+  .itemgroup-picker-row .num { font-weight: 600; color: var(--ink-secondary); white-space: nowrap; }
   .stat.balance .stat-value { color: var(--accent); }
   .stat.balance.done .stat-value { color: var(--good); }
   .stat.balance.money-stat .stat-value { color: var(--money); }
@@ -1145,6 +1152,27 @@
         <button type="button" class="wa-btn" id="shareWaBtn" disabled>Share on WhatsApp</button>
         <button type="button" class="email-btn" id="shareEmailBtn" disabled>Email as PDF</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Item Group share picker, added 29 Sep 2026 at the owner's request
+       ("if Sales by Item Group (Alt Qty) share button clicked can ask
+       which grp to be shared") - opened by shareDaybookItemGroupBtn
+       instead of sharing the #1 group automatically; see
+       openItemGroupSharePicker_() below for how the row list is built.
+       Same .dormant-overlay/.dormant-sheet shell as shareOverlay above,
+       so it looks and behaves (backdrop click / X to close) exactly like
+       every other modal on this dashboard. -->
+  <div class="dormant-overlay" id="itemGroupPickerOverlay" style="display:none;">
+    <div class="dormant-sheet">
+      <div class="dormant-sheet-head">
+        <div>
+          <p class="dormant-sheet-title">Share which item group?</p>
+          <p class="dormant-sheet-sub">Tap one to share just that group's DSR breakdown on WhatsApp.</p>
+        </div>
+        <button type="button" class="dormant-close" id="itemGroupPickerCloseBtn" aria-label="Close">&times;</button>
+      </div>
+      <div id="itemGroupPickerList"></div>
     </div>
   </div>
 
@@ -4740,20 +4768,99 @@
   // again via openShareSheet_'s cleanupEl parameter once the capture is
   // done, same as the other clones - the real on-screen panel and its
   // own toggle states are never touched.
-  function buildDaybookItemGroupShareCaptureEl_() {
+  // Scoped to ONE item group at a time, changed 29 Sep 2026 in two steps
+  // at the owner's request. First: "i need only upto petronas cvl row
+  // below that no need for whatsapp share but need to add all in excel
+  // sharing" - he'd sent a screenshot of the WhatsApp share showing every
+  // one of the 17 Petronas item groups fully expanded with every DSR row,
+  // which makes for an image so tall it becomes unreadable once WhatsApp
+  // shrinks it to a chat preview (the same "font very low small" problem
+  // already solved elsewhere on this dashboard by scoping share images
+  // down - see captureSummary's own comment above). That first fix always
+  // took the #1-ranked group automatically. Then, same day: "or if Sales
+  // by Item Group (Alt Qty) share button clicked can ask which grp to be
+  // shared" - so this now takes an explicit groupName (passed by the new
+  // share-picker modal below, openItemGroupSharePicker_()) instead of
+  // always assuming the top one; groupName is optional and falls back to
+  // the #1-ranked group (.area-toggle-row's own DOM order, which
+  // renderDaybookItemGroupSummary_() already sorts high to low) so any
+  // future caller that doesn't go through the picker still gets a sane
+  // default rather than an error. The Excel export
+  // (exportItemGroupXlsxBtn) is UNCHANGED and still covers every item
+  // group, exactly as the owner asked ("need to add all in excel
+  // sharing").
+  function buildDaybookItemGroupShareCaptureEl_(groupName) {
     var wrap = document.getElementById('daybookItemGroupWrap');
-    var totalEl = document.getElementById('daybookItemGroupTotal');
     var el = document.createElement('div');
     el.style.cssText = 'position:fixed;left:-9999px;top:0;width:560px;background:var(--surface);padding:18px 20px;border-radius:14px;';
-    var tableHtml = (wrap ? wrap.innerHTML : '')
-      .replace(/ style="display:none;"/g, '')
-      .replace(/>\+</g, '>−<');
+    var toggleRows = wrap ? wrap.querySelectorAll('.area-toggle-row') : [];
+    var targetRow = null;
+    for (var i = 0; i < toggleRows.length; i++) {
+      if (!groupName || toggleRows[i].getAttribute('data-area-toggle') === groupName) { targetRow = toggleRows[i]; break; }
+    }
+    if (!targetRow) {
+      el.innerHTML = '<p class="card-name" style="margin:0;">Sales by Item Group (Alt Qty)</p>' +
+        '<p style="margin:8px 0 0;color:var(--ink-muted);">No Petronas item-group sales synced for ' + currentMonthKey_() + ' yet.</p>';
+      document.body.appendChild(el);
+      return el;
+    }
+    var pickedGroupName = targetRow.getAttribute('data-area-toggle') || '';
+    var totalCell = targetRow.querySelector('td.num');
+    var groupTotalText = totalCell ? totalCell.textContent : '';
+    var groupRowHtml = '<tr><td>' + pickedGroupName + '</td><td class="num">' + groupTotalText + '</td></tr>';
+    var childRowsHtml = Array.prototype.filter.call(wrap.querySelectorAll('.area-child-row'), function (tr) {
+      return tr.getAttribute('data-area-child') === pickedGroupName;
+    }).map(function (tr) {
+      return tr.outerHTML.replace(' style="display:none;"', '');
+    }).join('');
+    var theadHtml = '<thead><tr><th>Item Group Name</th><th>Alt Qty (Ltr)</th></tr></thead>';
+    var tableHtml = ageTableWrap_(theadHtml, groupRowHtml + childRowsHtml, 'namecol');
     el.innerHTML = '<p class="card-name" style="margin:0 0 2px;">Sales by Item Group (Alt Qty)</p>' +
-      '<p class="card-territory" style="margin:0 0 10px;">' + (totalEl ? totalEl.textContent : '') + '</p>' +
+      '<p class="card-territory" style="margin:0 0 10px;">' + pickedGroupName + ' — ' + groupTotalText + '</p>' +
       tableHtml;
     document.body.appendChild(el);
     return el;
   }
+
+  // Item-group share picker, added 29 Sep 2026 - lists every Main Group
+  // (same high-to-low order already on screen) so the owner can tap
+  // exactly the one they want shared, instead of always getting the #1
+  // group automatically. Reuses the same .dormant-overlay/.dormant-sheet
+  // modal shell as shareOverlay (see the HTML block right after
+  // #shareOverlay) rather than inventing new visual language.
+  function openItemGroupSharePicker_() {
+    var wrap = document.getElementById('daybookItemGroupWrap');
+    var toggleRows = wrap ? wrap.querySelectorAll('.area-toggle-row') : [];
+    var listEl = document.getElementById('itemGroupPickerList');
+    if (!toggleRows.length) {
+      listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);">No Petronas item-group sales synced for ' + currentMonthKey_() + ' yet.</p>';
+    } else {
+      listEl.innerHTML = Array.prototype.map.call(toggleRows, function (tr) {
+        var name = tr.getAttribute('data-area-toggle') || '';
+        var totalCell = tr.querySelector('td.num');
+        var totalText = totalCell ? totalCell.textContent : '';
+        return '<div class="itemgroup-picker-row" data-pick-group="' + name.replace(/"/g, '&quot;') + '"><span>' + name + '</span><span class="num">' + totalText + '</span></div>';
+      }).join('');
+    }
+    document.getElementById('itemGroupPickerOverlay').style.display = 'flex';
+  }
+  function closeItemGroupSharePicker_() {
+    document.getElementById('itemGroupPickerOverlay').style.display = 'none';
+  }
+  document.getElementById('itemGroupPickerCloseBtn').addEventListener('click', closeItemGroupSharePicker_);
+  document.getElementById('itemGroupPickerOverlay').addEventListener('click', function (e) {
+    if (e.target === document.getElementById('itemGroupPickerOverlay')) closeItemGroupSharePicker_();
+  });
+  document.getElementById('itemGroupPickerList').addEventListener('click', function (e) {
+    var row = e.target.closest('.itemgroup-picker-row');
+    if (!row) return;
+    var groupName = row.getAttribute('data-pick-group');
+    closeItemGroupSharePicker_();
+    var captureEl = buildDaybookItemGroupShareCaptureEl_(groupName);
+    openShareSheet_('Share ' + groupName, captureEl,
+      groupName + ' — ' + dateHeaderLine_(), buildShareTextDaybookItemGroup_(groupName),
+      false, captureEl);
+  });
 
   // Clear + Share on the lookup card, added 20 Sep 2026 at the owner's
   // request - delegated on #lookupCardWrap (bound once) since the card
@@ -5269,7 +5376,14 @@
   // sort as the on-screen panel. Recomputes from daybookItemGroupRows the
   // same way the Excel export handler below does, rather than reusing
   // renderDaybookItemGroupSummary_()'s own function-scoped variables.
-  function buildShareTextDaybookItemGroup_() {
+  // groupName param added 29 Sep 2026, same change as
+  // buildDaybookItemGroupShareCaptureEl_() below - when a specific group
+  // is passed (from the new share picker), the text is scoped to just
+  // that one group instead of listing all of them, so the WhatsApp
+  // caption text matches what the image actually shows. Called with no
+  // argument still lists every group (kept for anything that might call
+  // this without a picked group in future).
+  function buildShareTextDaybookItemGroup_(groupName) {
     var lines = ['SALES BY ITEM GROUP (ALT QTY) — ' + dateHeaderLine_(), ''];
     if (daybookItemGroupRows === null) { lines.push('(Waiting for the next Tally sync…)'); return lines.join('\n'); }
     var byMainGroup = {};
@@ -5280,6 +5394,11 @@
     });
     var names = Object.keys(byMainGroup).sort(function (a, b) { return byMainGroup[b] - byMainGroup[a]; });
     if (!names.length) { lines.push('No Petronas item-group sales synced for ' + currentMonthKey_() + ' yet.'); return lines.join('\n'); }
+    if (groupName) {
+      if (!(groupName in byMainGroup)) { lines.push('No data for ' + groupName + ' this month.'); return lines.join('\n'); }
+      lines.push(groupName + ': ' + fmt(byMainGroup[groupName]) + ' Ltr');
+      return lines.join('\n');
+    }
     var grand = 0;
     names.forEach(function (n) { grand += byMainGroup[n]; lines.push(n + ': ' + fmt(byMainGroup[n]) + ' Ltr'); });
     lines.push('');
@@ -5693,10 +5812,7 @@
   document.getElementById('shareDaybookItemGroupBtn').addEventListener('click', function (e) {
     e.preventDefault();
     e.stopPropagation();
-    var captureEl = buildDaybookItemGroupShareCaptureEl_();
-    openShareSheet_('Share Sales by Item Group (Alt Qty)', captureEl,
-      'Sales by Item Group (Alt Qty) — ' + dateHeaderLine_(), buildShareTextDaybookItemGroup_(),
-      false, captureEl);
+    openItemGroupSharePicker_();
   });
   // Madurai/Tirunelveli Total row expand-to-show-member-DSRs toggle,
   // added 25 Sep 2026 - delegated on the wrap element (which persists
