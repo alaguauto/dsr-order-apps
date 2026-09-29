@@ -1366,12 +1366,30 @@
        total as the Day Book (Petronas) heading above (owner: "need the
        total 19293 near to the heading Day Book (Petronas)") - both set
        together in renderDaybookItemGroupSummary_() below. -->
+  <!-- Share (WhatsApp) + Export as Excel buttons, added 29 Sep 2026 at the
+       owner's request ("make Sales by Item Group as sharable in whatsapp
+       or download the full expanded card to excel") - same
+       .dsr-row-headright pattern already used by the "Stocks" section's
+       own exportStockXlsxBtn above, so both buttons sit in the summary
+       line without needing the panel to already be expanded. See
+       buildDaybookItemGroupShareCaptureEl_() and the exportItemGroupXlsxBtn
+       handler further down for how each independently rebuilds the FULL
+       expanded table (every Main Group, every DSR row) regardless of
+       whatever is currently toggled open on screen. -->
   <div id="captureDaybookItemGroup" style="margin-top:22px;">
     <details class="dsr-row" id="daybookItemGroupDetails">
       <summary class="dsr-row-summary">
         <span class="dsr-row-toggle" aria-hidden="true"></span>
         <span class="dsr-row-headtext"><span class="card-name">Sales by Item Group (Alt Qty)</span>
           <span class="card-territory" id="daybookItemGroupTotal">Loading…</span></span>
+        <span class="dsr-row-headright">
+          <button type="button" class="share-icon-btn small" id="shareDaybookItemGroupBtn" title="Share on WhatsApp" style="margin-left:6px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+          </button>
+          <button type="button" class="share-icon-btn small" id="exportItemGroupXlsxBtn" title="Export as Excel" style="margin-left:6px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+          </button>
+        </span>
       </summary>
       <div class="dsr-row-body">
         <div id="daybookItemGroupWrap"></div>
@@ -4070,6 +4088,74 @@
     });
   })();
 
+  // "Sales by Item Group" Export as Excel, added 29 Sep 2026 at the
+  // owner's request ("download the full expanded card to excel"). Same
+  // spirit as the Stock export above - EVERY Main Group and EVERY DSR row
+  // underneath it, not just whatever happens to be toggled open on screen
+  // - built from daybookItemGroupRows (already loaded for the on-screen
+  // panel, same ?type=daybookMonth data the Day Book export button above
+  // uses, no extra fetch needed). Deliberately recomputes the Main
+  // Group/DSR aggregation from the raw rows here, the same way Collection
+  // Group Summary's own export above recomputes rather than reusing
+  // renderDaybookItemGroupSummary_()'s internal (function-scoped)
+  // variables - same filter (isPetronasItemGroup_), same grouping
+  // (daybookMainGroup_/knownDealerDsrMap_), same high-to-low sort at both
+  // the Main Group level and the DSR level within each group (matching
+  // the 29 Sep 2026 DSR-sort fix above), so the workbook always matches
+  // what's on screen.
+  (function () {
+    var btn = document.getElementById('exportItemGroupXlsxBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof XLSX === 'undefined') {
+        alert('Excel export isn\'t available right now — the export library didn\'t load. Check your connection and try again.');
+        return;
+      }
+      if (daybookItemGroupRows === null) {
+        alert(daybookItemGroupFetchFailed
+          ? 'Couldn\'t load the Day Book for this month right now — tap Refresh to try again.'
+          : 'Still loading this month’s Day Book — try again in a moment.');
+        return;
+      }
+      var dealerDsr = knownDealerDsrMap_();
+      var byMainGroup = {};
+      daybookItemGroupRows.forEach(function (r) {
+        if (!isPetronasItemGroup_(r.itemGroup)) return;
+        var ltr = Number(r.altQtyLtr) || 0;
+        var mainGroup = daybookMainGroup_(r.itemGroup);
+        var dsrName = dealerDsr[r.party] || 'Other Areas / Dealers';
+        var g = (byMainGroup[mainGroup] = byMainGroup[mainGroup] || { total: 0, byDsr: {} });
+        g.total += ltr;
+        g.byDsr[dsrName] = (g.byDsr[dsrName] || 0) + ltr;
+      });
+      var monthKey = currentMonthKey_();
+      var mainGroupNames = Object.keys(byMainGroup).sort(function (a, b) { return byMainGroup[b].total - byMainGroup[a].total; });
+      if (!mainGroupNames.length) {
+        alert('No Petronas item-group sales synced for ' + monthKey + ' yet.');
+        return;
+      }
+      var rows = [['Item Group Name', 'DSR', 'Alt Qty (Ltr)']];
+      var grandTotal = 0;
+      mainGroupNames.forEach(function (mainGroup) {
+        var g = byMainGroup[mainGroup];
+        grandTotal += g.total;
+        var dsrOrder = Object.keys(g.byDsr).sort(function (a, b) { return g.byDsr[b] - g.byDsr[a]; });
+        dsrOrder.forEach(function (dsrName) {
+          rows.push([mainGroup, dsrName, g.byDsr[dsrName]]);
+        });
+        rows.push([mainGroup + ' - Grand Total', '', g.total]);
+      });
+      rows.push(['GRAND TOTAL', '', grandTotal]);
+      var ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 16 }];
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'ItemGroup_' + monthKey.replace('-', '_'));
+      XLSX.writeFile(wb, 'AAA_SalesByItemGroup_' + monthKey + '.xlsx');
+    });
+  })();
+
   // renderNeedsAttention()/renderDormant() moved BEFORE renderCards() 22
   // Sep 2026 - renderCards() now reads lastAttnSummary.byDsr/
   // lastDormantSummary.byDsr into each DSR's expandable row, so both need
@@ -4635,6 +4721,40 @@
     document.body.appendChild(el);
     return el;
   }
+  // "Sales by Item Group" WhatsApp share, added 29 Sep 2026 at the
+  // owner's request ("make Sales by Item Group as sharable in whatsapp").
+  // The panel itself is a collapsed-by-default <details> and each Main
+  // Group's own DSR breakdown is independently toggle-expandable
+  // (data-area-toggle, hidden via inline style="display:none;" - see
+  // renderDaybookItemGroupSummary_() above) - so capturing the LIVE
+  // element as-is would only show the collapsed summary line, or
+  // whatever a handful of Main Groups happened to be toggled open at the
+  // moment. Same off-screen-clone-for-capture technique as
+  // buildDsrCardShareCaptureEl_()/buildLookupShareCaptureEl_() above:
+  // clones daybookItemGroupWrap's own already-rendered table markup, but
+  // strips every area-child-row's inline "display:none" and flips every
+  // "+" toggle icon to "−" first, so the shared image always shows
+  // the FULL expanded table (every Main Group AND every DSR row) -
+  // matching the owner's own wording ("the full expanded card") -
+  // regardless of whatever is currently toggled open on screen. Removed
+  // again via openShareSheet_'s cleanupEl parameter once the capture is
+  // done, same as the other clones - the real on-screen panel and its
+  // own toggle states are never touched.
+  function buildDaybookItemGroupShareCaptureEl_() {
+    var wrap = document.getElementById('daybookItemGroupWrap');
+    var totalEl = document.getElementById('daybookItemGroupTotal');
+    var el = document.createElement('div');
+    el.style.cssText = 'position:fixed;left:-9999px;top:0;width:560px;background:var(--surface);padding:18px 20px;border-radius:14px;';
+    var tableHtml = (wrap ? wrap.innerHTML : '')
+      .replace(/ style="display:none;"/g, '')
+      .replace(/>\+</g, '>−<');
+    el.innerHTML = '<p class="card-name" style="margin:0 0 2px;">Sales by Item Group (Alt Qty)</p>' +
+      '<p class="card-territory" style="margin:0 0 10px;">' + (totalEl ? totalEl.textContent : '') + '</p>' +
+      tableHtml;
+    document.body.appendChild(el);
+    return el;
+  }
+
   // Clear + Share on the lookup card, added 20 Sep 2026 at the owner's
   // request - delegated on #lookupCardWrap (bound once) since the card
   // itself is torn down and rebuilt on every renderLookupCard_() call.
@@ -5143,6 +5263,30 @@
     return lines.join('\n');
   }
 
+  // "Sales by Item Group" share text, added 29 Sep 2026 - Main Group
+  // totals only (no DSR breakdown, kept compact since there are 17
+  // Petronas item groups vs. the 4 area groups above), same high-to-low
+  // sort as the on-screen panel. Recomputes from daybookItemGroupRows the
+  // same way the Excel export handler below does, rather than reusing
+  // renderDaybookItemGroupSummary_()'s own function-scoped variables.
+  function buildShareTextDaybookItemGroup_() {
+    var lines = ['SALES BY ITEM GROUP (ALT QTY) — ' + dateHeaderLine_(), ''];
+    if (daybookItemGroupRows === null) { lines.push('(Waiting for the next Tally sync…)'); return lines.join('\n'); }
+    var byMainGroup = {};
+    daybookItemGroupRows.forEach(function (r) {
+      if (!isPetronasItemGroup_(r.itemGroup)) return;
+      var mainGroup = daybookMainGroup_(r.itemGroup);
+      byMainGroup[mainGroup] = (byMainGroup[mainGroup] || 0) + (Number(r.altQtyLtr) || 0);
+    });
+    var names = Object.keys(byMainGroup).sort(function (a, b) { return byMainGroup[b] - byMainGroup[a]; });
+    if (!names.length) { lines.push('No Petronas item-group sales synced for ' + currentMonthKey_() + ' yet.'); return lines.join('\n'); }
+    var grand = 0;
+    names.forEach(function (n) { grand += byMainGroup[n]; lines.push(n + ': ' + fmt(byMainGroup[n]) + ' Ltr'); });
+    lines.push('');
+    lines.push('Total: ' + fmt(grand) + ' Ltr');
+    return lines.join('\n');
+  }
+
   function buildShareTextAttn_() {
     var lines = ['NEEDS ATTENTION — ' + dateHeaderLine_(), ''];
     lines.push('Dealers who currently owe money, grouped by how long their oldest unpaid bill has been overdue. Total outstanding covers every genuinely-owed dealer regardless of age; the three bands below only cover debt that\'s 30+ days old, so they won\'t add up to the total (debt under 30 days isn\'t in any band).');
@@ -5538,6 +5682,21 @@
   document.getElementById('sharePetronasCollectionAreaBtn').addEventListener('click', function () {
     openShareSheet_('Share Full Petronas This Month Collection', document.getElementById('capturePetronasCollectionArea'),
       'Full Petronas This Month Collection — ' + dateHeaderLine_(), buildShareTextPetronasCollectionArea_());
+  });
+  // "Sales by Item Group" WhatsApp share, added 29 Sep 2026 - the button
+  // sits inside the panel's own <summary>, so preventDefault/
+  // stopPropagation first (same reason exportStockXlsxBtn/
+  // exportDaybookXlsxBtn above do this) or clicking it would also toggle
+  // the <details> open/closed via native <summary> behaviour. Uses the
+  // off-screen full-expand clone from buildDaybookItemGroupShareCaptureEl_()
+  // above, cleaned up via openShareSheet_'s own cleanupEl parameter.
+  document.getElementById('shareDaybookItemGroupBtn').addEventListener('click', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var captureEl = buildDaybookItemGroupShareCaptureEl_();
+    openShareSheet_('Share Sales by Item Group (Alt Qty)', captureEl,
+      'Sales by Item Group (Alt Qty) — ' + dateHeaderLine_(), buildShareTextDaybookItemGroup_(),
+      false, captureEl);
   });
   // Madurai/Tirunelveli Total row expand-to-show-member-DSRs toggle,
   // added 25 Sep 2026 - delegated on the wrap element (which persists
