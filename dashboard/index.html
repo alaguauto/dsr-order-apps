@@ -717,6 +717,14 @@
       <option value="Anbu">Anbu</option>
       <option value="Bala">Bala</option>
       <option value="Vimal">Vimal</option>
+      <!-- "ReportBot", added 28 Sep 2026 for the automated month-end PDF
+           archive (see monthly_archive.py) - a dedicated, unrestricted
+           Manager account so the archive script never needs your own
+           personal password. Create it once via the Admin panel (Role:
+           Manager, Areas left blank) before the archive script's first
+           real run - see the setup notes sent alongside this file. Safe
+           to leave in this dropdown even if a person never uses it. -->
+      <option value="ReportBot">ReportBot</option>
     </select>
     <input type="password" id="loginGatePassword" class="login-gate-input" placeholder="Password" autocomplete="current-password">
     <button type="button" id="loginGateBtn" class="login-gate-btn">Login</button>
@@ -3727,8 +3735,12 @@
       grandTotal += g.total;
       rowsHtml += '<tr class="area-toggle-row" data-area-toggle="' + mainGroup + '">' +
         '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + mainGroup + '</td>' + cell(g.total) + '</tr>';
-      var dsrOrder = DSRS.map(function (d) { return d.name; }).filter(function (n) { return g.byDsr[n]; });
-      Object.keys(g.byDsr).forEach(function (n) { if (dsrOrder.indexOf(n) === -1) dsrOrder.push(n); });
+      // Sorted high to low by that DSR's own Alt Qty within this item
+      // group (added 29 Sep 2026 at the owner's request - "sort high to
+      // low inside a item group in dsr level also"), matching the same
+      // descending convention the Main Group rows themselves already
+      // use, instead of the fixed DSR-roster order used previously.
+      var dsrOrder = Object.keys(g.byDsr).sort(function (a, b) { return g.byDsr[b] - g.byDsr[a]; });
       rowsHtml += dsrOrder.map(function (dsrName) {
         return '<tr class="area-child-row" data-area-child="' + mainGroup + '" style="display:none;">' +
           '<td style="padding-left:26px;">' + dsrName + '</td>' + cell(g.byDsr[dsrName]) + '</tr>';
