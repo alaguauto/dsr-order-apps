@@ -250,6 +250,38 @@ var LIVE_COLLECTION_BY_DEALER_SHEET = "LiveCollectionByDealer";
 // "Updated At" (now index 8) - every read/write site below updated to match.
 var LIVE_COLLECTION_BY_DEALER_HEADERS = ["Dealer Name", "Today Collected", "Month Collected", "Last Payment Date", "Avg 6mo Collected Rs", "Last Month Same Date", "Last Month Full", "Last Payment Amount", "Updated At"];
 
+// Added 28 Sep 2026 - Collection Group Summary (Opening/Debit/Credit/
+// Closing per Petronas sales-area group, all voucher types - dashboard's
+// new expandable "+" panel with a per-dealer drill-down and full-data
+// Excel export). Owner's original request: "need collection data as
+// downloadable in excel as we did in daybook, but that has to be
+// displayed with+ button as expandable and download to in the format of
+// attached for all the group shown there, with the total of group should
+// be displayed as show in the screenshot, data should be need from this
+// month start, and download current month only, data should be saved in
+// the same tab for all months" - also "this should be not shown to area
+// manager" and "while export in excel full data to be exported".
+//
+// UNLIKE Day Book (one sheet tab PER CALENDAR MONTH, see
+// daybookSheetName_() above), this is deliberately ONE sheet for every
+// month, per the owner's own explicit "same tab for all months" wording -
+// each row's own "Month" column (yyyy-MM) is what keeps different
+// months' figures apart, upserted by a composite Group+Month key ("Group"
+// key composite added below), rather than the sheet ever being
+// month-scoped itself. See tally_live_watcher.py's fetch_group_summary()/
+// _group_summary_key() for the matching watcher-side design and
+// dump_group_summary()'s docstring/history for how the underlying
+// Opening/Debit/Credit/Closing computation (including the post-dated-
+// voucher correction) was validated against the owner's real Tally data
+// across 7 diagnostic rounds before this was wired in.
+var LIVE_GROUP_SUMMARY_SHEET = "LiveCollectionGroupSummary";
+var LIVE_GROUP_SUMMARY_HEADERS = ["Group", "Month", "Opening", "Debit", "Credit", "Closing", "Updated At"];
+// Per-dealer drill-down (the "+" expand's own rows) - composite
+// Group+Month+Dealer key, same reasoning as LIVE_GROUP_SUMMARY_SHEET
+// above, one level more specific.
+var LIVE_GROUP_SUMMARY_BY_DEALER_SHEET = "LiveCollectionGroupSummaryByDealer";
+var LIVE_GROUP_SUMMARY_BY_DEALER_HEADERS = ["Group", "Month", "Dealer", "Opening", "Debit", "Credit", "Closing", "Updated At"];
+
 // Added 23 Sep 2026 for the fixed, bill-level "60+ days overdue,
 // collected this month" stat (replacing the old daily-recomputed
 // version) - see tally_live_watcher.py's snapshot_or_get_sixtyplus_baseline()/
@@ -680,6 +712,95 @@ function handleLiveCollectionByDealerUpdate_(body) {
   return jsonOut_({ ok: true, updated: updated });
 }
 
+// POST { action: "liveGroupSummaryUpdate", key, groups: [{group, monthKey,
+// opening, debit, credit, closing}, ...] }
+// Added 28 Sep 2026 - see LIVE_GROUP_SUMMARY_SHEET above and
+// tally_live_watcher.py's fetch_group_summary()/maybe_push_group_summary()
+// for the full design. Keyed by "Group||Month" (composite, columns A+B -
+// same existingKeyFn pattern LIVE_SALES_BY_DSR_ITEM_SHEET already uses
+// above), so a later month's row for the same group is a brand-new row,
+// never overwriting an earlier month's - exactly how "same tab for all
+// months" was asked for.
+function handleLiveGroupSummaryUpdate_(body) {
+  if (body.key !== LIVE_SYNC_KEY) return jsonOut_({ ok: false, error: "Bad key" });
+  var sheet = getLiveSheet_(LIVE_GROUP_SUMMARY_SHEET, LIVE_GROUP_SUMMARY_HEADERS);
+  var rows = body.groups || [];
+  var updated = bulkUpsertSheet_(sheet, LIVE_GROUP_SUMMARY_HEADERS.length, rows,
+    function (r) { return (r && r.group && r.monthKey) ? (String(r.group).trim() + "||" + String(r.monthKey).trim()) : null; },
+    function (r, now) {
+      return [
+        r.group,
+        r.monthKey,
+        (r.opening === null || r.opening === undefined) ? "" : r.opening,
+        (r.debit === null || r.debit === undefined) ? "" : r.debit,
+        (r.credit === null || r.credit === undefined) ? "" : r.credit,
+        (r.closing === null || r.closing === undefined) ? "" : r.closing,
+        now
+      ];
+    },
+    // existingRow is [Group, Month, Opening, Debit, Credit, Closing,
+    // Updated At] - rebuild the same composite key from columns A+B.
+    // Fixed 28 Sep 2026 (found the same night as the read-side monthKey
+    // fix, via the owner's "some dealer name are in twice" report) -
+    // this was a bare String(existingRow[1]).trim(), which breaks the
+    // SECOND time a group's row is ever upserted: after the FIRST write,
+    // Google Sheets silently auto-converts that Month cell into a real
+    // Date value on its own (same bug class as normalizeMonthKey_()'s own
+    // comment above), so reading it back with String() no longer
+    // reproduces the plain "2026-09" the incoming update's own keyFn
+    // computes - the composite key stops matching, and bulkUpsertSheet_
+    // appends a brand-new row instead of overwriting the existing one
+    // every single push after the first. normalizeMonthKey_() fixes the
+    // readback the same way it already fixes handleLiveGet_() above.
+    function (existingRow) { return String(existingRow[0] || "").trim() + "||" + normalizeMonthKey_(existingRow[1]); });
+  return jsonOut_({ ok: true, updated: updated });
+}
+
+// POST { action: "liveGroupSummaryByDealerUpdate", key, dealers: [{group,
+// monthKey, dealer, opening, debit, credit, closing}, ...] }
+// Added 28 Sep 2026 - same shape/reasoning as handleLiveGroupSummaryUpdate_()
+// above, one level more specific (per-dealer rows, feeding the dashboard
+// panel's "+" expand and the full-data Excel export). Keyed by
+// "Group||Month||Dealer".
+function handleLiveGroupSummaryByDealerUpdate_(body) {
+  if (body.key !== LIVE_SYNC_KEY) return jsonOut_({ ok: false, error: "Bad key" });
+  var sheet = getLiveSheet_(LIVE_GROUP_SUMMARY_BY_DEALER_SHEET, LIVE_GROUP_SUMMARY_BY_DEALER_HEADERS);
+  var rows = body.dealers || [];
+  var updated = bulkUpsertSheet_(sheet, LIVE_GROUP_SUMMARY_BY_DEALER_HEADERS.length, rows,
+    function (r) { return (r && r.group && r.monthKey && r.dealer) ? (String(r.group).trim() + "||" + String(r.monthKey).trim() + "||" + String(r.dealer).trim()) : null; },
+    function (r, now) {
+      return [
+        r.group,
+        r.monthKey,
+        r.dealer,
+        (r.opening === null || r.opening === undefined) ? "" : r.opening,
+        (r.debit === null || r.debit === undefined) ? "" : r.debit,
+        (r.credit === null || r.credit === undefined) ? "" : r.credit,
+        (r.closing === null || r.closing === undefined) ? "" : r.closing,
+        now
+      ];
+    },
+    // existingRow is [Group, Month, Dealer, Opening, Debit, Credit,
+    // Closing, Updated At] - rebuild the same composite key from columns
+    // A+B+C. Fixed 28 Sep 2026 - identical root cause and fix as
+    // handleLiveGroupSummaryUpdate_()'s own existingKeyFn just above
+    // (normalizeMonthKey_() instead of a bare String() on the Month
+    // column read back from the Sheet, which Sheets auto-converts to a
+    // Date after the first write). THIS is what actually produced the
+    // "some dealer name are in twice" symptom the owner reported: every
+    // push after a dealer's first one failed to match the existing row
+    // (different Group||Month||Dealer key each time, because Month kept
+    // round-tripping through String(Date) instead of the plain "yyyy-MM"
+    // the new push was keyed on), so a SECOND row was appended instead of
+    // the first one being updated - two rows, same dealer, different
+    // Credit/Closing values (whichever the watcher's push happened to
+    // compute at each of those two sync times).
+    function (existingRow) {
+      return String(existingRow[0] || "").trim() + "||" + normalizeMonthKey_(existingRow[1]) + "||" + String(existingRow[2] || "").trim();
+    });
+  return jsonOut_({ ok: true, updated: updated });
+}
+
 // POST { action: "liveDaybookUpdate", key, rows: [{monthKey, rowKey, date,
 // voucherNumber, voucherType, party, partyGroup, itemName, itemGroup, qty,
 // altQtyLtr, rate, amount}, ...] }
@@ -727,6 +848,76 @@ function handleLiveDaybookUpdate_(body) {
     totalUpdated += updated;
   }
   return jsonOut_({ ok: true, updated: totalUpdated, months: months });
+}
+
+// ---------------------------------------------------------------------
+// Monthly card archive (PDF -> Google Drive), added 28 Sep 2026 at the
+// owner's request: "need all the cards including all DSR cards to be
+// download in pdf format automatically and to save in google drive by
+// each month last date by 10 pm."
+//
+// This endpoint is deliberately dumb - it just takes a FINISHED PDF
+// (already rendered from the real, live dashboard by a headless-browser
+// script running on the office PC, see monthly_archive.py) and files it
+// into Drive under a per-month folder. Doing it this way - capture the
+// actual rendered page, not a second server-side copy of the card-
+// rendering logic - means this archive can never drift out of sync with
+// whatever the dashboard actually looks like; there's nothing here to
+// keep updated every time a card's layout changes.
+//
+// Folder layout, in the DEPLOYING ACCOUNT's own My Drive (this Apps
+// Script project already has whatever Drive access its own deploying
+// Google account has - no new credentials needed, just a one-time
+// permission-review click the first time DriveApp is used - see the
+// setup notes sent alongside this file):
+//   AAA Monthly Reports/
+//     2026-09/
+//       DSR - Arun.pdf
+//       DSR - Prabha.pdf
+//       ... one per DSR ...
+//       Company - Full Petronas Sales.pdf
+//       Company - Full Petronas Collection.pdf
+//       Company - Collection Group Summary.pdf
+//       Company - Day Book and Sales by Item Group.pdf
+//       Company - Stocks.pdf
+//       Combined - All Cards 2026-09.pdf
+//
+// Re-uploading the same file name for the same month OVERWRITES (deletes
+// the old Drive file, writes the fresh one) rather than piling up
+// duplicates, so the office-PC script is safe to re-run (e.g. with
+// --force, to retry after a partial failure) without littering Drive.
+function archiveRootFolder_() {
+  return getOrCreateFolder_(DriveApp.getRootFolder(), "AAA Monthly Reports");
+}
+function getOrCreateFolder_(parent, name) {
+  var it = parent.getFoldersByName(name);
+  if (it.hasNext()) return it.next();
+  return parent.createFolder(name);
+}
+function handleArchiveMonthlyPdf_(body) {
+  if (body.key !== LIVE_SYNC_KEY) return jsonOut_({ ok: false, error: "Bad key" });
+  var monthKey = String(body.monthKey || "").trim();
+  var fileName = String(body.fileName || "").trim();
+  var pdfBase64 = body.pdfBase64;
+  if (!/^\d{4}-\d{2}$/.test(monthKey)) return jsonOut_({ ok: false, error: "Bad monthKey, expected yyyy-MM" });
+  if (!fileName) return jsonOut_({ ok: false, error: "fileName required" });
+  if (!pdfBase64) return jsonOut_({ ok: false, error: "pdfBase64 required" });
+  if (!/\.pdf$/i.test(fileName)) fileName = fileName + ".pdf";
+
+  var monthFolder = getOrCreateFolder_(archiveRootFolder_(), monthKey);
+
+  // Overwrite semantics - remove any existing file with this exact name
+  // in this month's folder first, so a re-run replaces rather than
+  // duplicates (bulkUpsertSheet_() elsewhere in this file follows the
+  // same "re-sync should overwrite, never pile up" convention).
+  var existing = monthFolder.getFilesByName(fileName);
+  while (existing.hasNext()) existing.next().setTrashed(true);
+
+  var bytes = Utilities.base64Decode(pdfBase64);
+  var blob = Utilities.newBlob(bytes, "application/pdf", fileName);
+  var file = monthFolder.createFile(blob);
+
+  return jsonOut_({ ok: true, fileId: file.getId(), url: file.getUrl(), folderUrl: monthFolder.getUrl() });
 }
 
 // One-time cleanup, added 26 Sep 2026 at the owner's explicit request
@@ -1360,6 +1551,8 @@ function handleLiveGet_() {
   var outstandingRows = liveSheetRows_(getLiveSheet_(LIVE_OUTSTANDING_SHEET, LIVE_OUTSTANDING_HEADERS));
   var collectionRows = liveSheetRows_(getLiveSheet_(LIVE_COLLECTION_SHEET, LIVE_COLLECTION_HEADERS));
   var collectionByDealerRows = liveSheetRows_(getLiveSheet_(LIVE_COLLECTION_BY_DEALER_SHEET, LIVE_COLLECTION_BY_DEALER_HEADERS));
+  var groupSummaryRows = liveSheetRows_(getLiveSheet_(LIVE_GROUP_SUMMARY_SHEET, LIVE_GROUP_SUMMARY_HEADERS));
+  var groupSummaryByDealerRows = liveSheetRows_(getLiveSheet_(LIVE_GROUP_SUMMARY_BY_DEALER_SHEET, LIVE_GROUP_SUMMARY_BY_DEALER_HEADERS));
   var salesRows = liveSheetRows_(getLiveSheet_(LIVE_SALES_SHEET, LIVE_SALES_HEADERS));
   var salesByDealerRows = liveSheetRows_(getLiveSheet_(LIVE_SALES_BY_DEALER_SHEET, LIVE_SALES_BY_DEALER_HEADERS));
   var salesByItemRows = liveSheetRows_(getLiveSheet_(LIVE_SALES_BY_ITEM_SHEET, LIVE_SALES_BY_ITEM_HEADERS));
@@ -1674,6 +1867,75 @@ function handleLiveGet_() {
     salesByDsrItem.push({ dsrName: diDsr, itemName: diItem, monthLtr: diMonth });
   }
 
+  // Added 28 Sep 2026 for the Collection Group Summary panel - flat arrays
+  // (not nested maps), same "dashboard groups/sorts client-side" pattern
+  // salesByDsrItem above already uses. Every past month's rows are sent
+  // too (not just the current month) since LIVE_GROUP_SUMMARY_SHEET keeps
+  // all of them in the one sheet by design (see its own comment above) -
+  // the dashboard itself decides what to show expanded/collapsed and
+  // which month the Excel export covers (current month only, per the
+  // owner's "download current month only" - see the dashboard JS).
+  var groupSummary = [];
+  for (var gs = 0; gs < groupSummaryRows.length; gs++) {
+    var gsr = groupSummaryRows[gs];
+    var gsGroup = String(gsr[0] || "").trim();
+    // Fixed 28 Sep 2026 (same night as the feature shipped) - "Month" is a
+    // plain "yyyy-MM" string on write, but Google Sheets silently
+    // auto-converts a cell that LOOKS like a date into a real Date value
+    // (the exact same class of bug as normalizeDateKey_()'s own comment
+    // above, and the "Seventh bug" in dsr-app-registry.md) - so a naive
+    // String(gsr[1]) here was returning the Date's full toString(), e.g.
+    // "Tue Sep 01 2026 00:00:00 GMT+0530 (India Standard Time)", instead of
+    // "2026-09". The dashboard's renderGroupSummaryTable_() matches
+    // r.monthKey against currentMonthKey_() with strict === , so that
+    // never matched anything - anyData stayed false forever and the panel
+    // was permanently stuck on "Waiting for Collection Group Summary to
+    // sync..." even though the watcher's pushes were succeeding and the
+    // Sheet had the right data all along (confirmed directly: opened the
+    // Sheet and the dashboard's own Network tab, both showed correct
+    // Group/Opening/Debit/Credit/Closing - only Month was corrupted on
+    // readback). normalizeMonthKey_() (defined near the top of this file)
+    // already exists for exactly this - reusing it instead of a bare
+    // String() fixes every row already in the Sheet too, no data rewrite
+    // needed.
+    var gsMonth = normalizeMonthKey_(gsr[1]);
+    if (!gsGroup || !gsMonth) continue;
+    groupSummary.push({
+      group: gsGroup,
+      monthKey: gsMonth,
+      opening: gsr[2] === "" || gsr[2] === undefined ? null : Number(gsr[2]),
+      debit: gsr[3] === "" || gsr[3] === undefined ? null : Number(gsr[3]),
+      credit: gsr[4] === "" || gsr[4] === undefined ? null : Number(gsr[4]),
+      closing: gsr[5] === "" || gsr[5] === undefined ? null : Number(gsr[5]),
+      // updatedAt added 28 Sep 2026 alongside the existingKeyFn fix above -
+      // lets the dashboard tell which of two rows for the same key is the
+      // freshest, as a defensive front-end safety net (see
+      // renderGroupSummaryTable_()'s own dedupe comment).
+      updatedAt: gsr[6] || ""
+    });
+  }
+  var groupSummaryByDealer = [];
+  for (var gsd = 0; gsd < groupSummaryByDealerRows.length; gsd++) {
+    var gsdr = groupSummaryByDealerRows[gsd];
+    var gsdGroup = String(gsdr[0] || "").trim();
+    // Same Sheets-auto-converts-dates fix as groupSummary's own gsMonth
+    // just above - see that comment for the full root-cause explanation.
+    var gsdMonth = normalizeMonthKey_(gsdr[1]);
+    var gsdDealer = String(gsdr[2] || "").trim();
+    if (!gsdGroup || !gsdMonth || !gsdDealer) continue;
+    groupSummaryByDealer.push({
+      group: gsdGroup,
+      monthKey: gsdMonth,
+      dealer: gsdDealer,
+      opening: gsdr[3] === "" || gsdr[3] === undefined ? null : Number(gsdr[3]),
+      debit: gsdr[4] === "" || gsdr[4] === undefined ? null : Number(gsdr[4]),
+      credit: gsdr[5] === "" || gsdr[5] === undefined ? null : Number(gsdr[5]),
+      closing: gsdr[6] === "" || gsdr[6] === undefined ? null : Number(gsdr[6]),
+      // updatedAt - see groupSummary's own identical field just above.
+      updatedAt: gsdr[7] || ""
+    });
+  }
+
   return jsonOut_({
     ok: true,
     stock: stock,
@@ -1689,7 +1951,9 @@ function handleLiveGet_() {
     salesTrend: salesTrend,
     salesRsTrend: salesRsTrend,
     collectionTrend: collectionTrend,
-    sixtyPlusByDealer: sixtyPlusByDealer
+    sixtyPlusByDealer: sixtyPlusByDealer,
+    groupSummary: groupSummary,
+    groupSummaryByDealer: groupSummaryByDealer
   });
 }
 
@@ -2050,6 +2314,8 @@ function doPost(e) {
   if (body.action === "liveNewDealerUpdate") return handleLiveNewDealerUpdate_(body);
   if (body.action === "liveCollectionUpdate") return handleLiveCollectionUpdate_(body);
   if (body.action === "liveCollectionByDealerUpdate") return handleLiveCollectionByDealerUpdate_(body);
+  if (body.action === "liveGroupSummaryUpdate") return handleLiveGroupSummaryUpdate_(body);
+  if (body.action === "liveGroupSummaryByDealerUpdate") return handleLiveGroupSummaryByDealerUpdate_(body);
   if (body.action === "liveSixtyPlusBaselineUpdate") return handleLiveSixtyPlusBaselineUpdate_(body);
   if (body.action === "liveSalesUpdate") return handleLiveSalesUpdate_(body);
   if (body.action === "liveSalesByDealerUpdate") return handleLiveSalesByDealerUpdate_(body);
@@ -2060,6 +2326,10 @@ function doPost(e) {
   if (body.action === "liveCollectionTrendUpdate") return handleLiveCollectionTrendUpdate_(body);
   if (body.action === "liveDaybookUpdate") return handleLiveDaybookUpdate_(body);
   if (body.action === "logAsk") return handleLogAsk_(body);
+  // Monthly card archive (PDF -> Drive), added 28 Sep 2026 - touches only
+  // Drive, never "Orders", so it belongs with the other pre-lock actions
+  // above for the same reason they're all up here.
+  if (body.action === "archiveMonthlyPdf") return handleArchiveMonthlyPdf_(body);
   // Login/heartbeat/admin-password actions, added 26 Sep 2026 - these touch
   // the Users/LoginLog sheets only, never "Orders", so (like the live-sync
   // actions above) there's no reason for them to wait behind the
