@@ -256,6 +256,29 @@
   .lookup-stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin: 0 0 4px; }
   .lookup-stat-value { font-size: 14.5px; font-weight: 700; }
   .lookup-stat-sub { font-size: 11px; color: var(--text-muted); margin: 3px 0 0; }
+  /* Dealer Lookup card's own WhatsApp share button, added 30 Sep 2026,
+     rolled out to all 8 DSR apps same day at the owner's explicit "yes
+     ok implement for all dsr's" (built AAA Direct-only first, per the
+     usual new-feature rule - see claude/dsr-app-registry.md). Lets the
+     DSR send the WHOLE lookup card (Sales, Collection, Outstanding,
+     Total Outstanding, Credit Limit, Last order, Last payment) straight
+     to the dealer as one image, sitting next to the existing Clear
+     button. */
+  .lookup-head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .lookup-share-btn {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #06210F;
+    background: #25D366;
+    border: none;
+    border-radius: 8px;
+    padding: 5px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .lookup-share-btn:active { opacity: 0.7; }
+  .lookup-share-btn:disabled { opacity: 0.6; cursor: default; }
 
   /* Ask (rule-based smart query), added 24 Sep 2026 - see the
      <section id="askDetails"> markup and runAskQuery_() further down for
@@ -3794,7 +3817,10 @@
 
     lookupCardWrapEl.innerHTML = '<div class="lookup-card">' +
       '<div class="lookup-card-head"><p class="lookup-dealer-name">' + escapeHtml(name) + '</p>' +
-      '<button type="button" class="lookup-clear-btn" id="lookupClearBtn" title="Clear the searched dealer">Clear</button></div>' +
+      '<div class="lookup-head-actions">' +
+        '<button type="button" class="lookup-share-btn" id="lookupShareBtn" title="Share this dealer\'s lookup card on WhatsApp">Share</button>' +
+        '<button type="button" class="lookup-clear-btn" id="lookupClearBtn" title="Clear the searched dealer">Clear</button>' +
+      '</div></div>' +
       '<div class="lookup-grid">' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Sales this month</p><p class="lookup-stat-value">' + salesText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Collection this month</p><p class="lookup-stat-value">' + collText + '</p></div>' +
@@ -3833,8 +3859,96 @@
       lookupInputEl.value = "";
       lookupDropdownEl.hidden = true;
       renderLookupCard_();
+      return;
     }
+    var shareBtn = e.target.closest("#lookupShareBtn");
+    if (shareBtn) shareLookupCard_(shareBtn);
   });
+
+  // Dealer Lookup card's own WhatsApp share, added 30 Sep 2026, rolled
+  // out to all 8 DSR apps same day (built AAA Direct-only first, per
+  // the usual new-feature rule - see claude/dsr-app-registry.md).
+  // Owner's own words: "share the whole dealer lookup tile" - so this
+  // shares every stat on the card (Sales this month, Collection this
+  // month, Outstanding, Total Outstanding, Credit Limit, Last order,
+  // Last payment), not just one tile. Builds a clean image and hands it
+  // to the phone's native share sheet so the DSR can send it straight
+  // to the dealer on WhatsApp - no need to screenshot/crop the whole
+  // app. First use of html2canvas in a DSR app (previously only
+  // dashboard/index.html had image-share); see the html2canvas
+  // <script> tag near the end of <body>.
+  function safeFileSlug_(s) {
+    return String(s || "share").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "share";
+  }
+  function captureElementToBlob_(el) {
+    if (typeof html2canvas === "undefined") return Promise.reject(new Error("html2canvas not loaded"));
+    var bg = getComputedStyle(document.body).backgroundColor || "#ffffff";
+    return html2canvas(el, { backgroundColor: bg, scale: Math.min(2, window.devicePixelRatio || 1), useCORS: true })
+      .then(function (canvas) {
+        return new Promise(function (resolve, reject) {
+          canvas.toBlob(function (blob) { blob ? resolve(blob) : reject(new Error("toBlob failed")); }, "image/png");
+        });
+      });
+  }
+  function downloadBlob_(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+  // Web Share API (files) with a download fallback - same convention as
+  // dashboard/index.html's own shareImageBlob_().
+  function shareImageBlob_(blob, filename) {
+    try {
+      var file = new File([blob], filename, { type: "image/png" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        return navigator.share({ files: [file] }).catch(function (err) {
+          if (err && err.name === "AbortError") return; // DSR cancelled the share sheet themselves
+          downloadBlob_(blob, filename);
+        });
+      }
+    } catch (e) { /* fall through to download */ }
+    downloadBlob_(blob, filename);
+    return Promise.resolve();
+  }
+  // Fresh header + a clone of the live .lookup-grid's markup (all 7
+  // stats, exactly as currently shown) - not a clone of the whole
+  // .lookup-card, so the Share/Clear buttons in the card's own header
+  // never end up in the captured image and there's no need for a
+  // page-wide ".capturing" hide-buttons rule like the dashboard uses
+  // for its full-card shares. Fixed 560px width (independent of the
+  // live phone-narrow screen width) matches the dashboard's own Dealer
+  // Lookup share convention (buildLookupShareCaptureEl_()) - proven to
+  // read cleanly once WhatsApp shrinks it to a chat preview.
+  function buildLookupCardShareCaptureEl_(dealerName, gridOuterHtml) {
+    var el = document.createElement("div");
+    el.style.cssText = "position:fixed;left:-9999px;top:0;width:560px;background:var(--surface);padding:18px 20px;border-radius:14px;";
+    var asOf = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    el.innerHTML = '<p class="lookup-dealer-name" style="margin:0 0 4px;">' + escapeHtml(dealerName) + '</p>' +
+      gridOuterHtml +
+      '<p style="font-size:10px;color:var(--text-muted);margin:10px 0 0;">As of ' + asOf + '</p>';
+    document.body.appendChild(el);
+    return el;
+  }
+  function shareLookupCard_(btn) {
+    if (!lookupSelectedDealer_) return;
+    var gridEl = lookupCardWrapEl.querySelector(".lookup-grid");
+    if (!gridEl) return;
+    var dealerName = lookupSelectedDealer_;
+    var origLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "…";
+    var captureEl = buildLookupCardShareCaptureEl_(dealerName, gridEl.outerHTML);
+    captureElementToBlob_(captureEl)
+      .then(function (blob) { return shareImageBlob_(blob, safeFileSlug_(dealerName + "-lookup") + ".png"); })
+      .catch(function () { /* best-effort - no blocking error UI */ })
+      .then(function () {
+        if (captureEl.parentNode) captureEl.parentNode.removeChild(captureEl);
+        btn.disabled = false;
+        btn.textContent = origLabel;
+      });
+  }
 
   // Ask (rule-based smart query), added 24 Sep 2026 - see the <section
   // id="askDetails"> comment above for why this isn't a free-text AI.
@@ -4541,5 +4655,11 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
+<!-- Added 30 Sep 2026 for the Dealer Lookup card's own WhatsApp share -
+     html2canvas turns that card into a PNG for shareLookupCard_()
+     above. First time an image-share library is used in a DSR app (it
+     was already used on dashboard/index.html); loaded from cdnjs same
+     as that file's own convention. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </body>
 </html>
