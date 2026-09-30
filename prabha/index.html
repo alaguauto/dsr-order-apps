@@ -3753,22 +3753,32 @@
     var totalOutText = totalOwed !== null ? "₹" + formatBalance_(totalOwed) : "No dues on record";
     var totalOutColor = totalOwed !== null ? "var(--danger)" : "var(--text)";
 
-    // "Credit Limit" tile - added 30 Sep 2026, same as dashboard/index.html's
-    // own rollout. Straight from Tally, never computed here. Not every
-    // dealer has Lock D pushed yet, so "Not set in Tally" is expected for
-    // many. Over-limit flag is just a comparison of two already-fetched
-    // numbers (totalOwed vs clRec.creditLimit).
+    // "Credit Limit" tile - added 30 Sep 2026, extended same day per the
+    // owner's follow-up ("below creditlimit - total outstanding and write
+    // balance as available limit"), same rollout as dashboard/index.html.
+    // Straight from Tally, never computed here. Not every dealer has Lock
+    // D pushed yet, so "Not set in Tally" is expected for many. Total
+    // Outstanding is echoed here (reusing totalOwed, already computed
+    // just above) and Available Limit = Credit Limit - Total Outstanding
+    // - both plain comparisons of already-fetched numbers, not a new
+    // calculation. Available Limit going negative (dealer owes more than
+    // their limit) is the same condition the earlier "Over limit" flag
+    // used, now shown as the actual over-limit amount instead of just a
+    // flag.
     var creditLimitText = "Not set in Tally";
     var creditLimitColor = "var(--text)";
     if (clRec && clRec.creditLimit !== null && clRec.creditLimit !== undefined) {
+      var clOwed = totalOwed !== null ? totalOwed : 0;
+      var availableLimit = clRec.creditLimit - clOwed;
+      var availableColor = availableLimit < 0 ? "var(--danger)" : "var(--text)";
+      var availableText = (availableLimit < 0 ? "-" : "") + "₹" + formatBalance_(availableLimit);
       creditLimitText = "₹" + formatBalance_(clRec.creditLimit);
       if (clRec.creditPeriod !== null && clRec.creditPeriod !== undefined) {
         creditLimitText += " — " + formatNum(clRec.creditPeriod) + " days";
       }
-      if (totalOwed !== null && totalOwed > clRec.creditLimit) {
-        creditLimitColor = "var(--danger)";
-        creditLimitText += '<br><span style="font-size:0.85em;">Over limit</span>';
-      }
+      creditLimitText += '<br><span style="font-size:12px;font-weight:600;">Total Outstanding: ₹' + formatBalance_(clOwed) + '</span>';
+      creditLimitText += '<br><span style="font-size:12px;font-weight:600;color:' + availableColor + ';">Available Limit: ' + availableText + '</span>';
+      if (availableLimit < 0) creditLimitColor = "var(--danger)";
     }
 
     var lastOrderText = (salesRec && salesRec.lastSaleDate) ? (function () {
