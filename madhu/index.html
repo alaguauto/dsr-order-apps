@@ -2452,6 +2452,17 @@
   var lastLiveSalesByDealer_ = null;
   var lastLiveCollectionByDealer_ = null;
   var lookupSelectedDealer_ = null; // dealer name string, or null
+  // lastLiveCreditLimit_ added 30 Sep 2026, same pattern as the two maps
+  // above - remembers the WHOLE raw data.creditLimit map from the latest
+  // poll (company-wide, not DSR-scoped - same shape the dashboard reads).
+  // Straight from Tally's own CREDITLIMIT ledger field (the owner's own
+  // Lock D formula, pushed into Tally natively) - this app only ever
+  // reads it, never computes it. CONFIRMED against real data: N.S.K.
+  // AUTOMOBILES, THENI (OIL) = Rs 5,87,222, RAMYA AUTO STORES, CBM (OIL)
+  // = Rs 60,880, both matching the owner's own independently-known real
+  // figures exactly (see tally_live_watcher.py's fetch_creditlimit()
+  // docstring / dashboard/index.html's same rollout).
+  var lastLiveCreditLimit_ = null;
 
   function applyLiveOverlay_(data) {
     if (!data) return;
@@ -2781,7 +2792,9 @@
     // when one of these maps genuinely arrived this poll.
     if (data.salesByDealer) lastLiveSalesByDealer_ = data.salesByDealer;
     if (data.collectionByDealer) lastLiveCollectionByDealer_ = data.collectionByDealer;
-    if ((data.salesByDealer || data.collectionByDealer) && lookupSelectedDealer_ && typeof renderLookupCard_ === "function") {
+    // creditLimit added 30 Sep 2026, same "remember the whole map" pattern.
+    if (data.creditLimit) lastLiveCreditLimit_ = data.creditLimit;
+    if ((data.salesByDealer || data.collectionByDealer || data.creditLimit) && lookupSelectedDealer_ && typeof renderLookupCard_ === "function") {
       renderLookupCard_();
     }
     if (stockChanged && typeof renderItemList === "function") renderItemList();
@@ -3716,6 +3729,7 @@
     var d = dealers.filter(function (x) { return x.name === name; })[0];
     var salesRec = lastLiveSalesByDealer_ ? lastLiveSalesByDealer_[name] : null;
     var collRec = lastLiveCollectionByDealer_ ? lastLiveCollectionByDealer_[name] : null;
+    var clRec = lastLiveCreditLimit_ ? lastLiveCreditLimit_[name] : null;
 
     var salesText = (salesRec && salesRec.month !== null && salesRec.month !== undefined) ? formatNum(salesRec.month) + " Ltr" : "—";
     var collText = (collRec && collRec.month !== null && collRec.month !== undefined) ? "₹" + formatBalance_(collRec.month) : "—";
@@ -3739,6 +3753,24 @@
     var totalOutText = totalOwed !== null ? "₹" + formatBalance_(totalOwed) : "No dues on record";
     var totalOutColor = totalOwed !== null ? "var(--danger)" : "var(--text)";
 
+    // "Credit Limit" tile - added 30 Sep 2026, same as dashboard/index.html's
+    // own rollout. Straight from Tally, never computed here. Not every
+    // dealer has Lock D pushed yet, so "Not set in Tally" is expected for
+    // many. Over-limit flag is just a comparison of two already-fetched
+    // numbers (totalOwed vs clRec.creditLimit).
+    var creditLimitText = "Not set in Tally";
+    var creditLimitColor = "var(--text)";
+    if (clRec && clRec.creditLimit !== null && clRec.creditLimit !== undefined) {
+      creditLimitText = "₹" + formatBalance_(clRec.creditLimit);
+      if (clRec.creditPeriod !== null && clRec.creditPeriod !== undefined) {
+        creditLimitText += " — " + formatNum(clRec.creditPeriod) + " days";
+      }
+      if (totalOwed !== null && totalOwed > clRec.creditLimit) {
+        creditLimitColor = "var(--danger)";
+        creditLimitText += '<br><span style="font-size:0.85em;">Over limit</span>';
+      }
+    }
+
     var lastOrderText = (salesRec && salesRec.lastSaleDate) ? (function () {
       var s = String(salesRec.lastSaleDate);
       var dd = daysSinceYyyymmdd_(s);
@@ -3758,6 +3790,7 @@
         '<div class="lookup-stat"><p class="lookup-stat-label">Collection this month</p><p class="lookup-stat-value">' + collText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Outstanding</p><p class="lookup-stat-value" style="color:' + outColor + ';">' + outText + '</p>' + outSub + '</div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Total Outstanding</p><p class="lookup-stat-value" style="color:' + totalOutColor + ';">' + totalOutText + '</p></div>' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Credit Limit</p><p class="lookup-stat-value" style="color:' + creditLimitColor + ';">' + creditLimitText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Last order</p><p class="lookup-stat-value">' + lastOrderText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Last payment</p><p class="lookup-stat-value">' + lastPaymentText + '</p></div>' +
       '</div></div>';
