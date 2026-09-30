@@ -1139,6 +1139,22 @@
     </details>
   </section>
 
+  <!-- "Share last month's report", added 29 Sep 2026 at the owner's
+       request - lets this DSR grab their own already-archived PDF (from
+       the Monthly PDF Archive, monthly_archive.py + archiveMonthlyPdf in
+       Code.gs) and push it to WhatsApp in one tap, instead of digging
+       through Google Drive on a phone. Hidden by default and only shown
+       once checkLastMonthReport_() confirms that PDF actually exists in
+       Drive (see handleLastMonthReportCheck_ in Code.gs) - if the archive
+       run was ever missed for a month, this button just silently stays
+       hidden rather than failing loudly. -->
+  <section style="padding-bottom:0;" id="shareLastMonthWrap" hidden>
+    <div class="manage" style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+      <span class="hint" style="margin:0;">Last month's report is ready to send</span>
+      <button type="button" class="btn btn-ghost" id="shareLastMonthBtn">Share last month's report</button>
+    </div>
+  </section>
+
   <section style="padding-bottom:0;">
     <details class="manage" id="pastOrdersDetails">
       <summary>Past orders</summary>
@@ -1391,6 +1407,7 @@
   // their phone. Set by the office when publishing this app; substituted the same way as
   // Title/dsrName/MONTHLY_TARGET_LTR.
   var ORDERS_API_URL = "https://script.google.com/macros/s/AKfycbxppCHNsSlDGVY5gWKC-N2MKJ4wrLOd97FsKC19-SXjg9NPh4myip5Ht4h5R1dDlSl4GQ/exec";
+  var DSR_SHORT_NAME = "Madhu"; // added 29 Sep 2026 for "Share last month's report" - matches monthly_archive.py's captured DSR card name exactly
 
   // GST rate applied only to compute the GST-inclusive figure shown in
   // Manage Items ("Rate incl GST"). Display-only: the stored "rate" field on
@@ -2342,6 +2359,64 @@
   }
 
   function apiConfigured() { return typeof ORDERS_API_URL === "string" && ORDERS_API_URL.indexOf("http") === 0; }
+
+  // "Share last month's report", added 29 Sep 2026 - see the HTML comment
+  // above id="shareLastMonthWrap" for the full picture. checkLastMonthReport_()
+  // is a lightweight existence check only (no PDF bytes transferred),
+  // called once right after login so the button can stay hidden until
+  // there's really something to share; shareLastMonthReport_() is the
+  // heavier fetch, only called when the DSR actually taps the button.
+  var lastMonthReportInfo_ = null;
+  function checkLastMonthReport_() {
+    if (!apiConfigured()) return;
+    var url = ORDERS_API_URL + "?type=lastMonthReportCheck&dsrName=" + encodeURIComponent(DSR_SHORT_NAME);
+    fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+      var wrap = document.getElementById("shareLastMonthWrap");
+      var btn = document.getElementById("shareLastMonthBtn");
+      if (!wrap || !btn) return;
+      if (data && data.ok && data.exists) {
+        lastMonthReportInfo_ = { monthKey: data.monthKey, monthLabel: data.monthLabel };
+        btn.textContent = "Share " + data.monthLabel + " report";
+        wrap.hidden = false;
+      } else {
+        wrap.hidden = true;
+      }
+    }).catch(function () { /* stay hidden on any error - safe default, same as "not found yet" */ });
+  }
+  function shareLastMonthReport_() {
+    if (!lastMonthReportInfo_) return;
+    var btn = document.getElementById("shareLastMonthBtn");
+    var origLabel = btn ? btn.textContent : "";
+    if (btn) { btn.disabled = true; btn.textContent = "Preparing…"; }
+    var url = ORDERS_API_URL + "?type=lastMonthReportFetch&dsrName=" + encodeURIComponent(DSR_SHORT_NAME);
+    fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+      if (!data || !data.ok) throw new Error((data && data.error) || "Could not fetch last month's report");
+      var byteChars = atob(data.pdfBase64);
+      var byteNumbers = new Array(byteChars.length);
+      for (var bi = 0; bi < byteChars.length; bi++) byteNumbers[bi] = byteChars.charCodeAt(bi);
+      var pdfBlob = new Blob([new Uint8Array(byteNumbers)], { type: "application/pdf" });
+      var fileName = data.fileName || (DSR_SHORT_NAME + ".pdf");
+      var shareText = DSR_SHORT_NAME + " — " + data.monthLabel + " report";
+      var file = new File([pdfBlob], fileName, { type: "application/pdf" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        return navigator.share({ files: [file], text: shareText });
+      }
+      // Fallback for a browser with no file-sharing support - just download the PDF.
+      var dlUrl = URL.createObjectURL(pdfBlob);
+      var a = document.createElement("a");
+      a.href = dlUrl; a.download = fileName;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(dlUrl); }, 10000);
+    }).catch(function (err) {
+      // The user cancelling the native share sheet also rejects as an
+      // AbortError - that's not a real failure, don't alert for it.
+      if (String(err).indexOf("AbortError") === -1) {
+        alert("Could not share last month's report: " + (err && err.message ? err.message : err));
+      }
+    }).finally(function () {
+      if (btn) { btn.disabled = false; btn.textContent = origLabel; }
+    });
+  }
 
   // ===== Live Tally overlay (added 7 Sep 2026) =====
   // Patches stock/rate/mrp and dealer outstandingSince on top of the catalog
@@ -4000,6 +4075,8 @@
 
   function submitAsk_() { runAskQuery_(askInputEl.value); }
   if (askBtnEl) askBtnEl.addEventListener("click", submitAsk_);
+  var shareLastMonthBtnEl = document.getElementById("shareLastMonthBtn");
+  if (shareLastMonthBtnEl) shareLastMonthBtnEl.addEventListener("click", shareLastMonthReport_);
   if (askInputEl) askInputEl.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); submitAsk_(); } });
   if (askChipRowEl) askChipRowEl.addEventListener("click", function (e) {
     var chip = e.target.closest(".ask-chip");
@@ -4395,6 +4472,7 @@
         startLoginHeartbeat();
         initOrders();
         fetchLiveOverlay_();
+        checkLastMonthReport_();
         setInterval(fetchLiveOverlay_, LIVE_OVERLAY_POLL_MS);
       }).catch(function () {
         btnEl.disabled = false;
