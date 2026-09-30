@@ -622,6 +622,65 @@ def dump_creditlimit(dealer_fragment=None):
     print("from this diagnostic is wired into the live sync or the dashboard yet.")
 
 
+def fetch_creditlimit():
+    """
+    Real (non-diagnostic) dealer credit-limit fetch. CONFIRMED against real
+    Tally data 30 Sep 2026: --dump-creditlimit's raw output matched the
+    owner's own independently-known real Lock D figures exactly for two
+    dealers (N.S.K. AUTOMOBILES, THENI (OIL) = 587222.0; RAMYA AUTO STORES,
+    CBM (OIL) = 60880.0), with the raw <LEDGER> excerpt confirming
+    CREDITLIMIT is the correct native Tally field (not a guess, unlike
+    STANDARDSELLINGPRICE earlier in this project). Real coverage at
+    confirmation time: 559 of 4152 total ledgers had a non-blank
+    CREDITLIMIT (Lock D not yet pushed to every dealer - expected, not a
+    bug; see dump_creditlimit()'s own docstring above).
+
+    Reuses CREDIT_LIMIT_DUMP_XML - the same isolated Collection request the
+    diagnostic above uses. Never folded into LEDGER_GROUP_COLLECTION_XML or
+    OUTSTANDING_COLLECTION_XML, same "a new field never risks an
+    already-trusted request" convention used throughout this file.
+
+    Returns {ledger_name: {"creditLimit": float_or_None, "creditPeriod":
+    float_or_None}} for EVERY ledger in the company - same whole-company
+    scope as fetch_all_ledgers_with_balance()/fetch_outstanding() (not
+    filtered to known DSR dealers), so a ledger whose CREDITLIMIT is
+    cleared in Tally is still reported as an explicit None rather than
+    silently dropping out of the diff - same "explicit clear beats silent
+    skip" convention diff_outstanding() already follows.
+    """
+    xml_text = tally_request(CREDIT_LIMIT_DUMP_XML)
+    root = ET.fromstring(xml_text)
+    out = {}
+    for led in root.iter("LEDGER"):
+        name = led.get("NAME") or _text(led, "NAME")
+        if not name:
+            continue
+        name = name.strip()
+        out[name] = {
+            "creditLimit": _num(_text(led, "CREDITLIMIT")),
+            "creditPeriod": _num(_text(led, "CREDITPERIOD")),
+        }
+    return out
+
+
+def diff_creditlimit(prev, current):
+    """
+    Same shape/convention as diff_outstanding() above - a ledger whose
+    creditLimit OR creditPeriod changed since the last poll (including one
+    clearing to None) counts as changed and gets pushed.
+    """
+    changed = []
+    for name, rec in current.items():
+        old = prev.get(name, "__unset__")
+        if old != rec:
+            changed.append({
+                "name": name,
+                "creditLimit": rec["creditLimit"],
+                "creditPeriod": rec["creditPeriod"],
+            })
+    return changed
+
+
 def fetch_outstanding(all_ledger_balances=None, capture_bills_into=None):
     """
     Returns {dealer_name: {"since": iso_date_or_None, "pendingAmount": float_or_None}}.
@@ -895,6 +954,13 @@ def load_state():
     # idempotently by voucher#+line key, so there's nothing to diff
     # locally - just "have we ever done the one-time 1 Sep backfill yet".
     state.setdefault("daybook_backfill_done", False)
+    # creditlimit added 30 Sep 2026 - see fetch_creditlimit()/diff_creditlimit()
+    # above and the LiveCreditLimit push in run_once() below. setdefault so
+    # an existing state file from before this feature doesn't KeyError the
+    # first time it runs - that first run will then see every ledger with a
+    # non-blank CREDITLIMIT as "changed" (nothing was ever recorded before),
+    # a one-time larger push, same as any other feature's first rollout.
+    state.setdefault("creditlimit", {})
     return state
 
 
@@ -1268,8 +1334,17 @@ def run_once(state, dry_run=False):
         for name, rec in outstanding_data.items()
     )
 
+    # Dealer credit-limit/credit-lock status - confirmed against real Tally
+    # data 30 Sep 2026 (see fetch_creditlimit()'s own docstring). Same
+    # weight class as fetch_all_ledgers_with_balance() above (one
+    # whole-company Ledger Collection request, not a per-voucher pull like
+    # Collection/Sales/Day Book/Group Summary below), so it runs on the same
+    # 10-minute cadence as stock/outstanding rather than a slower one.
+    creditlimit = fetch_creditlimit()
+
     stock_changed = diff_stock(state["stock"], stock)
     outstanding_changed = diff_outstanding(state["outstanding"], outstanding)
+    creditlimit_changed = diff_creditlimit(state.get("creditlimit", {}), creditlimit)
 
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -1296,6 +1371,12 @@ def run_once(state, dry_run=False):
             rec = outstanding[name]
             print("  {}  ->  {}   (balance: {}, pending: {})".format(
                 name, rec["outstandingSince"] or "not outstanding", rec["balance"], rec["pendingAmount"]))
+        print()
+        print("Would send {} changed credit-limit row(s):".format(len(creditlimit_changed)))
+        for c in creditlimit_changed[:15]:
+            print("  {}  ->  creditLimit={} creditPeriod={}".format(c["name"], c["creditLimit"], c["creditPeriod"]))
+        if len(creditlimit_changed) > 15:
+            print("  ... and {} more".format(len(creditlimit_changed) - 15))
         return state  # unchanged - --test never updates the state file
 
     if stock_changed:
@@ -1304,11 +1385,15 @@ def run_once(state, dry_run=False):
     if outstanding_changed:
         sent = post_backend_chunked("liveOutstandingUpdate", "dealers", outstanding_changed, ts)
         print("[{}] outstanding: sent {} changed dealer(s) total".format(ts, sent))
-    if not stock_changed and not outstanding_changed:
+    if creditlimit_changed:
+        sent = post_backend_chunked("liveCreditLimitUpdate", "dealers", creditlimit_changed, ts)
+        print("[{}] credit limit: sent {} changed ledger(s) total".format(ts, sent))
+    if not stock_changed and not outstanding_changed and not creditlimit_changed:
         print("[{}] no changes".format(ts))
 
     state["stock"] = stock
     state["outstanding"] = outstanding
+    state["creditlimit"] = creditlimit
 
     # 60+ day overdue, bill-level monthly baseline - see
     # snapshot_or_get_sixtyplus_baseline()'s docstring above for the full
