@@ -1610,6 +1610,16 @@
   var salesByItem = null;   // {itemName: {today, month}} Ltr, or null before first successful fetch
   var collectionByDealer = null; // {dealerName: {today, month}} or null before first successful fetch
   var outstandingMap = null; // {dealerName: {since, balance, pendingAmount}} or null before first successful fetch, added 17 Sep 2026
+  // creditLimitMap added 30 Sep 2026 for Dealer Lookup's new "Credit Limit"
+  // tile - {dealerName: {creditLimit, creditPeriod}}, straight from Tally's
+  // own CREDITLIMIT ledger field (the owner's Lock D formula, pushed into
+  // Tally natively - this dashboard only ever reads it, never computes it).
+  // Confirmed against real data: N.S.K. AUTOMOBILES, THENI = 587222, RAMYA
+  // AUTO STORES, CBM = 60880 - both matched the owner's own known real
+  // figures exactly. See Code.gs's handleLiveGet_()/tally_live_watcher.py's
+  // fetch_creditlimit(). Company-wide, same scope as outstandingMap above -
+  // not filtered to known DSR dealers.
+  var creditLimitMap = null;
   var dealerRoster = null; // {dsrName: [dealerName, ...]} - company-wide, added 8 Sep 2026 for the new-dealer auto-add
   // newDealers added 23 Sep 2026 for the "New Dealers Billed This Month"
   // stat - {dsrName: [{name, firstSeenDate}, ...]}, straight from
@@ -4575,6 +4585,7 @@
     var salesRec = salesByDealer ? salesByDealer[name] : null;
     var collRec = collectionByDealer ? collectionByDealer[name] : null;
     var outRec = outstandingMap ? outstandingMap[name] : null;
+    var clRec = creditLimitMap ? creditLimitMap[name] : null;
 
     var salesHtml = buildLookupSalesHtml_(salesRec);
     var collHtml = buildLookupCollHtml_(collRec);
@@ -4627,6 +4638,31 @@
     }
     var totalOutText = totalOwed !== null ? fmtRs(totalOwed) : 'No dues on record';
     var totalOutColor = totalOwed !== null ? 'var(--warn)' : 'var(--ink)';
+    // "Credit Limit" tile - added 30 Sep 2026. Straight from Tally's own
+    // CREDITLIMIT ledger field (the owner's own Lock D formula, pushed
+    // into Tally natively) via creditLimitMap/clRec above - this
+    // dashboard only ever reads it, never computes it. CONFIRMED against
+    // real data: N.S.K. AUTOMOBILES, THENI (OIL) = Rs 5,87,222, RAMYA
+    // AUTO STORES, CBM (OIL) = Rs 60,880, both matching the owner's own
+    // independently-known real figures exactly (see
+    // tally_live_watcher.py's fetch_creditlimit() docstring). Not every
+    // dealer has Lock D pushed yet, so "Not set in Tally" is expected for
+    // many, not a bug. The over-limit flag below is just a comparison of
+    // two already-fetched numbers (totalOwed vs clRec.creditLimit) -
+    // reuses totalOutColor's own "var(--warn)" convention, not a new
+    // calculation.
+    var creditLimitText = 'Not set in Tally';
+    var creditLimitColor = 'var(--ink)';
+    if (clRec && clRec.creditLimit !== null && clRec.creditLimit !== undefined) {
+      creditLimitText = fmtRs(clRec.creditLimit);
+      if (clRec.creditPeriod !== null && clRec.creditPeriod !== undefined) {
+        creditLimitText += ' — ' + fmt(clRec.creditPeriod) + ' days';
+      }
+      if (totalOwed !== null && totalOwed > clRec.creditLimit) {
+        creditLimitColor = 'var(--warn)';
+        creditLimitText += '<br><span style="font-size:0.85em;">Over limit</span>';
+      }
+    }
     // "— <Ltr> Ltr" suffix added 26 Sep 2026 at the owner's request ("IN
     // LAST ORDER (HOW MANY LTR GIVEN)") - sourced from salesByDealer's new
     // lastSaleLtr field (see fetch_sales()'s last_sale_ltr_by_dealer
@@ -4670,6 +4706,7 @@
         '<div class="lookup-stat lookup-stat-wide"><p class="lookup-stat-label">Collection — this month / last month / 6-mo avg</p><div class="lookup-stat-value">' + collHtml + '</div></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Outstanding</p><p class="lookup-stat-value">' + outAgeText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Total Outstanding</p><p class="lookup-stat-value" style="color:' + totalOutColor + ';">' + totalOutText + '</p></div>' +
+        '<div class="lookup-stat"><p class="lookup-stat-label">Credit Limit</p><p class="lookup-stat-value" style="color:' + creditLimitColor + ';">' + creditLimitText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Last order</p><p class="lookup-stat-value">' + lastOrderText + '</p></div>' +
         '<div class="lookup-stat"><p class="lookup-stat-label">Last payment</p><p class="lookup-stat-value">' + lastPaymentText + '</p></div>' +
       '</div></div>';
@@ -6486,6 +6523,7 @@
         // list - see the 17 Sep scoping discussion in
         // claude/dsr-app-registry.md).
         if (res && res.ok && res.outstanding) outstandingMap = res.outstanding;
+        if (res && res.ok && res.creditLimit) creditLimitMap = res.creditLimit;
         if (res && res.ok && res.dealerRoster) dealerRoster = res.dealerRoster;
         if (res && res.ok && res.newDealers) newDealers = res.newDealers;
 
