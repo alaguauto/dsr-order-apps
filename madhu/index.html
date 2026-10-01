@@ -1029,6 +1029,9 @@
         <button type="button" class="refresh-btn" id="refreshBtn" title="Refresh catalog &amp; dealers" aria-label="Refresh catalog and dealers">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
         </button>
+        <button type="button" class="refresh-btn" id="logoutBtn" title="Log out of this device" aria-label="Log out" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        </button>
       </div>
     </div>
     <div class="summary-strip" id="summaryStrip"></div>
@@ -4596,6 +4599,28 @@
     var APP_DISPLAY = "Madhu Order Slip";
     var loginSessionId = null;
     var loginHeartbeatTimer = null;
+    // "Stay logged in on this device" - added 1 Oct 2026 after DSRs said
+    // re-entering the password every single time they opened the app felt
+    // slow ("lagging to go inside" - the owner's own words relaying the
+    // complaint). A DSR app is a personal, one-person phone, so a
+    // long-lived remembered-device token (opaque, never the password
+    // itself, rotated on every silent use, invalidated by a password
+    // reset or an explicit Log out - see Code.gs's handleLoginWithToken_()/
+    // handleClearRememberToken_()) is a reasonable trade just for this app
+    // type - the manager dashboard deliberately keeps asking every time,
+    // unchanged. Namespaced by APP_LOGIN_NAME since every DSR app plus the
+    // dashboard share one GitHub Pages origin and therefore one
+    // localStorage.
+    var REMEMBER_TOKEN_KEY = "petronasRememberToken_" + APP_LOGIN_NAME;
+    function getStoredToken() {
+      try { return localStorage.getItem(REMEMBER_TOKEN_KEY) || ""; } catch (e) { return ""; }
+    }
+    function storeToken(t) {
+      try {
+        if (t) localStorage.setItem(REMEMBER_TOKEN_KEY, t);
+        else localStorage.removeItem(REMEMBER_TOKEN_KEY);
+      } catch (e) { /* ignore - private browsing / storage disabled */ }
+    }
 
     function loginHeartbeatPing() {
       if (document.visibilityState !== "visible" || !loginSessionId) return;
@@ -4608,6 +4633,21 @@
         if (document.visibilityState === "visible") loginHeartbeatPing();
       });
     }
+    // Shared by a real password login and a silent remembered-device login -
+    // both land in exactly the same post-login state (this was duplicated
+    // inline before 1 Oct 2026; pulled out so the two paths can't drift).
+    function proceedAfterLogin(sessionId) {
+      loginSessionId = sessionId;
+      var overlay = document.getElementById("loginGateOverlay");
+      if (overlay) overlay.style.display = "none";
+      var logoutBtnEl2 = document.getElementById("logoutBtn");
+      if (logoutBtnEl2) logoutBtnEl2.hidden = false;
+      startLoginHeartbeat();
+      initOrders();
+      fetchLiveOverlay_();
+      checkLastMonthReport_();
+      setInterval(fetchLiveOverlay_, LIVE_OVERLAY_POLL_MS);
+    }
     function doLoginGateSubmit() {
       var pwEl = document.getElementById("loginGatePassword");
       var errEl = document.getElementById("loginGateError");
@@ -4616,31 +4656,65 @@
       if (!password) { errEl.textContent = "Enter your password"; errEl.hidden = false; return; }
       btnEl.disabled = true;
       errEl.hidden = true;
-      postToApi("login", { name: APP_LOGIN_NAME, password: password, app: APP_DISPLAY }).then(function (res) {
+      postToApi("login", { name: APP_LOGIN_NAME, password: password, app: APP_DISPLAY, remember: true }).then(function (res) {
         btnEl.disabled = false;
         if (!res || !res.ok) {
           errEl.textContent = (res && res.error) || "Login failed";
           errEl.hidden = false;
           return;
         }
-        loginSessionId = res.sessionId;
-        var overlay = document.getElementById("loginGateOverlay");
-        if (overlay) overlay.style.display = "none";
-        startLoginHeartbeat();
-        initOrders();
-        fetchLiveOverlay_();
-        checkLastMonthReport_();
-        setInterval(fetchLiveOverlay_, LIVE_OVERLAY_POLL_MS);
+        if (res.rememberToken) storeToken(res.rememberToken);
+        proceedAfterLogin(res.sessionId);
       }).catch(function () {
         btnEl.disabled = false;
         errEl.textContent = "Could not reach the server - check your connection";
         errEl.hidden = false;
       });
     }
+    function doLogout() {
+      var token = getStoredToken();
+      storeToken("");
+      if (token) postToApi("clearRememberToken", { token: token }).catch(function () {});
+      location.reload();
+    }
     var gateBtnEl = document.getElementById("loginGateBtn");
     var gatePwEl = document.getElementById("loginGatePassword");
     if (gateBtnEl) gateBtnEl.addEventListener("click", doLoginGateSubmit);
     if (gatePwEl) gatePwEl.addEventListener("keydown", function (e) { if (e.key === "Enter") doLoginGateSubmit(); });
+    var logoutBtnEl = document.getElementById("logoutBtn");
+    if (logoutBtnEl) logoutBtnEl.addEventListener("click", doLogout);
+
+    // On load: try a silent remembered-device login before showing the
+    // password form at all. A valid token logs straight in with no typing;
+    // an invalid/expired one (or no token, or a network hiccup) falls back
+    // to the normal form untouched.
+    var storedToken = getStoredToken();
+    if (storedToken) {
+      var subEl = document.querySelector("#loginGateOverlay .login-gate-sub");
+      var inputEl = document.getElementById("loginGatePassword");
+      var btnElForSilent = document.getElementById("loginGateBtn");
+      if (subEl) subEl.textContent = "Signing you in...";
+      if (inputEl) inputEl.hidden = true;
+      if (btnElForSilent) btnElForSilent.hidden = true;
+      postToApi("loginWithToken", { token: storedToken, app: APP_DISPLAY }).then(function (res) {
+        if (res && res.ok) {
+          if (res.rememberToken) storeToken(res.rememberToken);
+          proceedAfterLogin(res.sessionId);
+          return;
+        }
+        // Invalid/expired - forget it and fall back to the normal form.
+        storeToken("");
+        if (subEl) subEl.textContent = "Enter your password to continue";
+        if (inputEl) inputEl.hidden = false;
+        if (btnElForSilent) btnElForSilent.hidden = false;
+      }).catch(function () {
+        // Network error, not an auth rejection - keep the token for next
+        // time, just fall back to manual login for now.
+        if (subEl) subEl.textContent = "Enter your password to continue";
+        if (inputEl) inputEl.hidden = false;
+        if (btnElForSilent) btnElForSilent.hidden = false;
+      });
+    }
   })();
   checkReportBlock();
 })();
