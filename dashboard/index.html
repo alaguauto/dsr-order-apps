@@ -4069,7 +4069,11 @@
   function fetchDaybookItemGroupRows_() {
     var monthKey = currentMonthKey_();
     var url = ORDERS_API_URL + '?type=daybookMonth&month=' + encodeURIComponent(monthKey) + '&_ts=' + Date.now();
-    return fetchJson_(url)
+    // 45s timeout here too, same 1 Oct 2026 fix/correction as fetchLive()
+    // above - a whole month's Day Book scan is also a heavier read than a
+    // single DSR's fetchOne(), and it's competing for the same Apps
+    // Script backend at the same moment.
+    return fetchJson_(url, 3, 45000)
       .then(function (res) {
         if (!res || !res.ok) throw new Error((res && res.error) || 'Server error');
         daybookItemGroupRows = res.rows || [];
@@ -7551,6 +7555,20 @@
     // sensitive than any of those three, not less.
     var petronasSummaryBlock = document.getElementById('capturePetronasSummary');
     if (petronasSummaryBlock) petronasSummaryBlock.hidden = !!CURRENT_ALLOWED_AREAS;
+    // Report month picker (and the Last Month report it opens), added 1
+    // Oct 2026 - owner: "for area manager no need last month report to
+    // see". Same "hide rather than leak/half-show" rule as everything
+    // else on this list - the Last Month report was already partially
+    // scoped for a restricted Area Manager (see renderLastMonthReport_()'s
+    // own CURRENT_ALLOWED_AREAS check), but the owner wants it gone
+    // entirely for that role, not partially shown. Hiding the picker row
+    // is enough on its own: #reportMonthSelect defaults to and only ever
+    // starts on the current month (initReportMonthPicker_() below), so
+    // with no way to change it a restricted Area Manager can never land
+    // on the Last Month view - #reportContent (this month, already
+    // correctly scoped) stays exactly as visible as it always was.
+    var monthSelectRow = document.querySelector('.month-select-row');
+    if (monthSelectRow) monthSelectRow.hidden = !!CURRENT_ALLOWED_AREAS;
     loadUsageReport_();
     startLoginHeartbeat_();
     startUsageReportAutoRefresh_();
@@ -7761,7 +7779,20 @@
   // blank) is treated the same way, field by field.
   function fetchLive() {
     var url = ORDERS_API_URL + "?type=live&_ts=" + Date.now();
-    return fetchJson_(url)
+    // Fixed 1 Oct 2026, same day as fetchJson_() was introduced: this
+    // endpoint alone bundles reads from ~15+ sheets (stock ~8,803 items,
+    // outstanding, every live-DSR map, both trend sets, Petronas Summary,
+    // etc.) PLUS it's one of ~9 requests refreshAll() fires at the same
+    // Apps Script backend at once - under that real contention it
+    // genuinely needs well over fetchJson_()'s 12s default to come back,
+    // it's just slow, not hung. The first version of this fix used the
+    // 12s default here too, which made things WORSE than before the fix -
+    // it now aborted and gave up on a request that would have succeeded
+    // if just left to finish, where the OLD no-timeout code would have
+    // waited it out. 45s is generous enough that a genuinely hung
+    // connection still gets caught (the whole point of this change) without
+    // cutting off a merely-slow-under-load one.
+    return fetchJson_(url, 3, 45000)
       .then(function (res) {
         var collection = (res && res.ok && res.collection) ? res.collection : null;
         DSRS.forEach(function (d) {
