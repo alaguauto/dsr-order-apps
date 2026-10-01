@@ -705,6 +705,33 @@
     border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 13px;
     background: var(--bg); color: var(--ink); font-family: inherit;
   }
+  /* "Petronas Business Summary" table, added 30 Sep 2026 - 8 columns (Month
+     + 7 numeric) with some genuinely long headers ("Payment Made to
+     Petronas"), so this gets its own width/wrap rules rather than reusing
+     ageTableWrap_()'s existing variants (which assume a name column, not a
+     month column, as the first cell) - same underlying .age-table base
+     classes/behavior (sticky first column, overflow-x scroll on a narrow
+     phone) otherwise. Header-wrap fix matches the one already proven in
+     this feature's own approved mockup: white-space:normal + a bit of
+     line-height/vertical-align on just the header row, so a long header
+     wraps onto two lines instead of overlapping its neighbor. */
+  /* "Balance (Closing Stock)" column: added 30 Sep 2026, removed 1 Oct 2026
+     (opening-stock figure never arrived), RE-ADDED 1 Oct 2026 same day the
+     owner supplied the real opening stock (80762 Ltr, start of Jan 2026) -
+     see the 1 Oct 2026 entries in the project notes for the full back-
+     and-forth. 9 columns again, min-width back to 1100px. */
+  .petronas-summary-table { min-width: 1100px; }
+  .petronas-summary-table thead th { white-space: normal; line-height: 1.3; vertical-align: bottom; }
+  .petronas-summary-table thead th:first-child { width: 110px; }
+  .petronas-summary-table thead th:not(:first-child) { width: 124px; }
+  .petronas-summary-stock.neg { color: var(--warn); }
+  .petronas-summary-stock.pos { color: var(--good); }
+  .petronas-summary-collected { color: var(--good); }
+  .petronas-summary-purchaseval { color: var(--money); }
+  .petronas-summary-payment { color: var(--warn); }
+  .petronas-summary-balance.neg { color: var(--warn); }
+  .petronas-summary-balance.pos { color: var(--good); }
+  .petronas-summary-row-live { color: var(--ink-muted); font-weight: 400; }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a4a44">
@@ -773,8 +800,84 @@
         <div class="admin-msg" style="opacity:0.75;">Manager sees every DSR. Area Manager sees only the areas you list below - type the exact DSR card names separated by commas, e.g. Prabha,Arun,Chellamani (required for this role - it won't save blank). Areas is ignored for DSR/Owner.</div>
         <div class="admin-msg" style="opacity:0.75;">"Hide these people's logins" is about the usage report only, not the DSR data above - it's one-directional and per-person: e.g. type "Anbu" while Bala is selected to stop Bala (only) from seeing Anbu's logins; Anbu's own view is unaffected unless you set something on his row too. Leave blank to hide nobody.</div>
       </div>
+      <!-- "Run Full Archive", added 30 Sep 2026 at the owner's request
+           ("that reportbot not working so please keep a run full archive
+           download in only my owner id") - the office-PC-only
+           monthly_archive.py (Python + Playwright, logging in as the
+           "ReportBot" account) is the only thing that could ever trigger
+           the month-end PDF-to-Drive archive, which meant it could only
+           ever run from that one physical machine, and the archive's own
+           already-archived-this-month guard (state.json's
+           last_archived_month) meant a same-day re-test could silently
+           make the REAL end-of-month scheduled run at 7:45 PM no-op the
+           very same night, with no way to force a fresh one except
+           physically going back to that PC. This button does the exact
+           same capture-and-upload job entirely client-side, from
+           WHATEVER device the Owner is signed into the dashboard on
+           (phone included), with no ReportBot account and no ".py" needed
+           at all - see runFullArchive_() further down for the capture
+           loop and archiveMonthlyPdf's own dual-auth (LIVE_SYNC_KEY for
+           monthly_archive.py, OR the Owner's own freshly-typed password
+           for this button - see handleArchiveMonthlyPdf_() in Code.gs).
+           Gated the same "Owner only" way as the password-reset block
+           above (archiveBlock.hidden = (role !== 'Owner') in
+           afterLogin_()) - deliberately NOT extended to plain unrestricted
+           Manager, since this uploads real company financial PDFs to the
+           Owner's own Google Drive. -->
+      <div id="archiveBlock" class="admin-block" hidden>
+        <h4>Run Full Archive (Owner only)</h4>
+        <div class="admin-msg" style="opacity:0.75;">Captures every DSR card plus every company-wide section (Stocks, Petronas Business Summary, Collection Group Summary, and the rest) as PDFs and saves them into Google Drive under "AAA Monthly Reports" - the same job monthly_archive.py does on the office PC, run here instead, from this device, any time you need a fresh copy.</div>
+        <div class="admin-field-row">
+          <input type="password" id="archiveConfirmPassword" placeholder="Your password (confirm)" autocomplete="current-password">
+          <button type="button" id="archiveRunBtn" class="admin-save-btn">Run Full Archive</button>
+        </div>
+        <div id="archiveProgressWrap" style="display:none;margin-top:8px;">
+          <div style="background:var(--border);border-radius:6px;height:8px;overflow:hidden;">
+            <div id="archiveProgressBar" style="background:var(--accent);height:100%;width:0%;transition:width 0.2s;"></div>
+          </div>
+          <div id="archiveProgressText" class="admin-msg"></div>
+          <div id="archiveLog" style="max-height:160px;overflow:auto;font-size:11.5px;line-height:1.5;color:var(--ink-secondary);margin-top:4px;"></div>
+        </div>
+        <div id="archiveMsg" class="admin-msg"></div>
+      </div>
+      <!-- "Team Business Summary" PDF, added 30 Sep 2026 at the owner's
+           request ("near run full archive i need a option to share my
+           business summary overview , complete data base where are we
+           right now and what we are going to do , to share with my full
+           team of dsr and managers - give me a pdf , 1 para summary for
+           each dsr , understand the scenrio of sales , what happend
+           before what is going to do in this month"). Two follow-up
+           questions were asked and answered before building this: (1) the
+           "what we are going to do this month" part is AUTO-CALCULATED
+           ONLY - balance-to-target, days left in the month, and the
+           required daily Ltr/Rs pace to land exactly on target - no
+           manual note-typing UI; (2) YES, include a company-wide overview
+           section before the per-DSR paragraphs. Pure text jsPDF document
+           (doc.text()/splitTextToSize(), NOT the screenshot-to-PDF path
+           imageBlobToPdfBlob_() uses for Run Full Archive/WhatsApp-PDF),
+           since this is meant to read as a written report, not a captured
+           screen. Gated Owner-only the same way as archiveBlock above
+           (teamSummaryBlock.hidden = (role !== 'Owner') in afterLogin_()),
+           deliberately NOT extended to Manager/Area Manager even though
+           it's meant to be SHARED with them - it surfaces every DSR's
+           overdue-dealer Rs figures side by side, which is the same
+           reason archiveBlock stays Owner-only; the Owner downloads the
+           PDF here and forwards it out himself. -->
+      <div id="teamSummaryBlock" class="admin-block" hidden>
+        <h4>Team Business Summary (Owner only)</h4>
+        <div class="admin-msg" style="opacity:0.75;">One PDF: a company-wide "where we are right now" overview, then one paragraph per DSR — this month's sales &amp; collection vs. last month and the 6-month average, overdue/dormant dealer counts, and the daily Ltr/Rs pace each DSR needs for the rest of the month to hit target. Built to forward to the whole team (DSRs + Managers).</div>
+        <div class="admin-field-row">
+          <button type="button" id="teamSummaryBtn" class="admin-save-btn">Download Team Business Summary (PDF)</button>
+        </div>
+        <div id="teamSummaryMsg" class="admin-msg"></div>
+      </div>
       <div class="admin-block">
-        <h4>Login &amp; usage time</h4>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 8px;">
+          <h4 style="margin:0;">Login &amp; usage time</h4>
+          <button type="button" class="share-icon-btn small" id="shareUsageBtn" title="Share login &amp; usage time">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+          </button>
+        </div>
         <div class="usage-quick-row">
           <button type="button" class="usage-quick-btn" data-range="today">Today</button>
           <button type="button" class="usage-quick-btn" data-range="week">This week</button>
@@ -821,6 +924,83 @@
     </button>
   </div>
 
+  <!-- Report month picker, added 30 Sep 2026 at the owner's request ("Can
+       we have a month changing option in dashboard, if we selected a
+       month then the last day of the report having in the month to be
+       displayed for full cards"). Scope clarified via two questions
+       before building: (1) applies to the WHOLE dashboard (every card
+       and every company-wide section below), not just the DSR cards;
+       (2) for now, only the real current calendar month has real data -
+       picking any other month shows a plain "No data" message instead of
+       the report, exactly as the owner asked ("we are having data only
+       from sep if previous month selected tell no data").
+
+       Revised 1 Oct 2026 after a real screenshot report ("month picker of
+       last month did not showing the screen of last month , full data we
+       are having from sep 26 only so on the dropdown box should show from
+       sep 26 only") - clarified via AskUserQuestion that the owner wants
+       the immediately-previous month to show REAL data, not just a
+       trimmed list. Two changes: (a) the dropdown now starts at
+       DAYBOOK_FIRST_MONTH_ (Sep 2026, the same "data genuinely starts
+       here" constant the Day Book export picker already uses) instead of
+       a blind 12-month rolling lookback that included months with zero
+       data; (b) selecting exactly ONE month back from today now renders a
+       real "last month" summary (see renderLastMonthReport_() further
+       down) built entirely from fields ALREADY flowing into this page -
+       no new Tally fetch, no new backend endpoint. What it covers, and why
+       it can't cover everything: Sales/Collection per-DSR+Area (from each
+       DSR's own lastMonthFullLtr/lastMonthFull fields, already loaded for
+       the small "Last month: X" line inside every card since 21 Sep
+       2026), the same company-wide totals via salesTrendMap/
+       collectionTrendMap/salesRsTrendMap's daily figures (already loaded
+       for the Trend chart since 20 Sep 2026), Day Book (already stores a
+       real per-month sheet tab, see DAYBOOK_FIRST_MONTH_'s own comment),
+       and Collection Group Summary (already keeps every month in one
+       sheet, see GROUP_SUMMARY_GROUPS_'s own history). Stock, Outstanding/
+       60+ ageing, Needs attention, Dealer review's own 6-month-average
+       comparison, Ranking, Top selling SKU, and Items Covered have NO
+       historical equivalent anywhere in this system - every one of those
+       is a live Tally snapshot that gets overwritten, not accumulated -
+       so they're left out of the last-month view with one honest note
+       rather than faked. Anything OLDER than one month back still shows
+       "No data" (unchanged) - the lastMonthFull*/trend fields only ever
+       hold ONE prior month, not a real archive; a genuine multi-month
+       history would be the same kind of new, diagnostic-first build as
+       the Jan-Oct 2026 Excel template delivered 1 Oct 2026, not a UI
+       change. The Account &amp; Usage panel above this row is NOT gated by
+       month - it's account actions, not a report. -->
+  <div class="month-select-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 18px;">
+    <label for="reportMonthSelect" style="font-size:13px;color:var(--ink-secondary);">Report month:</label>
+    <select id="reportMonthSelect"></select>
+    <span id="reportMonthNote" style="font-size:12px;color:var(--ink-muted);"></span>
+  </div>
+
+  <div id="noDataBanner" class="admin-msg" hidden style="margin:0 0 18px;padding:14px 16px;border-radius:10px;background:var(--card);border:1px solid var(--border);font-size:13.5px;"></div>
+
+  <!-- Last month's real summary, added 1 Oct 2026 - see the long comment
+       above #reportMonthSelect. Populated by renderLastMonthReport_(),
+       shown instead of #reportContent/#noDataBanner only when the picked
+       month is exactly one calendar month before today. -->
+  <div id="lastMonthReportContent" hidden style="margin:0 0 18px;">
+    <div id="lastMonthCombinedWrap" style="margin:0 0 16px;"></div>
+    <div class="section-label-row">
+      <p class="section-label">Full Petronas — Sales &amp; Collection</p>
+    </div>
+    <div id="lastMonthAreaWrap"></div>
+    <div class="section-label-row" style="margin-top:18px;">
+      <p class="section-label">Day Book (Petronas)</p>
+      <button type="button" class="share-icon-btn small" id="lastMonthDaybookExportBtn" title="Export as Excel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+      </button>
+    </div>
+    <div class="section-label-row" style="margin-top:18px;">
+      <p class="section-label">Collection Group Summary</p>
+    </div>
+    <div id="lastMonthGroupSummaryWrap"></div>
+    <p style="font-size:12.5px;color:var(--ink-muted);margin-top:16px;">Stock, Outstanding/60+ ageing, Needs attention, Dealer review, Ranking, Top selling SKU and Items Covered are current-month snapshots only — Tally doesn't keep a historical record for these, so they're not shown here for a past month.</p>
+  </div>
+
+  <div id="reportContent">
   <!-- captureSummary wraps Combined+Ratio+Ranking together, added 20 Sep
        2026 so "Share full summary" has a bounded capture target instead
        of the whole scrollable .page - capturing the ENTIRE page (every
@@ -927,8 +1107,17 @@
     <div id="askAnswerWrap"></div>
   </div>
 
+  <!-- Wrapped in one capture* div, added 30 Sep 2026, so the new "Run Full
+       Archive" feature (see runFullArchive_() further down) can screenshot
+       label+chart together in a single captureElementToBlob_() call, same
+       as every other capture* section - previously only monthly_archive.py
+       (Python/Playwright) could capture this pair, by unioning two
+       selectors' bounding boxes server-side. Purely a wrapping div, no
+       layout/CSS change. -->
+  <div id="captureTrend">
   <p class="section-label" id="trendSectionLabel">Sales &amp; Collection trend — this month vs last month</p>
   <div class="trend-wrap" id="trendWrap"></div>
+  </div>
 
   <p class="section-label" id="trendBarsLabel">Daily spikes</p>
   <div class="trend-wrap" id="trendBarsWrap"></div>
@@ -1072,6 +1261,13 @@
     </div>
   </div>
 
+  <!-- Wrapped in one capture* div, added 30 Sep 2026, for the same reason
+       as captureTrend above - lets "Run Full Archive" screenshot the
+       "This month" label together with all 4 panels (Top Items, Top
+       Customers x2, Top selling SKU by DSR) in one shot, matching what
+       monthly_archive.py already does server-side with two unioned
+       selectors ("#thisMonthSectionLabel", "#captureTopFive"). -->
+  <div id="captureThisMonthSection">
   <p class="section-label" id="thisMonthSectionLabel">This month</p>
   <div class="leaderboard three" id="captureTopFive">
     <div class="leaderboard-panel">
@@ -1106,6 +1302,7 @@
       </summary>
       <div class="dsr-row-body" id="topSkuByDsr"></div>
     </details>
+  </div>
   </div>
 
   <!-- Items sold / Top customers modal, added 19 Sep 2026 - same expand-
@@ -1173,6 +1370,44 @@
         <button type="button" class="dormant-close" id="itemGroupPickerCloseBtn" aria-label="Close">&times;</button>
       </div>
       <div id="itemGroupPickerList"></div>
+    </div>
+  </div>
+
+  <!-- Day Book / Collection Group Summary month-pickers, added 1 Oct 2026
+       at the owner's request ("need month wise download for Day Book
+       (Petronas) & Collection Group Summary , while click download in
+       this which month should asked") - both Export buttons used to
+       always export the current calendar month only with no way to pick
+       a different one; now clicking either Export button opens one of
+       these instead of exporting immediately, same .dormant-overlay/
+       .dormant-sheet/picker-row shell as the item-group share picker
+       above, reused rather than inventing new visual language. See
+       openDaybookMonthPicker_()/openGroupSummaryMonthPicker_() further
+       down for how each list is built and runDaybookExport_(monthKey)/
+       runGroupSummaryExport_(monthKey) for the (now month-parameterized,
+       previously hardcoded-to-"now") actual export logic. -->
+  <div class="dormant-overlay" id="daybookMonthPickerOverlay" style="display:none;">
+    <div class="dormant-sheet">
+      <div class="dormant-sheet-head">
+        <div>
+          <p class="dormant-sheet-title">Export Day Book for which month?</p>
+          <p class="dormant-sheet-sub">Synced from 1 Sep 2026 onward - pick a month to download.</p>
+        </div>
+        <button type="button" class="dormant-close" id="daybookMonthPickerCloseBtn" aria-label="Close">&times;</button>
+      </div>
+      <div id="daybookMonthPickerList"></div>
+    </div>
+  </div>
+  <div class="dormant-overlay" id="groupSummaryMonthPickerOverlay" style="display:none;">
+    <div class="dormant-sheet">
+      <div class="dormant-sheet-head">
+        <div>
+          <p class="dormant-sheet-title">Export Collection Group Summary for which month?</p>
+          <p class="dormant-sheet-sub">Only months with synced data are listed.</p>
+        </div>
+        <button type="button" class="dormant-close" id="groupSummaryMonthPickerCloseBtn" aria-label="Close">&times;</button>
+      </div>
+      <div id="groupSummaryMonthPickerList"></div>
     </div>
   </div>
 
@@ -1296,6 +1531,13 @@
        builds a real .xlsx workbook client-side via the same SheetJS
        library the Stock export below already proved out - see the
        exportDaybookXlsxBtn handler further down. -->
+  <!-- Wrapped in one capture* div, added 30 Sep 2026, for the same reason
+       as captureTrend/captureThisMonthSection above - lets "Run Full
+       Archive" screenshot "Day Book (Petronas)" together with "Sales by
+       Item Group (Alt Qty)" just below it in one shot, matching what
+       monthly_archive.py already does server-side with two unioned
+       selectors ("#dayBookRow", "#captureDaybookItemGroup"). -->
+  <div id="captureDayBookSection">
   <div class="dsr-row" id="dayBookRow" style="padding:14px 16px;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
       <span class="dsr-row-headtext"><span class="card-name">Day Book (Petronas)</span>
@@ -1424,6 +1666,7 @@
       </div>
     </details>
   </div>
+  </div>
 
   <!-- "Current Stock, MRP & Nett Price", added 25 Sep 2026 at the owner's
        request - EVERY catalog item (all ~180, the exact same static
@@ -1447,6 +1690,13 @@
        summary shows the total stock quantity in Ltr across every item -
        see stockCatalogItemLtr_()/renderStockCatalog_() below. See
        CATALOG_ITEMS/liveCatalogItems_() below. Purely additive. -->
+  <!-- Wrapped in one capture* div, added 30 Sep 2026, for the same reason
+       as captureTrend/captureThisMonthSection/captureDayBookSection above -
+       lets "Run Full Archive" screenshot the Stocks heading together with
+       the catalog table in one shot, matching what monthly_archive.py
+       already does server-side with two unioned selectors
+       ("#stockSectionLabel", "#stocksMasterDetails"). -->
+  <div id="captureStocksSection">
   <p class="section-label" id="stockSectionLabel">Current Stock, MRP &amp; Nett Price</p>
   <details class="dsr-row" id="stocksMasterDetails">
     <summary class="dsr-row-summary">
@@ -1463,6 +1713,91 @@
       <div class="dsr-list" id="stockCatalogWrap"></div>
     </div>
   </details>
+  </div>
+
+<!-- FIX, 30 Sep 2026: the closing </div> for <div class="page"> (which
+     caps content at max-width:1180px and centers it - see the .page CSS
+     rule) had landed HERE, right after Stocks, instead of after the
+     Petronas Business Summary section below - meaning that whole section
+     was rendering as a sibling of .page rather than inside it: full-width/
+     left-aligned instead of centered and width-capped like every other
+     section on this page. Moved down to right after Petronas Business
+     Summary's own closing </div>, where it belongs. -->
+
+<!-- "Petronas Business Summary", added 30 Sep 2026 at the owner's request
+     ("I NEED A BIG DATA TO COME AFTER STOCK TILE ... NEED THIS IN TABLE
+     COLOUMN AND DATA FROM JAN 2026 MONTH WISE"). REBUILT 1 Oct 2026: the
+     owner sent his own corrected Jan-Aug 2026 screenshot figures (the
+     30 Sep 2026 Apr-Sep numbers below were partial/wrong per his own
+     message - "purchase and sales in ltr is wrongly showing from sep
+     will have full data before that i will send a screenshot , take
+     fixed data from that") and, in the same exchange, switched September
+     onward from one-time to LIVE: "FROM SEP THERE IS LIVE DATA , U HAVE
+     TO PUT THAT , FROM SEP ONWARD LIVE DATA SHOULD COME". So Jan-Aug 2026
+     (PETRONAS_SUMMARY_DATA_ in the script below) stays a static,
+     owner-confirmed snapshot; Sep 2026 onward (petronasSummaryLive) is
+     wired to ?type=live same as every other panel on this dashboard -
+     see tally_live_watcher.py's fetch_petronas_summary()/
+     maybe_push_petronas_summary() and Code.gs's LivePetronasSummary sheet/
+     handleLivePetronasSummaryUpdate_()/handleLiveGet_().
+
+     Column order is the owner's own explicit spec ("NEED IN ORDER
+     PURCHASE LTR , SALES LTR AND ADD A COLOUMN STOCK (PURCASE -SALES),
+     SALES VALUE , COLLECTION , PURCHASE VALUE , PAYMENT"), approved
+     against a mockup before this real version was built. Purchase
+     (Ltr)/Purchase (Value) scope to the plain "Purchase" voucher type
+     only - "Purchase - CBE" deliberately excluded, the owner's own
+     instruction ("NO NEED OF Purchase - CBE TO ADD"). Purchase (Value)/
+     Payment Made are Credit/Debit movement on the "PETRONAS TOTAL
+     PURCHASE A/C" Group (confirmed via the owner's own Tally "Group
+     Alteration" screenshot to be a Group under Sundry Creditors that
+     "behaves like a sub-ledger", consolidating 15 regional PETRONAS
+     Lubricants (India) Pvt Ltd billing entities - NOT a plain Ledger,
+     which is why the diagnostic script's first two runs kept coming back
+     MISSING). Sales (Ltr)/Sales (Value) reuse the same Sales/Sales -
+     PETRONAS/Sales - CBE scope already proven for the "Sales by Item
+     Group" panel above. Stock = Purchase(Ltr) - Sales(Ltr) for that
+     month specifically (not a running/cumulative balance) - the owner's
+     own literal formula; the separate Balance (Closing Stock) column
+     (re-added 1 Oct 2026, see PETRONAS_OPENING_STOCK_LTR_ below - real
+     opening figure 80762 Ltr, start of Jan 2026, per the owner: "JAN
+     OPENING STOCK IS 80762") IS the running/cumulative one. Qty is
+     Tally's own native '<qty> NOS = <ltr> LTR' embedded reading wherever
+     present (confirmed by the owner directly for Purchase: "YES PURCHASE
+     ALSO CARRIES SAME conversion"), falling back to the catalog-based
+     guess only where Tally didn't supply one.
+
+     Jan-Mar 2026 are now included (the owner's 1 Oct 2026 screenshot
+     covered the full Jan-Aug range, superseding the earlier "zero
+     vouchers for Jan-Mar" partial run and his own "OK WILL GO FROM THIS
+     MONTH LATER WILL ADD THAT OLD MONTHS" deferral).
+
+     Hidden outright for a restricted Area Manager in afterLogin_() below,
+     same "company-wide/all-group + no per-area breakdown" reasoning as
+     Stocks/Day Book/Collection Group Summary just above - this one
+     carries real Rupee payment figures to the supplier, more sensitive
+     than any of those three, not less. Export as Excel reuses the same
+     client-side SheetJS pattern as exportStockXlsxBtn just above. -->
+<div id="capturePetronasSummary">
+  <p class="section-label" id="petronasSummaryLabel">Petronas Business Summary</p>
+  <details class="dsr-row" id="petronasSummaryDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Petronas Business Summary</span>
+        <span class="card-territory">Jan 2026 – present · company-wide · Sep 2026 onward live</span></span>
+      <span class="dsr-row-headright">
+        <button type="button" class="share-icon-btn small" id="exportPetronasSummaryXlsxBtn" title="Export as Excel" style="margin-left:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        </button>
+      </span>
+    </summary>
+    <div class="dsr-row-body">
+      <div id="petronasSummaryWrap"></div>
+      <p style="font-size:11px;color:var(--ink-muted);margin:8px 4px 0;">Jan–Aug 2026: static snapshot, confirmed by the owner 1 Oct 2026. Sep 2026 onward: live, synced automatically from Tally.</p>
+    </div>
+  </details>
+</div>
+  </div>
 </div>
 
 <!-- Added 20 Sep 2026 for the image/PDF share rebuild - html2canvas turns a
@@ -3561,10 +3896,16 @@
   // already handles exactly this two-level data-area-toggle/data-dsr-
   // toggle markup shape for those tables, so no new toggle JS is needed
   // here either.
-  function renderGroupSummaryTable_() {
-    var wrap = document.getElementById('groupSummaryWrap');
+  // `opts` added 1 Oct 2026 for the "last month" summary view
+  // (renderLastMonthReport_()) - {wrapId, monthKey}, both optional and
+  // defaulting to the original hardcoded behavior (groupSummaryWrap,
+  // the real current month) so the one existing call site below (inside
+  // the normal live refresh cycle) is completely unaffected.
+  function renderGroupSummaryTable_(opts) {
+    opts = opts || {};
+    var wrap = document.getElementById(opts.wrapId || 'groupSummaryWrap');
     if (!wrap) return;
-    var monthKey = currentMonthKey_();
+    var monthKey = opts.monthKey || currentMonthKey_();
     var rowsByGroup = {};
     (groupSummaryList || []).forEach(function (r) {
       if (r.monthKey === monthKey) rowsByGroup[r.group] = r;
@@ -3922,6 +4263,145 @@
     if (totalEl) totalEl.textContent = 'Total ALT QTY ' + fmt(grandLtr) + ' Ltr';
   }
 
+  // "Petronas Business Summary" - Jan-Aug 2026 is a STATIC, owner-
+  // confirmed snapshot (his own corrected screenshot figures, sent 1 Oct
+  // 2026 - superseding the earlier 30 Sep 2026 hand-baked Apr-Sep numbers,
+  // which were partial/wrong per the owner's own message: "purchase and
+  // sales in ltr is wrongly showing from sep will have full data before
+  // that i will send a screenshot , take fixed data from that"). September
+  // 2026 onward is LIVE - see PETRONAS_SUMMARY_DATA_LIVE_START_KEY_ and
+  // petronasSummaryLive (populated from fetchLive()'s ?type=live response)
+  // below, per the owner's explicit instruction the same day: "FROM SEP
+  // THERE IS LIVE DATA , U HAVE TO PUT THAT , FROM SEP ONWARD LIVE DATA
+  // SHOULD COME". `stock` (shown in the Stock column) is Purchase(Ltr) -
+  // Sales(Ltr) for that month specifically (not running/cumulative) per
+  // the owner's own formula - the separate running Balance column below
+  // is the cumulative one.
+  var PETRONAS_SUMMARY_DATA_ = [
+    { month: 'Jan 2026', purchaseLtr: 30982, salesLtr: 27576, salesValue: 6909179.00, collected: 8127543.00, purchaseValue: 7221248.26, payment: 6471590.07 },
+    { month: 'Feb 2026', purchaseLtr: 32564, salesLtr: 29675, salesValue: 25872739.00, collected: 7306703.00, purchaseValue: 8075840.06, payment: 8277424.01 },
+    { month: 'Mar 2026', purchaseLtr: 27885, salesLtr: 35679, salesValue: 8858552.00, collected: 9536059.00, purchaseValue: 7474381.34, payment: 7388067.09 },
+    { month: 'Apr 2026', purchaseLtr: 33512, salesLtr: 31709, salesValue: 7945848.00, collected: 8156942.00, purchaseValue: 10091030.73, payment: 11503190.71 },
+    { month: 'May 2026', purchaseLtr: 30771, salesLtr: 29491, salesValue: 7703865.00, collected: 8639621.00, purchaseValue: 9394405.00, payment: 9580264.64 },
+    { month: 'Jun 2026', purchaseLtr: 34931, salesLtr: 34004, salesValue: 9435177.00, collected: 9687818.00, purchaseValue: 11820364.46, payment: 8023850.54 },
+    { month: 'Jul 2026', purchaseLtr: 35123, salesLtr: 32536, salesValue: 9063214.00, collected: 9152254.00, purchaseValue: 11098907.35, payment: 15671666.23 },
+    { month: 'Aug 2026', purchaseLtr: 35192, salesLtr: 26888, salesValue: 8095684.00, collected: 7923677.00, purchaseValue: 9455076.94, payment: 7646181.04 }
+  ];
+
+  // "Balance (Closing Stock)" running column - added 30 Sep 2026, removed
+  // 1 Oct 2026 (no real opening-stock figure had arrived yet), RE-ADDED
+  // the same day once the owner supplied it: "JAN OPENING STOCK IS
+  // 80762" - real Petronas-managed stock as of the very start of Jan
+  // 2026. Each month's Balance is the previous month's Balance plus that
+  // month's own Purchase(Ltr) - Sales(Ltr) movement - see
+  // petronasOpeningStockBalances_() below. Runs across the full combined
+  // row list (static Jan-Aug + live Sep onward, see petronasSummaryAllRows_()
+  // below) so the running total carries through the live rows correctly.
+  var PETRONAS_OPENING_STOCK_LTR_ = 80762;
+  var PETRONAS_OPENING_STOCK_AS_OF_ = 'start of Jan 2026';
+
+  function petronasOpeningStockBalances_(rows) {
+    var bal = PETRONAS_OPENING_STOCK_LTR_;
+    return rows.map(function (r) {
+      bal += (r.purchaseLtr - r.salesLtr);
+      return bal;
+    });
+  }
+
+  // September 2026 onward is live (see the big comment on
+  // PETRONAS_SUMMARY_DATA_ above). petronasSummaryLive is populated by
+  // fetchLive() below from the ?type=live response's petronasSummary
+  // field (handleLiveGet_() in Code.gs, reading the LivePetronasSummary
+  // sheet that tally_live_watcher.py's maybe_push_petronas_summary()
+  // upserts into, one row per month, roughly hourly). Starts empty so the
+  // table still renders (Jan-Aug only) before the first live fetch
+  // resolves.
+  var petronasSummaryLive = [];
+
+  // Combines the static Jan-Aug rows with whatever live Sep-onward rows
+  // have synced so far, in month order, each tagged so the renderer can
+  // show a "(live)" marker and a distinct row style for the live ones.
+  function petronasSummaryAllRows_() {
+    var rows = PETRONAS_SUMMARY_DATA_.map(function (r) {
+      return { month: r.month, purchaseLtr: r.purchaseLtr, salesLtr: r.salesLtr,
+        salesValue: r.salesValue, collected: r.collected, purchaseValue: r.purchaseValue,
+        payment: r.payment, live: false };
+    });
+    petronasSummaryLive.forEach(function (r) {
+      rows.push({
+        month: r.monthLabel || r.month,
+        purchaseLtr: r.purchaseLtr || 0, salesLtr: r.salesLtr || 0,
+        salesValue: r.salesValue || 0, collected: r.collected || 0,
+        purchaseValue: r.purchaseValue || 0, payment: r.payment || 0,
+        live: true
+      });
+    });
+    return rows;
+  }
+
+  var PETRONAS_SUMMARY_HEAD_ = '<thead><tr><th>Month</th><th>Purchase (Ltr)</th><th>Sales (Ltr)</th>' +
+    '<th>Stock (Purchase&nbsp;−&nbsp;Sales)</th><th>Balance (Closing Stock)</th><th>Sales (Value)</th>' +
+    '<th>Collected Amount</th><th>Purchase (Value)</th><th>Payment Made to Petronas</th></tr></thead>';
+
+  function petronasSummaryRowHtml_(r, balance) {
+    var stock = r.purchaseLtr - r.salesLtr;
+    var stockCls = stock < 0 ? 'petronas-summary-stock neg' : 'petronas-summary-stock pos';
+    var balCls = balance < 0 ? 'petronas-summary-balance neg' : 'petronas-summary-balance pos';
+    var monthLabel = r.month + (r.live ? ' <span style="color:var(--ink-muted);font-weight:400;">(live)</span>' : '');
+    var rowCls = r.live ? ' class="petronas-summary-row-live"' : '';
+    return '<tr' + rowCls + '><td style="text-align:left;">' + monthLabel + '</td>' +
+      '<td class="num">' + fmt(r.purchaseLtr) + '</td>' +
+      '<td class="num">' + fmt(r.salesLtr) + '</td>' +
+      '<td class="num ' + stockCls + '">' + fmt(stock) + '</td>' +
+      '<td class="num ' + balCls + '">' + fmt(balance) + '</td>' +
+      '<td class="num">' + fmtRs(r.salesValue) + '</td>' +
+      '<td class="num petronas-summary-collected">' + fmtRs(r.collected) + '</td>' +
+      '<td class="num petronas-summary-purchaseval">' + fmtRs(r.purchaseValue) + '</td>' +
+      '<td class="num petronas-summary-payment">' + fmtRs(r.payment) + '</td></tr>';
+  }
+
+  function renderPetronasSummary_() {
+    var wrap = document.getElementById('petronasSummaryWrap');
+    if (!wrap) return;
+    var allRows = petronasSummaryAllRows_();
+    var balances = petronasOpeningStockBalances_(allRows);
+    var rowsHtml = allRows.map(function (r, i) { return petronasSummaryRowHtml_(r, balances[i]); }).join('');
+    var totals = allRows.reduce(function (t, r) {
+      t.purchaseLtr += r.purchaseLtr; t.salesLtr += r.salesLtr;
+      t.salesValue += r.salesValue; t.collected += r.collected;
+      t.purchaseValue += r.purchaseValue; t.payment += r.payment;
+      return t;
+    }, { purchaseLtr: 0, salesLtr: 0, salesValue: 0, collected: 0, purchaseValue: 0, payment: 0 });
+    var totalStock = totals.purchaseLtr - totals.salesLtr;
+    var totalStockCls = totalStock < 0 ? 'petronas-summary-stock neg' : 'petronas-summary-stock pos';
+    var latestBalance = balances.length ? balances[balances.length - 1] : PETRONAS_OPENING_STOCK_LTR_;
+    var latestBalCls = latestBalance < 0 ? 'petronas-summary-balance neg' : 'petronas-summary-balance pos';
+    rowsHtml += '<tr style="font-weight:600;border-top:2px solid var(--border);"><td style="text-align:left;">Total</td>' +
+      '<td class="num">' + fmt(totals.purchaseLtr) + '</td>' +
+      '<td class="num">' + fmt(totals.salesLtr) + '</td>' +
+      '<td class="num ' + totalStockCls + '">' + fmt(totalStock) + '</td>' +
+      '<td class="num ' + latestBalCls + '">' + fmt(latestBalance) + '</td>' +
+      '<td class="num">' + fmtRs(totals.salesValue) + '</td>' +
+      '<td class="num petronas-summary-collected">' + fmtRs(totals.collected) + '</td>' +
+      '<td class="num petronas-summary-purchaseval">' + fmtRs(totals.purchaseValue) + '</td>' +
+      '<td class="num petronas-summary-payment">' + fmtRs(totals.payment) + '</td></tr>';
+    // NOT built via ageTableWrap_() - its variant system appends an
+    // "age-table-<variant>" class and picks column widths from a fixed
+    // name-first-column formula, neither of which fits this table's own
+    // shape (Month-first, 9 columns, some genuinely long headers like
+    // "Payment Made to Petronas"). Uses the bespoke .petronas-summary-
+    // table CSS class added above instead (own width/wrap rules), same
+    // .age-table-scroll outer wrapper as every other table here for
+    // consistent horizontal-scroll-on-phone behaviour.
+    var note = '<p style="font-size:12px;color:var(--ink-muted);margin:0 0 6px;">' +
+      'Opening stock ' + fmt(PETRONAS_OPENING_STOCK_LTR_) + ' Ltr (' + PETRONAS_OPENING_STOCK_AS_OF_ + ')' +
+      (petronasSummaryLive.length ? '. Rows marked (live) sync automatically from Tally roughly hourly.' :
+        '. September 2026 onward syncs automatically from Tally once the office PC watcher pushes it (roughly hourly) - not yet synced.') +
+      '</p>';
+    wrap.innerHTML = note + '<div class="age-table-scroll"><table class="age-table petronas-summary-table">' +
+      PETRONAS_SUMMARY_HEAD_ + '<tbody>' + rowsHtml + '</tbody></table></div>';
+  }
+
   // "Export as Excel" button - builds a real .xlsx workbook client-side
   // via SheetJS (loaded from cdnjs, see the script tag near
   // html2canvas/jspdf above), covering EVERY catalog item across EVERY
@@ -3969,13 +4449,113 @@
     });
   })();
 
+  // "Petronas Business Summary" Export as Excel - same client-side
+  // SheetJS pattern as exportStockXlsxBtn just above, exporting the
+  // combined static+live row list (petronasSummaryAllRows_(), same data
+  // the table itself renders from, including the Total row and the
+  // reinstated Balance column - see the 1 Oct 2026 notes on
+  // renderPetronasSummary_() above for the full history).
+  (function () {
+    var btn = document.getElementById('exportPetronasSummaryXlsxBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof XLSX === 'undefined') {
+        alert('Excel export isn\'t available right now — the export library didn\'t load. Check your connection and try again.');
+        return;
+      }
+      var allRows = petronasSummaryAllRows_();
+      var balances = petronasOpeningStockBalances_(allRows);
+      var rows = [['Month', 'Purchase (Ltr)', 'Sales (Ltr)', 'Stock (Purchase - Sales)', 'Balance (Closing Stock)', 'Sales (Value)', 'Collected Amount', 'Purchase (Value)', 'Payment Made to Petronas']];
+      rows.push(['Opening stock: ' + PETRONAS_OPENING_STOCK_LTR_ + ' Ltr (' + PETRONAS_OPENING_STOCK_AS_OF_ + ')']);
+      var totals = { purchaseLtr: 0, salesLtr: 0, salesValue: 0, collected: 0, purchaseValue: 0, payment: 0 };
+      allRows.forEach(function (r, i) {
+        var stock = r.purchaseLtr - r.salesLtr;
+        totals.purchaseLtr += r.purchaseLtr; totals.salesLtr += r.salesLtr;
+        totals.salesValue += r.salesValue; totals.collected += r.collected;
+        totals.purchaseValue += r.purchaseValue; totals.payment += r.payment;
+        rows.push([
+          r.month + (r.live ? ' (live)' : ''),
+          r.purchaseLtr, r.salesLtr, stock, balances[i],
+          Math.round(r.salesValue), Math.round(r.collected), Math.round(r.purchaseValue), Math.round(r.payment)
+        ]);
+      });
+      var latestBalance = balances.length ? balances[balances.length - 1] : PETRONAS_OPENING_STOCK_LTR_;
+      rows.push([
+        'Total', totals.purchaseLtr, totals.salesLtr, totals.purchaseLtr - totals.salesLtr, latestBalance,
+        Math.round(totals.salesValue), Math.round(totals.collected), Math.round(totals.purchaseValue), Math.round(totals.payment)
+      ]);
+      var ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 20 }];
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Petronas Summary');
+      var d = new Date();
+      var mm = d.getMonth() + 1; if (mm < 10) mm = '0' + mm;
+      var dd = d.getDate(); if (dd < 10) dd = '0' + dd;
+      var stamp = d.getFullYear() + '-' + mm + '-' + dd;
+      XLSX.writeFile(wb, 'AAA_Petronas_Business_Summary_' + stamp + '.xlsx');
+    });
+  })();
+
   // "Day Book" Export as Excel - UNLIKE the Stock export just above, Day
   // Book row-level detail isn't part of the regular ?type=live payload
   // (that stays aggregate-only, same as every other panel) - so this
   // fetches fresh from Code.gs's own ?type=daybookMonth on click, then
-  // builds the .xlsx client-side the same way. Always the CURRENT
-  // calendar month (owner's own explicit scope choice), computed locally
-  // so it always matches whatever month the page happens to be open in.
+  // builds the .xlsx client-side the same way. Used to always be the
+  // CURRENT calendar month only; now the button opens a month picker
+  // first (see openDaybookMonthPicker_() below), added 1 Oct 2026 at the
+  // owner's request - runDaybookExport_(monthKey, btn) below is the exact
+  // same fetch/build/download logic as before, just parameterized by
+  // whichever month was picked instead of always "now". Code.gs's own
+  // ?type=daybookMonth already accepted an arbitrary month (the historical
+  // per-DSR diagnostic already relies on data being there) - no backend
+  // change needed for this, only the client no longer hardcodes "now".
+  function runDaybookExport_(monthKey, btn) {
+    if (typeof XLSX === 'undefined') {
+      alert('Excel export isn\'t available right now — the export library didn\'t load. Check your connection and try again.');
+      return;
+    }
+    var prevHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '…';
+    var url = ORDERS_API_URL + '?type=daybookMonth&month=' + encodeURIComponent(monthKey) + '&_ts=' + Date.now();
+    fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'Server error');
+        var rows = [['Date', 'Voucher Number', 'Voucher Type', 'Party', 'Party Group',
+          'Item Name', 'Item Group', 'Qty', 'Alt Qty (Ltr)', 'Rate', 'Amount (incl GST)']];
+        (res.rows || []).forEach(function (r) {
+          rows.push([
+            r.date || '', r.voucherNumber || '', r.voucherType || '', r.party || '', r.partyGroup || '',
+            r.itemName || '', r.itemGroup || '',
+            (r.qty === null || r.qty === undefined || r.qty === '') ? '' : Number(r.qty),
+            (r.altQtyLtr === null || r.altQtyLtr === undefined || r.altQtyLtr === '') ? '' : Number(r.altQtyLtr),
+            (r.rate === null || r.rate === undefined || r.rate === '') ? '' : Number(r.rate),
+            (r.amount === null || r.amount === undefined || r.amount === '') ? '' : Number(r.amount)
+          ]);
+        });
+        if (rows.length === 1) {
+          alert('No Day Book rows synced for ' + monthKey + ' yet — the watcher may still be on its first ' +
+            'backfill, or hasn’t completed a Day Book cycle yet. Try again in a bit.');
+          return;
+        }
+        var ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 34 }, { wch: 30 },
+          { wch: 34 }, { wch: 28 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 14 }];
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'DayBook_' + monthKey.replace('-', '_'));
+        XLSX.writeFile(wb, 'AAA_DayBook_' + monthKey + '.xlsx');
+      })
+      .catch(function (err) {
+        alert('Could not export the Day Book right now (' + err.message + '). Check your connection and try again.');
+      })
+      .then(function () {
+        btn.disabled = false;
+        btn.innerHTML = prevHtml;
+      });
+  }
   (function () {
     var btn = document.getElementById('exportDaybookXlsxBtn');
     if (!btn) return;
@@ -3987,49 +4567,7 @@
     btn.addEventListener('click', function (e) {
       e.preventDefault();
       e.stopPropagation();
-      if (typeof XLSX === 'undefined') {
-        alert('Excel export isn\'t available right now — the export library didn\'t load. Check your connection and try again.');
-        return;
-      }
-      var prevHtml = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = '…';
-      var url = ORDERS_API_URL + '?type=daybookMonth&month=' + encodeURIComponent(monthKey) + '&_ts=' + Date.now();
-      fetch(url, { cache: 'no-store' })
-        .then(function (r) { return r.json(); })
-        .then(function (res) {
-          if (!res || !res.ok) throw new Error((res && res.error) || 'Server error');
-          var rows = [['Date', 'Voucher Number', 'Voucher Type', 'Party', 'Party Group',
-            'Item Name', 'Item Group', 'Qty', 'Alt Qty (Ltr)', 'Rate', 'Amount (incl GST)']];
-          (res.rows || []).forEach(function (r) {
-            rows.push([
-              r.date || '', r.voucherNumber || '', r.voucherType || '', r.party || '', r.partyGroup || '',
-              r.itemName || '', r.itemGroup || '',
-              (r.qty === null || r.qty === undefined || r.qty === '') ? '' : Number(r.qty),
-              (r.altQtyLtr === null || r.altQtyLtr === undefined || r.altQtyLtr === '') ? '' : Number(r.altQtyLtr),
-              (r.rate === null || r.rate === undefined || r.rate === '') ? '' : Number(r.rate),
-              (r.amount === null || r.amount === undefined || r.amount === '') ? '' : Number(r.amount)
-            ]);
-          });
-          if (rows.length === 1) {
-            alert('No Day Book rows synced for ' + monthKey + ' yet — the watcher may still be on its first ' +
-              'backfill, or hasn’t completed a Day Book cycle yet. Try again in a bit.');
-            return;
-          }
-          var ws = XLSX.utils.aoa_to_sheet(rows);
-          ws['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 34 }, { wch: 30 },
-            { wch: 34 }, { wch: 28 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 14 }];
-          var wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, 'DayBook_' + monthKey.replace('-', '_'));
-          XLSX.writeFile(wb, 'AAA_DayBook_' + monthKey + '.xlsx');
-        })
-        .catch(function (err) {
-          alert('Could not export the Day Book right now (' + err.message + '). Check your connection and try again.');
-        })
-        .then(function () {
-          btn.disabled = false;
-          btn.innerHTML = prevHtml;
-        });
+      openDaybookMonthPicker_(btn);
     });
   })();
 
@@ -4039,23 +4577,20 @@
   // see their own comments near the var declarations above) - the whole
   // dataset is small (7 groups' worth of dealers, not every invoice line
   // company-wide like Day Book), so no separate fetch is needed here, just
-  // build the workbook from what's already loaded. Full dealer-level data
-  // for the CURRENT month only, across all 7 groups (per the owner's
-  // "download current month only" + "while export in excel full data to
-  // be exported"), with each group's own Grand Total row (per "the total
-  // of group should be displayed as show in the screenshot") plus one
-  // overall Grand Total row at the very end.
-  (function () {
-    var btn = document.getElementById('exportGroupSummaryXlsxBtn');
-    if (!btn) return;
-    btn.addEventListener('click', function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (typeof XLSX === 'undefined') {
-        alert('Excel export isn\'t available right now — the export library didn\'t load. Check your connection and try again.');
-        return;
-      }
-      var monthKey = currentMonthKey_();
+  // build the workbook from what's already loaded. Used to always be the
+  // CURRENT month only; now the button opens a month picker first (added
+  // 1 Oct 2026, see openGroupSummaryMonthPicker_() below), listing every
+  // monthKey actually present in the already-loaded groupSummaryList - no
+  // new fetch needed for the picker either, since every past month's rows
+  // were already being sent by Code.gs the whole time (LIVE_GROUP_SUMMARY_
+  // SHEET keeps every month in the same sheet by design), this dashboard
+  // just never had a way to look at anything but the current one. Each
+  // group's own Grand Total row (per "the total of group should be
+  // displayed as show in the screenshot") plus one overall Grand Total row
+  // at the very end, same as before - runGroupSummaryExport_(monthKey) is
+  // the exact same logic as before, just parameterized by whichever month
+  // was picked instead of always currentMonthKey_().
+  function runGroupSummaryExport_(monthKey) {
       var rowsByGroup = {};
       (groupSummaryList || []).forEach(function (r) {
         if (r.monthKey === monthKey) rowsByGroup[r.group] = r;
@@ -4123,6 +4658,18 @@
       var wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'GroupSummary_' + monthKey.replace('-', '_'));
       XLSX.writeFile(wb, 'AAA_CollectionGroupSummary_' + monthKey + '.xlsx');
+  }
+  (function () {
+    var btn = document.getElementById('exportGroupSummaryXlsxBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof XLSX === 'undefined') {
+        alert('Excel export isn\'t available right now — the export library didn\'t load. Check your connection and try again.');
+        return;
+      }
+      openGroupSummaryMonthPicker_();
     });
   })();
 
@@ -4207,6 +4754,16 @@
     renderCollectionRatio_(); renderLookupCard_();
     renderPetronasAreaTable_(); renderPetronasCollectionAreaTable_(); renderStockCatalog_();
     renderGroupSummaryTable_(); renderDaybookItemGroupSummary_();
+    // Jan-Aug is a static snapshot (PETRONAS_SUMMARY_DATA_ never changes
+    // at runtime) but Sep 2026 onward is live (petronasSummaryLive, synced
+    // separately inside fetchLive() - see its own comment there) - this
+    // call re-renders the combined table on every render() pass, harmless
+    // (well under a dozen rows even a year from now) and keeps it
+    // consistent with every other panel here being driven from this one
+    // render() entry point. fetchLive() also re-renders it directly the
+    // moment new live rows arrive, so the table doesn't wait for the next
+    // unrelated render() call.
+    renderPetronasSummary_();
   }
 
   // Sales + Collection trend chart, rebuilt 20 Sep 2026 on Tally-verified
@@ -4907,6 +5464,104 @@
     openShareSheet_('Share ' + groupName, captureEl,
       groupName + ' — ' + dateHeaderLine_(), buildShareTextDaybookItemGroup_(groupName),
       false, captureEl);
+  });
+
+  // Day Book / Collection Group Summary month-pickers, added 1 Oct 2026 -
+  // see the HTML block right after #itemGroupPickerOverlay above for why,
+  // and runDaybookExport_()/runGroupSummaryExport_() above for the actual
+  // (now month-parameterized) export logic each one calls into.
+  //
+  // Day Book's month list is generated, not read from already-loaded data
+  // (unlike Group Summary below) - Day Book's row-level detail was
+  // deliberately never folded into the aggregate-only ?type=live payload
+  // (see the comment above exportDaybookXlsxBtn), so there's nothing
+  // already on the page to derive a month list from without a new
+  // backend endpoint. Generated from 1 Sep 2026 (the documented first
+  // backfill month - see tally_live_watcher.py's maybe_push_daybook())
+  // through the real current month; if a particular month in that range
+  // genuinely has no synced rows yet, runDaybookExport_()'s own existing
+  // "No Day Book rows synced for X yet" alert already handles it - no new
+  // error path needed here.
+  var DAYBOOK_FIRST_MONTH_ = '2026-09';
+  function daybookAvailableMonths_() {
+    var months = [];
+    var now = new Date();
+    var cur = new Date(now.getFullYear(), now.getMonth(), 1);
+    var stopParts = DAYBOOK_FIRST_MONTH_.split('-');
+    var stop = new Date(Number(stopParts[0]), Number(stopParts[1]) - 1, 1);
+    while (cur.getTime() >= stop.getTime()) {
+      var mm = cur.getMonth() + 1; if (mm < 10) mm = '0' + mm;
+      months.push(cur.getFullYear() + '-' + mm);
+      cur.setMonth(cur.getMonth() - 1);
+    }
+    return months;
+  }
+  function openDaybookMonthPicker_(btn) {
+    var listEl = document.getElementById('daybookMonthPickerList');
+    var months = daybookAvailableMonths_();
+    var curKey = currentMonthKey_();
+    listEl.innerHTML = months.map(function (m) {
+      return '<div class="itemgroup-picker-row" data-pick-month="' + m + '"><span>' +
+        reportMonthLabelFor_(m) + (m === curKey ? ' (current)' : '') + '</span></div>';
+    }).join('');
+    document.getElementById('daybookMonthPickerOverlay').style.display = 'flex';
+    document.getElementById('daybookMonthPickerOverlay')._exportBtn = btn;
+  }
+  function closeDaybookMonthPicker_() {
+    document.getElementById('daybookMonthPickerOverlay').style.display = 'none';
+  }
+  document.getElementById('daybookMonthPickerCloseBtn').addEventListener('click', closeDaybookMonthPicker_);
+  document.getElementById('daybookMonthPickerOverlay').addEventListener('click', function (e) {
+    if (e.target === document.getElementById('daybookMonthPickerOverlay')) closeDaybookMonthPicker_();
+  });
+  document.getElementById('daybookMonthPickerList').addEventListener('click', function (e) {
+    var row = e.target.closest('.itemgroup-picker-row');
+    if (!row) return;
+    var monthKey = row.getAttribute('data-pick-month');
+    var btn = document.getElementById('daybookMonthPickerOverlay')._exportBtn;
+    closeDaybookMonthPicker_();
+    runDaybookExport_(monthKey, btn);
+  });
+
+  // Collection Group Summary's month list, unlike Day Book's above, comes
+  // straight from groupSummaryList - that data (every month, not just the
+  // current one) was already being sent by Code.gs the whole time (see
+  // the comment above runGroupSummaryExport_()), so only months that
+  // genuinely have synced data are ever offered - no "no data yet" alert
+  // needed on this one, since an empty-months list gets its own plain
+  // message instead.
+  function groupSummaryAvailableMonths_() {
+    var seen = {};
+    (groupSummaryList || []).forEach(function (r) { if (r.monthKey) seen[r.monthKey] = true; });
+    return Object.keys(seen).sort().reverse();
+  }
+  function openGroupSummaryMonthPicker_() {
+    var listEl = document.getElementById('groupSummaryMonthPickerList');
+    var months = groupSummaryAvailableMonths_();
+    if (!months.length) {
+      listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);">No Collection Group Summary months synced yet.</p>';
+    } else {
+      var curKey = currentMonthKey_();
+      listEl.innerHTML = months.map(function (m) {
+        return '<div class="itemgroup-picker-row" data-pick-month="' + m + '"><span>' +
+          reportMonthLabelFor_(m) + (m === curKey ? ' (current)' : '') + '</span></div>';
+      }).join('');
+    }
+    document.getElementById('groupSummaryMonthPickerOverlay').style.display = 'flex';
+  }
+  function closeGroupSummaryMonthPicker_() {
+    document.getElementById('groupSummaryMonthPickerOverlay').style.display = 'none';
+  }
+  document.getElementById('groupSummaryMonthPickerCloseBtn').addEventListener('click', closeGroupSummaryMonthPicker_);
+  document.getElementById('groupSummaryMonthPickerOverlay').addEventListener('click', function (e) {
+    if (e.target === document.getElementById('groupSummaryMonthPickerOverlay')) closeGroupSummaryMonthPicker_();
+  });
+  document.getElementById('groupSummaryMonthPickerList').addEventListener('click', function (e) {
+    var row = e.target.closest('.itemgroup-picker-row');
+    if (!row) return;
+    var monthKey = row.getAttribute('data-pick-month');
+    closeGroupSummaryMonthPicker_();
+    runGroupSummaryExport_(monthKey);
   });
 
   // Clear + Share on the lookup card, added 20 Sep 2026 at the owner's
@@ -5630,6 +6285,451 @@
       img.src = url;
     });
   }
+
+  // ---- "Run Full Archive" helpers, added 30 Sep 2026 ----
+  // (see the long HTML comment above #archiveBlock for why this exists).
+  // Reuses captureElementToBlob_()/imageBlobToPdfBlob_() above exactly as
+  // built for the per-section Share button - nothing new there, this only
+  // adds the plumbing to run that same capture across every section in
+  // one pass and get each PDF into Google Drive.
+
+  // Blob -> base64 (no "data:...;base64," prefix), for archiveMonthlyPdf's
+  // pdfBase64 field - same encoding tally_live_watcher.py's own
+  // base64.b64encode(...).decode("ascii") produces server-side, just built
+  // client-side here via FileReader instead.
+  function blobToBase64_(blob) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var result = String(reader.result || '');
+        var idx = result.indexOf(',');
+        resolve(idx >= 0 ? result.slice(idx + 1) : result);
+      };
+      reader.onerror = function () { reject(new Error('FileReader failed')); };
+      reader.readAsDataURL(blob);
+    });
+  }
+  function loadImageFromBlob_(blob) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      var url = URL.createObjectURL(blob);
+      img.onload = function () { resolve({ img: img, url: url }); };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('image load failed')); };
+      img.src = url;
+    });
+  }
+  // One multi-page PDF from a list of already-captured PNG blobs, in
+  // order - each PNG becomes its own page, sized to that image's own
+  // pixel dimensions (same 0.75 96dpi->72dpi conversion as
+  // imageBlobToPdfBlob_() above), so a DSR card's portrait shot and the
+  // wide Stocks table each get a correctly-proportioned page rather than
+  // being squeezed into one fixed size. This is the client-side
+  // equivalent of monthly_archive.py's build_combined_pdf() (which merges
+  // already-built single-page PDFs with pypdf) - done by adding pages to
+  // one jsPDF document directly instead, since there's no pypdf-equivalent
+  // "merge existing PDFs" library loaded here and this achieves the same
+  // result without needing one.
+  function buildCombinedPdfBlob_(pngBlobs) {
+    if (!window.jspdf || !window.jspdf.jsPDF) return Promise.reject(new Error('jsPDF not loaded'));
+    var jsPDF = window.jspdf.jsPDF;
+    var pdf = null;
+    var urls = [];
+    var chain = Promise.resolve();
+    pngBlobs.forEach(function (blob, i) {
+      chain = chain.then(function () {
+        return loadImageFromBlob_(blob).then(function (loaded) {
+          urls.push(loaded.url);
+          var ptW = loaded.img.naturalWidth * 0.75, ptH = loaded.img.naturalHeight * 0.75;
+          var orientation = ptW > ptH ? 'landscape' : 'portrait';
+          if (i === 0) {
+            pdf = new jsPDF({ orientation: orientation, unit: 'pt', format: [ptW, ptH] });
+          } else {
+            pdf.addPage([ptW, ptH], orientation);
+          }
+          pdf.addImage(loaded.img, 'PNG', 0, 0, ptW, ptH);
+        });
+      });
+    });
+    return chain.then(function () {
+      urls.forEach(function (u) { URL.revokeObjectURL(u); });
+      return pdf.output('blob');
+    });
+  }
+  // Company-wide sections to capture, in the same order and against the
+  // same real content as monthly_archive.py's own COMPANY_SECTIONS list -
+  // each entry here is ONE element id rather than a list of CSS selectors
+  // since captureElementToBlob_() captures one element at a time; four of
+  // these (captureTrend/captureThisMonthSection/captureDayBookSection/
+  // captureStocksSection) are new wrapping <div>s added 30 Sep 2026
+  // specifically so a heading+content pair that Python captures by
+  // unioning two selectors' bounding boxes can be captured here in one
+  // call instead - see the HTML comments above each of those four divs.
+  // "Petronas Business Summary" is genuinely new (built this same day,
+  // this same session) - monthly_archive.py's own COMPANY_SECTIONS list
+  // doesn't know about it yet, so this button already covers one more
+  // section than the office-PC script currently does.
+  var ARCHIVE_COMPANY_SECTIONS_ = [
+    { label: 'Combined — Sales & Collection', id: 'captureCombined' },
+    { label: 'Ranking', id: 'captureRanking' },
+    { label: 'Sales & Collection trend — this month vs last month', id: 'captureTrend' },
+    { label: 'Needs attention', id: 'captureAttn' },
+    { label: 'Dealer activity — by DSR', id: 'captureInactiveSummary' },
+    { label: 'This month — Top 5', id: 'captureThisMonthSection' },
+    { label: 'Full Petronas Sales', id: 'capturePetronasArea' },
+    { label: 'Full Petronas Collection', id: 'capturePetronasCollectionArea' },
+    { label: 'Collection Group Summary', id: 'captureGroupSummary' },
+    { label: 'Day Book and Sales by Item Group', id: 'captureDayBookSection' },
+    { label: 'Stocks', id: 'captureStocksSection' },
+    { label: 'Petronas Business Summary', id: 'capturePetronasSummary' }
+  ];
+  function archiveMonthKey_() {
+    var d = new Date();
+    var mm = d.getMonth() + 1; if (mm < 10) mm = '0' + mm;
+    return d.getFullYear() + '-' + mm;
+  }
+  // Main orchestration. Runs every capture SEQUENTIALLY (one section at a
+  // time, not in parallel) - same reason monthly_archive.py does its own
+  // capture-and-upload one card at a time: html2canvas on a fully-expanded
+  // Stocks table or a long DSR dealer list is already memory-heavy, doing
+  // several of those at once on a phone would risk the tab itself
+  // crashing. Auth is the Owner's own freshly-typed password, sent fresh
+  // on every single upload call (never cached beyond this one run, never
+  // written to localStorage) - see handleArchiveMonthlyPdf_()'s new
+  // dual-auth support in Code.gs. If the very first upload comes back
+  // "Not authorized" the whole run stops immediately (a wrong password
+  // will fail every subsequent call identically, so there's no point
+  // grinding through 19 more captures first) rather than silently
+  // finishing with everything failed.
+  function runFullArchive_() {
+    var pwEl = document.getElementById('archiveConfirmPassword');
+    var runBtn = document.getElementById('archiveRunBtn');
+    var msgEl = document.getElementById('archiveMsg');
+    var progressWrap = document.getElementById('archiveProgressWrap');
+    var progressBar = document.getElementById('archiveProgressBar');
+    var progressText = document.getElementById('archiveProgressText');
+    var logEl = document.getElementById('archiveLog');
+    var password = pwEl.value || '';
+    msgEl.className = 'admin-msg'; msgEl.textContent = '';
+    if (!password) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'Enter your password to confirm'; return; }
+
+    runBtn.disabled = true;
+    pwEl.disabled = true;
+    progressWrap.style.display = '';
+    logEl.innerHTML = '';
+    progressBar.style.width = '0%';
+    progressText.textContent = 'Starting…';
+
+    function logLine(text) {
+      var row = document.createElement('div');
+      row.textContent = text;
+      logEl.appendChild(row);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // Force every collapsible <details> open first, same one-time step as
+    // monthly_archive.py's own "els.forEach(d => d.open = true)" - a
+    // closed <details> renders its body with zero height, so html2canvas
+    // would otherwise capture an empty shell. Remembers which ones were
+    // originally closed so the dashboard can be restored to how the Owner
+    // actually left it once the run finishes, rather than leaving
+    // everything permanently expanded.
+    var allDetails = Array.prototype.slice.call(document.querySelectorAll('details'));
+    var originallyClosed = allDetails.filter(function (d) { return !d.open; });
+    allDetails.forEach(function (d) { d.open = true; });
+    function restoreDetails() { originallyClosed.forEach(function (d) { d.open = false; }); }
+
+    var dsrRows = Array.prototype.slice.call(document.querySelectorAll('#dsrList > details.dsr-row'));
+    var targets = dsrRows.map(function (row) {
+      var nameEl = row.querySelector('summary .card-name');
+      var name = nameEl ? nameEl.textContent.trim() : 'DSR';
+      return { fileName: 'DSR - ' + name, el: row };
+    }).concat(ARCHIVE_COMPANY_SECTIONS_.map(function (s) {
+      return { fileName: 'Company - ' + s.label, el: document.getElementById(s.id) };
+    }));
+
+    var mkey = archiveMonthKey_();
+    var total = targets.length;
+    var okCount = 0, failCount = 0;
+    var combinedPngBlobs = [];
+    var folderUrl = null;
+    var authFailed = false;
+
+    function step(i) {
+      if (i >= total || authFailed) return Promise.resolve();
+      var t = targets[i];
+      progressText.textContent = 'Capturing ' + (i + 1) + ' of ' + total + ': ' + t.fileName + '…';
+      progressBar.style.width = Math.round((i / total) * 100) + '%';
+      if (!t.el) {
+        logLine('⚠ ' + t.fileName + ' — not found on this page, skipped');
+        return step(i + 1);
+      }
+      return captureElementToBlob_(t.el).then(function (pngBlob) {
+        combinedPngBlobs.push(pngBlob);
+        return imageBlobToPdfBlob_(pngBlob);
+      }).then(function (pdfBlob) {
+        return blobToBase64_(pdfBlob);
+      }).then(function (pdfBase64) {
+        return dashboardApiPost_('archiveMonthlyPdf', {
+          monthKey: mkey, fileName: t.fileName, pdfBase64: pdfBase64,
+          auth: { name: CURRENT_USER_NAME, password: password }
+        });
+      }).then(function (res) {
+        if (!res || !res.ok) {
+          failCount++;
+          logLine('✗ ' + t.fileName + ' — ' + ((res && res.error) || 'failed'));
+          if (res && res.error === 'Not authorized') authFailed = true;
+        } else {
+          okCount++;
+          folderUrl = res.folderUrl || folderUrl;
+          logLine('✓ ' + t.fileName);
+        }
+      }).catch(function (e) {
+        failCount++;
+        logLine('✗ ' + t.fileName + ' — ' + ((e && e.message) || 'failed'));
+      }).then(function () {
+        return step(i + 1);
+      });
+    }
+
+    step(0).then(function () {
+      if (authFailed) {
+        msgEl.className = 'admin-msg err';
+        msgEl.textContent = 'Wrong password — stopped there. Nothing further was uploaded.';
+        progressText.textContent = '';
+        restoreDetails();
+        runBtn.disabled = false; pwEl.disabled = false;
+        return;
+      }
+      if (combinedPngBlobs.length === 0) {
+        msgEl.className = 'admin-msg err';
+        msgEl.textContent = 'Nothing could be captured — check the dashboard finished loading and try again.';
+        progressText.textContent = '';
+        restoreDetails();
+        runBtn.disabled = false; pwEl.disabled = false;
+        return;
+      }
+      progressText.textContent = 'Building the combined PDF…';
+      return buildCombinedPdfBlob_(combinedPngBlobs).then(function (combinedBlob) {
+        return blobToBase64_(combinedBlob);
+      }).then(function (combinedBase64) {
+        return dashboardApiPost_('archiveMonthlyPdf', {
+          monthKey: mkey, fileName: 'Combined - All Cards ' + mkey, pdfBase64: combinedBase64,
+          auth: { name: CURRENT_USER_NAME, password: password }
+        });
+      }).then(function (res) {
+        if (res && res.ok) { okCount++; folderUrl = res.folderUrl || folderUrl; logLine('✓ Combined - All Cards ' + mkey); }
+        else { failCount++; logLine('✗ Combined PDF — ' + ((res && res.error) || 'failed')); }
+      }).catch(function (e) {
+        failCount++; logLine('✗ Combined PDF — ' + ((e && e.message) || 'failed'));
+      }).then(function () {
+        progressBar.style.width = '100%';
+        progressText.textContent = 'Done: ' + okCount + ' uploaded, ' + failCount + ' failed.';
+        msgEl.className = failCount === 0 ? 'admin-msg ok' : 'admin-msg err';
+        msgEl.innerHTML = (failCount === 0 ? 'All done — ' : 'Finished with some failures — ') + okCount + ' file(s) saved to Drive' +
+          (folderUrl ? ' (<a href="' + folderUrl + '" target="_blank" rel="noopener">open folder</a>)' : '') + '.';
+        restoreDetails();
+        runBtn.disabled = false; pwEl.disabled = false;
+        pwEl.value = '';
+      });
+    });
+  }
+  (function () {
+    var runBtn = document.getElementById('archiveRunBtn');
+    if (runBtn) runBtn.addEventListener('click', runFullArchive_);
+  })();
+
+  // ---- Team Business Summary PDF, added 30 Sep 2026 ----------------------
+  // See the long HTML comment above #teamSummaryBlock for the request this
+  // answers and the two scope decisions (auto-calculated pace only, company
+  // overview included). Pure-text jsPDF report, built entirely from data
+  // already on the page (visibleDsrs_()/DSRS, lastAttnSummary,
+  // lastDormantSummary) - reuses fmt/fmtRs/pctOf_/projectMonthEnd_/
+  // dateHeaderLine_ exactly as the rest of the dashboard does, so this
+  // report can never drift out of sync with what's shown on screen.
+
+  // Days strictly remaining in the current month AFTER today - same
+  // "remaining days" definition dailyRunRateHtml_() above already uses, but
+  // pulled out on its own since this file needs it in two places
+  // (per-DSR pace line + the overview's own "days left" line).
+  function teamSummaryRemainingDays_() {
+    var now = new Date();
+    var daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return daysInMonth - now.getDate();
+  }
+
+  // One paragraph per DSR - current scenario (this month vs last month vs
+  // 6-month average), what's outstanding, and the auto-calculated pace
+  // needed for the rest of the month. Plain sentences (no bullets/labels)
+  // since this is meant to read like a written report, one owner can hand
+  // straight to a DSR or manager.
+  function teamSummaryDsrParagraph_(d) {
+    var parts = [];
+    parts.push(d.name + ' (' + d.territory + '):');
+
+    if (d.monthLtr === null || d.salesError) {
+      parts.push('Sales figures are not synced from Tally yet for this DSR, so no scenario can be summarized right now.');
+      return parts.join(' ');
+    }
+
+    var salesPct = pctOf_(d.monthLtr, d.target);
+    parts.push('So far this month, sales stand at ' + fmt(d.monthLtr) + ' Ltr against a target of ' + fmt(d.target) + ' Ltr (' + salesPct + '%).');
+
+    if (d.lastMonthFullLtr !== null && d.lastMonthFullLtr !== undefined) {
+      if (d.lastMonthSameDateLtr !== null && d.lastMonthSameDateLtr !== undefined && d.lastMonthSameDateLtr > 0) {
+        var vsLastMonth = Math.round(((d.monthLtr - d.lastMonthSameDateLtr) / d.lastMonthSameDateLtr) * 100);
+        parts.push('At the same point last month it was ' + fmt(d.lastMonthSameDateLtr) + ' Ltr (last month finished at ' + fmt(d.lastMonthFullLtr) + ' Ltr), so this DSR is running ' + (vsLastMonth >= 0 ? (vsLastMonth + '% ahead of') : (Math.abs(vsLastMonth) + '% behind')) + ' last month\'s pace.');
+      } else {
+        parts.push('Last month finished at ' + fmt(d.lastMonthFullLtr) + ' Ltr.');
+      }
+    }
+    if (d.avg6moLtr !== null && d.avg6moLtr !== undefined && d.avg6moLtr > 0) {
+      parts.push('The 6-month average month-end figure is ' + fmt(d.avg6moLtr) + ' Ltr.');
+    }
+
+    if (d.collectionTarget > 0 && d.monthCollected !== null && !d.collectionError) {
+      var collPct = pctOf_(d.monthCollected, d.collectionTarget);
+      parts.push('Collection this month is ' + fmtRs(d.monthCollected) + ' against a target of ' + fmtRs(d.collectionTarget) + ' (' + collPct + '%).');
+    }
+
+    var attnRows = (lastAttnSummary && lastAttnSummary.byDsr[d.name]) || [];
+    var attnOwed = attnRows.reduce(function (a, r) { return a + Math.abs(r.raw); }, 0);
+    var dormantRows = (lastDormantSummary && lastDormantSummary.byDsr[d.name]) || [];
+    if (attnRows.length || dormantRows.length) {
+      var bits = [];
+      if (attnRows.length) bits.push(attnRows.length + ' dealer(s) owing ' + fmtRs(attnOwed) + ' 30+ days overdue');
+      if (dormantRows.length) bits.push(dormantRows.length + ' dormant dealer(s)');
+      parts.push('Needs attention: ' + bits.join(', ') + '.');
+    }
+
+    var remainingDays = teamSummaryRemainingDays_();
+    var salesBalance = d.target - d.monthLtr;
+    if (salesBalance > 0.5) {
+      if (remainingDays > 0) {
+        parts.push('To close the month on target, this DSR needs to average ' + fmt(salesBalance / remainingDays) + ' Ltr/day in sales for the remaining ' + remainingDays + ' day' + (remainingDays === 1 ? '' : 's') + ' (' + fmt(salesBalance) + ' Ltr balance).');
+      } else {
+        parts.push('It is the last day of the month with ' + fmt(salesBalance) + ' Ltr still short of target.');
+      }
+    } else {
+      parts.push('Sales target for the month is already met.');
+    }
+    if (d.collectionTarget > 0 && d.monthCollected !== null && !d.collectionError) {
+      var collBalance = d.collectionTarget - d.monthCollected;
+      if (collBalance > 0.5) {
+        if (remainingDays > 0) {
+          parts.push('On collection, ' + fmtRs(collBalance / remainingDays) + '/day is needed for the rest of the month (' + fmtRs(collBalance) + ' balance).');
+        } else {
+          parts.push('Collection is still ' + fmtRs(collBalance) + ' short with no days left this month.');
+        }
+      } else {
+        parts.push('Collection target for the month is already met.');
+      }
+    }
+    return parts.join(' ');
+  }
+
+  // Company-wide "where we are right now" overview - same combined-totals
+  // math as buildShareTextCombined_() above, plus total outstanding/dormant
+  // counts across the team, reused rather than recomputed differently.
+  function teamSummaryOverviewParagraphs_() {
+    var visible = visibleDsrs_();
+    var paras = [];
+    var salesSynced = visible.filter(function (d) { return d.monthLtr !== null && !d.salesError; });
+    var monthSales = salesSynced.reduce(function (a, d) { return a + (d.monthLtr || 0); }, 0);
+    var targetSales = visible.reduce(function (a, d) { return a + (d.target || 0); }, 0);
+    var collSynced = visible.filter(function (d) { return d.collectionTarget > 0 && d.monthCollected !== null && !d.collectionError; });
+    var monthColl = collSynced.reduce(function (a, d) { return a + (d.monthCollected || 0); }, 0);
+    var targetColl = visible.reduce(function (a, d) { return a + (d.collectionTarget || 0); }, 0);
+    var remainingDays = teamSummaryRemainingDays_();
+
+    var p1 = 'Across all ' + visible.length + ' DSRs, this month\'s sales stand at ' + fmt(monthSales) + ' Ltr against a combined target of ' + fmt(targetSales) + ' Ltr (' + pctOf_(monthSales, targetSales) + '%), and collection stands at ' + fmtRs(monthColl) + ' against a combined target of ' + fmtRs(targetColl) + ' (' + pctOf_(monthColl, targetColl) + '%).';
+    if (salesSynced.length < visible.length) p1 += ' (' + (visible.length - salesSynced.length) + ' DSR(s) still waiting on today\'s Tally sync, not counted above.)';
+    paras.push(p1);
+
+    var salesBalance = targetSales - monthSales;
+    var collBalance = targetColl - monthColl;
+    var p2;
+    if (remainingDays > 0) {
+      p2 = 'With ' + remainingDays + ' day' + (remainingDays === 1 ? '' : 's') + ' left in the month, the team needs to average ' + fmt(Math.max(salesBalance, 0) / remainingDays) + ' Ltr/day in sales and ' + fmtRs(Math.max(collBalance, 0) / remainingDays) + '/day in collection to land on target overall.';
+    } else {
+      p2 = 'It is the last day of the month, with ' + fmt(Math.max(salesBalance, 0)) + ' Ltr and ' + fmtRs(Math.max(collBalance, 0)) + ' still short of target overall.';
+    }
+    paras.push(p2);
+
+    var totalOwed = (lastAttnSummary && lastAttnSummary.totalOwed) || 0;
+    var totalDormant = (lastDormantSummary && lastDormantSummary.totalCount) || 0;
+    if (totalOwed > 0 || totalDormant > 0) {
+      paras.push('Company-wide, ' + fmtRs(totalOwed) + ' is 30+ days overdue across the team\'s dealers, and ' + totalDormant + ' dealer(s) are currently dormant — see each DSR\'s paragraph below for their own share of this.');
+    }
+    return paras;
+  }
+
+  // Assembles and downloads the full PDF - plain multi-page text document
+  // (jsPDF's own text wrapping/pagination via splitTextToSize + manual
+  // y-cursor), not the screenshot-based imageBlobToPdfBlob_() path used
+  // elsewhere on this dashboard.
+  function buildTeamSummaryPdf_() {
+    if (!window.jspdf || !window.jspdf.jsPDF) return Promise.reject(new Error('jsPDF not loaded'));
+    var jsPDF = window.jspdf.jsPDF;
+    var doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    var marginX = 48, marginTop = 56, marginBottom = 56;
+    var pageW = doc.internal.pageSize.getWidth();
+    var pageH = doc.internal.pageSize.getHeight();
+    var maxW = pageW - marginX * 2;
+    var y = marginTop;
+
+    function ensureSpace(lineH) {
+      if (y + lineH > pageH - marginBottom) { doc.addPage(); y = marginTop; }
+    }
+    function heading(text, size) {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(size || 14);
+      ensureSpace(size ? size * 1.4 : 20);
+      doc.text(text, marginX, y);
+      y += (size || 14) * 1.4;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5);
+    }
+    function paragraph(text) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5);
+      var lines = doc.splitTextToSize(text, maxW);
+      lines.forEach(function (line) {
+        ensureSpace(14);
+        doc.text(line, marginX, y);
+        y += 14;
+      });
+      y += 8; // gap after each paragraph
+    }
+
+    heading('Team Business Summary', 18);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5);
+    ensureSpace(14);
+    doc.text(dateHeaderLine_(), marginX, y);
+    y += 22;
+
+    heading('Where we are right now', 13);
+    teamSummaryOverviewParagraphs_().forEach(paragraph);
+
+    heading('DSR-wise summary', 13);
+    visibleDsrs_().forEach(function (d) { paragraph(teamSummaryDsrParagraph_(d)); });
+
+    return Promise.resolve(doc.output('blob'));
+  }
+
+  (function () {
+    var btn = document.getElementById('teamSummaryBtn');
+    var msgEl = document.getElementById('teamSummaryMsg');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      if (msgEl) { msgEl.className = 'admin-msg'; msgEl.textContent = 'Building PDF…'; }
+      btn.disabled = true;
+      buildTeamSummaryPdf_().then(function (blob) {
+        var fname = 'Team Business Summary - ' + dateHeaderLine_().replace(/ /g, '-') + '.pdf';
+        downloadBlob_(blob, fname);
+        if (msgEl) { msgEl.className = 'admin-msg ok'; msgEl.textContent = 'Downloaded.'; }
+      }).catch(function (err) {
+        if (msgEl) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'Failed: ' + (err && err.message ? err.message : err); }
+      }).then(function () { btn.disabled = false; });
+    });
+  })();
+
   // Per the owner's choice: always open the device/browser's normal share
   // panel so he picks the team/group each time, rather than a fixed
   // number. navigator.share with a files array IS the "share an image to
@@ -5838,6 +6938,21 @@
     openShareSheet_('Share Inactive vs Billed', document.getElementById('captureInactiveSummary'),
       'Inactive vs Billed — ' + dateHeaderLine_(), buildShareTextInactiveVsBilled_());
   });
+  // "Share login & usage time", added 30 Sep 2026 at the owner's request.
+  // Lives inside the Owner/Manager-only <details id="accountPanel">, so
+  // by the time this button is even visible/clickable that panel is
+  // already open - no need to force it open the way runFullArchive_()
+  // does for the whole page before its own captures. Captures just
+  // #usageReportEl (the rendered table for whatever From/To/Person the
+  // filter row is currently set to), not the quick-range buttons or
+  // filter inputs above it - same "controls stay outside the screenshot"
+  // pattern as every other section here. WhatsApp only, like
+  // shareAttnBtn/shareInactiveSummaryBtn above - this is internal
+  // login-activity data, not a company summary, so no email option.
+  document.getElementById('shareUsageBtn').addEventListener('click', function () {
+    openShareSheet_('Share login & usage time', document.getElementById('usageReportEl'),
+      'Login & Usage Time — ' + dateHeaderLine_(), buildShareTextUsage_());
+  });
   // "Share Full Petronas This Month Sales", added 25 Sep 2026.
   document.getElementById('sharePetronasAreaBtn').addEventListener('click', function () {
     openShareSheet_('Share Full Petronas This Month Sales', document.getElementById('capturePetronasArea'),
@@ -5924,6 +7039,14 @@
   // Day Book - Sales by Item Group's own wrap, added 28 Sep 2026 - same
   // reasoning, one level deep (group -> DSR, no dealer-child rows).
   bindAreaToggle_('daybookItemGroupWrap');
+  // Last month summary's own two wraps, added 1 Oct 2026 - see
+  // buildLastMonthAreaRows_()/renderGroupSummaryTable_()'s own comments.
+  // Safe to bind now even though both wraps start out empty/hidden -
+  // this only attaches a delegated click listener to the wrap element
+  // itself, which already exists in the HTML; it fires correctly once
+  // renderLastMonthReport_() later fills the wrap with real rows.
+  bindAreaToggle_('lastMonthAreaWrap');
+  bindAreaToggle_('lastMonthGroupSummaryWrap');
   // "Share Inactive dealers" (whole-company) removed 22 Sep 2026 along
   // with the standalone Inactive Dealers section itself - inactive-dealer
   // detail is now per-DSR, inside each DSR's own expandable row, and
@@ -6238,6 +7361,62 @@
     el.innerHTML = html;
   }
 
+  // "Share login & usage time" WhatsApp caption, added 30 Sep 2026 -
+  // re-runs the exact same From/To/Person filter + per-person/per-day
+  // aggregation as renderUsageReport_() above (off USAGE_RAW_SESSIONS_,
+  // no extra network call) so the text always matches whatever range is
+  // currently on screen. The image itself is a straight screenshot of
+  // #usageReportEl (see the shareUsageBtn listener below) - this is only
+  // the WhatsApp message text that rides alongside it.
+  function buildShareTextUsage_() {
+    var fromEl = document.getElementById('usageFromDate');
+    var toEl = document.getElementById('usageToDate');
+    var personEl = document.getElementById('usagePersonSelect');
+    var from = fromEl ? fromEl.value : '';
+    var to = toEl ? toEl.value : '';
+    var person = personEl ? personEl.value : '';
+    var rangeLabel = from && to ? (from === to ? from : (from + ' to ' + to)) : (from ? ('from ' + from) : (to ? ('up to ' + to) : 'all time'));
+
+    var byPersonDay = {};
+    var totalMinutes = 0;
+    USAGE_RAW_SESSIONS_.forEach(function (s) {
+      if (!s.name || !s.loginAt) return;
+      if (!usageRowVisibleToViewer_(s)) return;
+      var day = String(s.loginAt).slice(0, 10);
+      if (from && day < from) return;
+      if (to && day > to) return;
+      if (person && s.name !== person) return;
+      var key = s.name + '|' + day;
+      if (!byPersonDay[key]) byPersonDay[key] = { name: s.name, logins: 0, minutes: 0 };
+      byPersonDay[key].logins += 1;
+      var start = new Date(s.loginAt).getTime();
+      var end = new Date(s.lastSeenAt || s.loginAt).getTime();
+      if (end > start) {
+        var mins = (end - start) / 60000;
+        byPersonDay[key].minutes += mins;
+        totalMinutes += mins;
+      }
+    });
+    var lines = ['LOGIN & USAGE TIME — ' + rangeLabel, ''];
+    var dayKeys = Object.keys(byPersonDay);
+    if (!dayKeys.length) { lines.push('No logins in this range.'); return lines.join('\n'); }
+    var byPerson = {};
+    dayKeys.forEach(function (k) {
+      var r = byPersonDay[k];
+      if (!byPerson[r.name]) byPerson[r.name] = { name: r.name, logins: 0, minutes: 0 };
+      byPerson[r.name].logins += r.logins;
+      byPerson[r.name].minutes += r.minutes;
+    });
+    Object.keys(byPerson).map(function (k) { return byPerson[k]; })
+      .sort(function (a, b) { return a.name.localeCompare(b.name); })
+      .forEach(function (r) {
+        lines.push(r.name + ': ' + r.logins + ' login(s), ' + formatMinutes_(r.minutes));
+      });
+    lines.push('');
+    lines.push('Total time used (this range): ' + formatMinutes_(totalMinutes));
+    return lines.join('\n');
+  }
+
   // Quick-range buttons + manual date/person changes, wired once.
   function setUsageQuickRange_(range) {
     var fromEl = document.getElementById('usageFromDate');
@@ -6335,6 +7514,17 @@
     var adminBlock = document.getElementById('adminBlock');
     if (adminBlock) adminBlock.hidden = (role !== 'Owner');
     if (role === 'Owner') loadAdminUsersList_();
+    // "Run Full Archive", added 30 Sep 2026 - Owner only, same gating as
+    // the password-reset admin block just above (see the long HTML
+    // comment above #archiveBlock for why this exists).
+    var archiveBlock = document.getElementById('archiveBlock');
+    if (archiveBlock) archiveBlock.hidden = (role !== 'Owner');
+    // "Team Business Summary" PDF, added 30 Sep 2026 - Owner only, same
+    // gating as archiveBlock just above (see the long HTML comment above
+    // #teamSummaryBlock for why this stays Owner-only despite being meant
+    // to be shared with the team).
+    var teamSummaryBlock = document.getElementById('teamSummaryBlock');
+    if (teamSummaryBlock) teamSummaryBlock.hidden = (role !== 'Owner');
     // 28 Sep 2026 ("area manager role did not want to see the stocks and
     // daybook"): both are company-wide, ALL-dealer panels with no
     // per-area breakdown at all (unlike everything visibleDsrs_() scopes),
@@ -6354,6 +7544,14 @@
     if (stockLabel) stockLabel.hidden = !!CURRENT_ALLOWED_AREAS;
     var stockDetails = document.getElementById('stocksMasterDetails');
     if (stockDetails) stockDetails.hidden = !!CURRENT_ALLOWED_AREAS;
+    // Petronas Business Summary, added 30 Sep 2026 - same "company-wide/
+    // all-group, no per-area breakdown" reasoning as Stocks/Day Book/
+    // Collection Group Summary just above, hidden outright for a
+    // restricted Area Manager rather than shown company-wide or filtered -
+    // this one carries real Rupee payment figures to the supplier, more
+    // sensitive than any of those three, not less.
+    var petronasSummaryBlock = document.getElementById('capturePetronasSummary');
+    if (petronasSummaryBlock) petronasSummaryBlock.hidden = !!CURRENT_ALLOWED_AREAS;
     loadUsageReport_();
     startLoginHeartbeat_();
     startUsageReportAutoRefresh_();
@@ -6613,6 +7811,16 @@
         // var declaration above.
         if (res && res.ok && res.groupSummary) groupSummaryList = res.groupSummary;
         if (res && res.ok && res.groupSummaryByDealer) groupSummaryByDealerList = res.groupSummaryByDealer;
+        // Petronas Business Summary, Sep 2026 onward - added 1 Oct 2026,
+        // see the big comment on PETRONAS_SUMMARY_DATA_/petronasSummaryLive
+        // near renderPetronasSummary_() for the full "why live from here"
+        // rationale. Re-render immediately when new live rows arrive so
+        // the table/Balance column/note text update without waiting for
+        // some other panel's render to happen to run next.
+        if (res && res.ok && res.petronasSummary) {
+          petronasSummaryLive = res.petronasSummary;
+          renderPetronasSummary_();
+        }
 
         // Sales + Collection trend, rebuilt 20 Sep 2026 on the same
         // ?type=live response - see salesTrendMap's own comment above.
@@ -6661,6 +7869,223 @@
   // afterLogin_() above, added 26 Sep 2026. Without this, live data was
   // still being fetched (just visually hidden behind the login overlay)
   // before anyone signed in.
+
+  // Report month picker, added 30 Sep 2026 - see the long HTML comment
+  // above #reportMonthSelect for the owner's request and the two scope
+  // decisions (applies to the whole dashboard; "No data" for any
+  // non-current month for now, not a new Tally historical-data build).
+  // Purely a UI-level gate: #reportContent (everything from Combined
+  // Sales down through Petronas Business Summary) is shown/hidden
+  // wholesale based on whether the selected month matches the REAL
+  // current calendar month - nothing here fetches or computes
+  // month-specific data, since no historical per-month store exists yet.
+  function reportMonthKey_(year, monthIndex0) {
+    return year + '-' + String(monthIndex0 + 1).padStart(2, '0');
+  }
+  function reportMonthRealCurrentYm_() {
+    var now = new Date();
+    return reportMonthKey_(now.getFullYear(), now.getMonth());
+  }
+  function reportMonthLabelFor_(ym) {
+    var parts = ym.split('-');
+    var d = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
+    return d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  }
+  // Real "last month" summary, added 1 Oct 2026 - see the long comment
+  // above #reportMonthSelect for what this does and doesn't cover.
+  // lastMonthDateRange_() is the FULL previous calendar month (1st to
+  // last day), not the narrower "month to date" window monthRangeFor_()
+  // computes elsewhere on this page - last month is over, so the whole
+  // thing is fair game, not just a same-date cutoff.
+  function lastMonthDateRange_() {
+    var d = new Date();
+    d.setDate(1); // avoid a day-31 rollover skipping a short month
+    var lastDayPrevMonth = new Date(d.getFullYear(), d.getMonth(), 0);
+    var firstDayPrevMonth = new Date(lastDayPrevMonth.getFullYear(), lastDayPrevMonth.getMonth(), 1);
+    return [dateToISO_(firstDayPrevMonth), dateToISO_(lastDayPrevMonth)];
+  }
+  // {dsrName: [{name, salesLtr, collectionRs}]}, sorted by salesLtr
+  // descending - the per-dealer twin of dealerBreakdownByDsr_() (used by
+  // the CURRENT-month area tables), but reading lastMonthFullLtr/
+  // lastMonthFull off salesByDealer/collectionByDealer instead of
+  // `.month` off the same two maps. Deliberately a separate function
+  // rather than a new branch inside dealerBreakdownByDsr_() - that one
+  // is already load-bearing for the live current-month tables, and this
+  // reads two fields from both maps at once (Ltr AND Rs) rather than one
+  // field from one map, a different enough shape that threading it
+  // through the same helper would make BOTH harder to follow.
+  function lastMonthDealerBreakdown_() {
+    var out = {};
+    var dealerDsr = knownDealerDsrMap_();
+    Object.keys(dealerDsr).forEach(function (dealerName) {
+      var dsrName = dealerDsr[dealerName];
+      var sRec = salesByDealer ? salesByDealer[dealerName] : null;
+      var cRec = collectionByDealer ? collectionByDealer[dealerName] : null;
+      var salesLtr = (sRec && sRec.lastMonthFullLtr) || 0;
+      var collectionRs = (cRec && cRec.lastMonthFull) || 0;
+      if (salesLtr <= 0 && collectionRs <= 0) return;
+      (out[dsrName] = out[dsrName] || []).push({ name: dealerName, salesLtr: salesLtr, collectionRs: collectionRs });
+    });
+    Object.keys(out).forEach(function (dsrName) {
+      out[dsrName].sort(function (a, b) { return b.salesLtr - a.salesLtr; });
+    });
+    return out;
+  }
+  // AAA Direct + Madurai/Tirunelveli Area rows for LAST month, same
+  // visibility scoping (visibleDsrs_()) and expand-to-dealers markup
+  // convention (data-area-toggle/data-dsr-toggle, bound once below via
+  // bindAreaToggle_('lastMonthAreaWrap')) as buildAreaTableRows_() uses
+  // for the live current-month tables - kept as its own function rather
+  // than a new mode inside buildAreaTableRows_() since there's no
+  // Target/Balance/6M-AVG concept for a month that's already closed, and
+  // Sales+Collection are shown together in one table here instead of two
+  // separate ones.
+  function buildLastMonthAreaRows_() {
+    var visibleNames = visibleDsrs_().map(function (d) { return d.name; });
+    var breakdown = lastMonthDealerBreakdown_();
+    function dsrTotals(dsrName) {
+      return (breakdown[dsrName] || []).reduce(function (acc, m) {
+        acc.salesLtr += m.salesLtr; acc.collectionRs += m.collectionRs; return acc;
+      }, { salesLtr: 0, collectionRs: 0 });
+    }
+    var cellLtr = function (v) { return v > 0 ? '<td class="num">' + fmt(v) + ' Ltr</td>' : '<td class="num zero">—</td>'; };
+    var cellRs = function (v) { return v > 0 ? '<td class="num">' + fmtRs(v) + '</td>' : '<td class="num zero">—</td>'; };
+    var nameCell = function (label) { return '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + label + '</td>'; };
+    var dsrChildRows = function (dsrName, areaKey) {
+      var dealers = breakdown[dsrName] || [];
+      var areaAttr = areaKey ? ' data-area-child="' + areaKey + '"' : '';
+      if (!dealers.length) {
+        return '<tr class="area-dsr-child" data-dsr-child="' + dsrName + '"' + areaAttr + ' style="display:none;">' +
+          '<td colspan="3" style="padding-left:26px;color:var(--ink-muted);text-align:left;">No dealer-level data for last month</td></tr>';
+      }
+      return dealers.map(function (m) {
+        return '<tr class="area-dsr-child" data-dsr-child="' + dsrName + '"' + areaAttr + ' style="display:none;">' +
+          '<td style="padding-left:26px;">' + m.name + '</td>' + cellLtr(m.salesLtr) + cellRs(m.collectionRs) + '</tr>';
+      }).join('');
+    };
+    var rowsHtml = '';
+    var grand = { salesLtr: 0, collectionRs: 0 };
+    var aaaVisible = visibleNames.indexOf('AAA Direct') !== -1;
+    if (aaaVisible) {
+      var aaaTotals = dsrTotals('AAA Direct');
+      grand.salesLtr += aaaTotals.salesLtr; grand.collectionRs += aaaTotals.collectionRs;
+      rowsHtml += '<tr data-dsr-toggle="AAA Direct">' + nameCell('AAA Direct') + cellLtr(aaaTotals.salesLtr) + cellRs(aaaTotals.collectionRs) + '</tr>' +
+        dsrChildRows('AAA Direct', null);
+    }
+    PETRONAS_AREA_GROUPS_.forEach(function (g) {
+      var visibleMembers = g.members.filter(function (name) { return visibleNames.indexOf(name) !== -1; });
+      if (!visibleMembers.length) return;
+      var memberTotals = visibleMembers.map(function (name) { return { label: name, totals: dsrTotals(name) }; });
+      var areaSalesLtr = memberTotals.reduce(function (s, m) { return s + m.totals.salesLtr; }, 0);
+      var areaCollectionRs = memberTotals.reduce(function (s, m) { return s + m.totals.collectionRs; }, 0);
+      grand.salesLtr += areaSalesLtr; grand.collectionRs += areaCollectionRs;
+      rowsHtml += '<tr class="area-toggle-row" data-area-toggle="' + g.key + '">' + nameCell(g.label) + cellLtr(areaSalesLtr) + cellRs(areaCollectionRs) + '</tr>';
+      rowsHtml += memberTotals.map(function (m) {
+        return '<tr class="area-child-row" data-area-child="' + g.key + '" data-dsr-toggle="' + m.label + '" style="display:none;">' + nameCell(m.label) + cellLtr(m.totals.salesLtr) + cellRs(m.totals.collectionRs) + '</tr>' +
+          dsrChildRows(m.label, g.key);
+      }).join('');
+    });
+    rowsHtml += '<tr class="age-table-total"><td>Total</td>' + cellLtr(grand.salesLtr) + cellRs(grand.collectionRs) + '</tr>';
+    return rowsHtml;
+  }
+  // Builds the whole last-month view into #lastMonthReportContent. `ym`
+  // is always exactly lastMonthKeyISO() when this is called (see
+  // applyReportMonthSelection_() below) - passed through rather than
+  // recomputed so every piece labels itself consistently even if this is
+  // ever called right at a month boundary.
+  function renderLastMonthReport_(ym) {
+    var label = reportMonthLabelFor_(ym);
+    var combinedWrap = document.getElementById('lastMonthCombinedWrap');
+    if (combinedWrap) {
+      // Company-wide totals come straight off the daily trend maps, which
+      // have no per-DSR breakdown at all (see renderTrend()'s own
+      // comment) - hidden for a restricted Area Manager the same way the
+      // Trend chart already is, rather than shown company-wide. The Total
+      // row in the area table below is already correctly scoped to their
+      // own visible DSRs, so they still get a real last-month number,
+      // just not this company-wide one.
+      if (CURRENT_ALLOWED_AREAS) {
+        combinedWrap.innerHTML = '';
+      } else if (salesTrendMap === null || collectionTrendMap === null || salesRsTrendMap === null) {
+        combinedWrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Loading ' + label + '…</p>';
+      } else {
+        var range = lastMonthDateRange_();
+        var salesLtr = sumMapInRange_(salesTrendMap, range[0], range[1]);
+        var salesRs = sumMapInRange_(salesRsTrendMap, range[0], range[1]);
+        var collRs = sumMapInRange_(collectionTrendMap, range[0], range[1]);
+        combinedWrap.innerHTML =
+          '<div style="display:flex;gap:14px;flex-wrap:wrap;">' +
+          '<div class="stat"><p class="stat-label">Sales — ' + label + '</p><div class="stat-value">' + fmt(salesLtr) + ' Ltr</div><p class="stat-sub">' + fmtRs(salesRs) + '</p></div>' +
+          '<div class="stat"><p class="stat-label">Collection — ' + label + '</p><div class="stat-value">' + fmtRs(collRs) + '</div></div>' +
+          '</div>';
+      }
+    }
+    var areaWrap = document.getElementById('lastMonthAreaWrap');
+    if (areaWrap) {
+      areaWrap.innerHTML = ageTableWrap_('<thead><tr><th>Area</th><th>Sales (Ltr)</th><th>Collection (Rs)</th></tr></thead>', buildLastMonthAreaRows_());
+    }
+    var dbBtn = document.getElementById('lastMonthDaybookExportBtn');
+    if (dbBtn && !dbBtn._wired) {
+      dbBtn._wired = true; // this button is never re-created, just re-rendered around - wire its click handler once, not on every renderLastMonthReport_() call
+      dbBtn.addEventListener('click', function () { runDaybookExport_(ym, dbBtn); });
+    }
+    renderGroupSummaryTable_({ wrapId: 'lastMonthGroupSummaryWrap', monthKey: ym });
+  }
+  function applyReportMonthSelection_(ym) {
+    var reportContent = document.getElementById('reportContent');
+    var lastMonthContent = document.getElementById('lastMonthReportContent');
+    var banner = document.getElementById('noDataBanner');
+    var note = document.getElementById('reportMonthNote');
+    var curKey = reportMonthRealCurrentYm_();
+    var lastKey = lastMonthKeyISO();
+    var isCurrent = (ym === curKey);
+    var isLastMonth = !isCurrent && (ym === lastKey);
+    if (reportContent) reportContent.hidden = !isCurrent;
+    if (lastMonthContent) lastMonthContent.hidden = !isLastMonth;
+    if (banner) banner.hidden = isCurrent || isLastMonth;
+    if (note) note.textContent = '';
+    if (isLastMonth) {
+      renderLastMonthReport_(ym);
+    } else if (!isCurrent && banner) {
+      banner.textContent = 'No data for ' + reportMonthLabelFor_(ym) + ' — real historical figures are only kept for the current month and the one right before it (' +
+        reportMonthLabelFor_(lastKey) + '). Earlier months were never recorded.';
+    }
+  }
+  (function initReportMonthPicker_() {
+    var sel = document.getElementById('reportMonthSelect');
+    if (!sel) return;
+    var curKey = reportMonthRealCurrentYm_();
+    var now = new Date();
+    var options = [];
+    // Starts at the real current month and goes back to
+    // DAYBOOK_FIRST_MONTH_ (Sep 2026 - the same "this is genuinely when
+    // real data starts" constant the Day Book export picker already
+    // uses), newest first - replaces the old blind 12-month rolling
+    // lookback, which listed months as far back as a year ago that never
+    // had any data at all. Revised 1 Oct 2026, see the long comment
+    // above #reportMonthSelect. A 60-month hard cap keeps this from ever
+    // looping forever if DAYBOOK_FIRST_MONTH_ is ever mis-set to the future.
+    var stopParts = DAYBOOK_FIRST_MONTH_.split('-');
+    var stop = new Date(Number(stopParts[0]), Number(stopParts[1]) - 1, 1);
+    var cursor = new Date(now.getFullYear(), now.getMonth(), 1);
+    var guard = 0;
+    while (cursor >= stop && guard < 60) {
+      options.push({ value: reportMonthKey_(cursor.getFullYear(), cursor.getMonth()), label: cursor.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) });
+      cursor.setMonth(cursor.getMonth() - 1);
+      guard++;
+    }
+    if (!options.length) {
+      // DAYBOOK_FIRST_MONTH_ is somehow after the real current month -
+      // fall back to just the current month so the dropdown is never empty.
+      options.push({ value: curKey, label: reportMonthLabelFor_(curKey) });
+    }
+    sel.innerHTML = options.map(function (o) {
+      return '<option value="' + o.value + '">' + o.label + '</option>';
+    }).join('');
+    sel.value = curKey;
+    applyReportMonthSelection_(sel.value);
+    sel.addEventListener('change', function () { applyReportMonthSelection_(sel.value); });
+  })();
 </script>
 <script>
 // Register the PWA service worker (added 15 Sep 2026) so this app is
