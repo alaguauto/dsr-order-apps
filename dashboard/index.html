@@ -4069,8 +4069,7 @@
   function fetchDaybookItemGroupRows_() {
     var monthKey = currentMonthKey_();
     var url = ORDERS_API_URL + '?type=daybookMonth&month=' + encodeURIComponent(monthKey) + '&_ts=' + Date.now();
-    return fetch(url, { cache: 'no-store' })
-      .then(function (r) { return r.json(); })
+    return fetchJson_(url)
       .then(function (res) {
         if (!res || !res.ok) throw new Error((res && res.error) || 'Server error');
         daybookItemGroupRows = res.rows || [];
@@ -7695,6 +7694,42 @@
     el.classList.toggle('err', !!isErr);
   }
 
+  // Added 1 Oct 2026 - the owner reported the dashboard itself ("not the
+  // DSR apps") needing 4-5 manual Refresh clicks before it loaded. Tracing
+  // refreshAll() below showed every one of its fetches was a single plain
+  // fetch() with no timeout and no retry - one slow or dropped response
+  // from the Apps Script backend (which this dashboard already hits with
+  // several requests at once, see refreshAll()'s own comment) just sat
+  // there or failed outright, and the ONLY recovery path was the owner
+  // clicking Refresh again by hand. This wraps every refreshAll() fetch in
+  // up to 3 attempts with a 12s-per-attempt timeout (via AbortController)
+  // and a short backoff between retries - the same thing a manual re-click
+  // did, just automatic and much faster than a human noticing-and-
+  // clicking cycle. Resolves straight to the parsed JSON (or throws after
+  // the final attempt) so every call site below keeps its existing
+  // .then(res)/.catch() shape unchanged.
+  function fetchJson_(url, attempts, timeoutMs) {
+    attempts = attempts || 3;
+    timeoutMs = timeoutMs || 12000;
+    function attempt(n) {
+      var controller = (typeof AbortController !== "undefined") ? new AbortController() : null;
+      var timer = controller ? setTimeout(function () { controller.abort(); }, timeoutMs) : null;
+      return fetch(url, { cache: "no-store", signal: controller ? controller.signal : undefined })
+        .then(function (r) {
+          if (timer) clearTimeout(timer);
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        })
+        .catch(function (err) {
+          if (timer) clearTimeout(timer);
+          if (n >= attempts) throw err;
+          return new Promise(function (resolve) { setTimeout(resolve, 500 * n); })
+            .then(function () { return attempt(n + 1); });
+        });
+    }
+    return attempt(1);
+  }
+
   // Renamed to write appTodayLtr/appMonthLtr, 18 Sep 2026 - this is the
   // Orders-sheet figure (what a DSR actually typed into their own app),
   // now a secondary comparison line only - see the DSRS comment above.
@@ -7703,8 +7738,7 @@
       "&date=" + encodeURIComponent(todayISO()) +
       "&month=" + encodeURIComponent(todayISO().slice(0, 7)) +
       "&_ts=" + Date.now();
-    return fetch(url, { cache: "no-store" })
-      .then(function (r) { return r.json(); })
+    return fetchJson_(url)
       .then(function (res) {
         if (res && res.ok) {
           d.appTodayLtr = res.todayLtr || 0;
@@ -7727,8 +7761,7 @@
   // blank) is treated the same way, field by field.
   function fetchLive() {
     var url = ORDERS_API_URL + "?type=live&_ts=" + Date.now();
-    return fetch(url, { cache: "no-store" })
-      .then(function (r) { return r.json(); })
+    return fetchJson_(url)
       .then(function (res) {
         var collection = (res && res.ok && res.collection) ? res.collection : null;
         DSRS.forEach(function (d) {
@@ -7839,25 +7872,49 @@
       });
   }
 
+  function updateRefreshNote_() {
+    var failed = DSRS.filter(function (d) { return d.error; }).length;
+    document.getElementById('livePill').style.display = failed < DSRS.length ? '' : 'none';
+    if (failed === 0) {
+      setNote('All ' + DSRS.length + ' up to date.');
+    } else if (failed < DSRS.length) {
+      setNote(failed + ' of ' + DSRS.length + ' DSRs couldn\'t be reached — showing their last known numbers.', true);
+    } else {
+      setNote('Couldn\'t reach the order log — check your connection and try again.', true);
+    }
+  }
+
+  // Split into a "critical" fetch and a "secondary" fetch 1 Oct 2026 - see
+  // fetchJson_()'s comment above for the full complaint/diagnosis. The old
+  // version put all 10 requests (fetchLive + the daybook fetch + 8 separate
+  // per-DSR fetchOne() calls) into ONE Promise.all gating the ONE render()
+  // call - so the whole dashboard sat blank until every single one of
+  // those 10 requests to the same Apps Script backend came back, including
+  // the 8 fetchOne() calls whose numbers (appTodayLtr/appMonthLtr) only
+  // ever feed one small "Logged via app" comparison line (see the 18 Sep
+  // comment near the DSRS array) - not anything the dashboard actually
+  // needs to paint its real, Tally-sourced figures. Now the dashboard
+  // renders as soon as fetchLive()+the Day Book fetch (the data it
+  // actually needs) are back, and the 8 secondary calls repaint that one
+  // comparison line a moment later without holding up everything else.
   function refreshAll() {
     var btn = document.getElementById('refreshBtn');
     btn.disabled = true;
     btn.classList.add('loading');
     setNote('');
 
-    Promise.all(DSRS.map(fetchOne).concat([fetchLive(), fetchDaybookItemGroupRows_()])).then(function () {
+    var criticalDone = Promise.all([fetchLive(), fetchDaybookItemGroupRows_()]).then(function () {
       render();
-      var failed = DSRS.filter(function (d) { return d.error; }).length;
       document.getElementById('sourceLabel').textContent = 'Updated ' + nowStamp();
-      document.getElementById('livePill').style.display = failed < DSRS.length ? '' : 'none';
-      if (failed === 0) {
-        setNote('All ' + DSRS.length + ' up to date.');
-      } else if (failed < DSRS.length) {
-        setNote(failed + ' of ' + DSRS.length + ' DSRs couldn\'t be reached — showing their last known numbers.', true);
-      } else {
-        setNote('Couldn\'t reach the order log — check your connection and try again.', true);
-      }
-    }).finally(function () {
+      updateRefreshNote_();
+    });
+
+    var secondaryDone = Promise.all(DSRS.map(fetchOne)).then(function () {
+      render();
+      updateRefreshNote_();
+    });
+
+    Promise.all([criticalDone, secondaryDone]).finally(function () {
       btn.disabled = false;
       btn.classList.remove('loading');
     });
