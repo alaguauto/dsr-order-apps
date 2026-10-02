@@ -732,6 +732,21 @@
   .petronas-summary-balance.neg { color: var(--warn); }
   .petronas-summary-balance.pos { color: var(--good); }
   .petronas-summary-row-live { color: var(--ink-muted); font-weight: 400; }
+  /* 2 Oct 2026 bug fix: the "Report period" picker rows (.period-select-row/
+     .month-select-row/.week-select-row/.quarter-select-row/.year-select-row)
+     each carry their own inline style="display:flex;..." for layout. A
+     plain inline style always wins over the browser's built-in
+     `[hidden] { display:none }` rule, so setting element.hidden = true on
+     these rows (applyReportPeriodRowVisibility_() switching between
+     Month/Week/Quarter/Year, and afterLogin_() hiding the whole picker for
+     a restricted Area Manager) toggled the attribute but left the row
+     still visually showing - confirmed by a user screenshot where
+     switching View to Quarter left the Report month/Week of/Quarter/Year
+     rows ALL visible at once instead of just Quarter's own row. This
+     !important override restores the normal hidden-attribute behavior
+     globally (safe for every other already-correct hidden element on this
+     page, none of which relied on being shown despite [hidden]). */
+  [hidden] { display: none !important; }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a4a44">
@@ -799,6 +814,76 @@
         <div id="adminMsg" class="admin-msg"></div>
         <div class="admin-msg" style="opacity:0.75;">Manager sees every DSR. Area Manager sees only the areas you list below - type the exact DSR card names separated by commas, e.g. Prabha,Arun,Chellamani (required for this role - it won't save blank). Areas is ignored for DSR/Owner.</div>
         <div class="admin-msg" style="opacity:0.75;">"Hide these people's logins" is about the usage report only, not the DSR data above - it's one-directional and per-person: e.g. type "Anbu" while Bala is selected to stop Bala (only) from seeing Anbu's logins; Anbu's own view is unaffected unless you set something on his row too. Leave blank to hide nobody.</div>
+      </div>
+      <!-- "Section visibility (by role)", added 1 Oct 2026 at the owner's
+           request ("i have a idea in admin page write the heading and ask
+           which one to be available for whom"), after a restricted Area
+           Manager (Vimal) was found to still see Day Book/Collection Group
+           Summary/the Report month picker even once his AllowedAreas was
+           set correctly - rather than keep chasing that one account's
+           data, this gives a direct, explicit, Owner-set per-role switch
+           for these 5 company-wide sections, independent of any person's
+           AllowedAreas. Gated Owner-only, same as the password block
+           above. See CURRENT_HIDDEN_SECTIONS/sectionHidden_() above and
+           SECTION_VIS_DEFAULTS_ in Code.gs (which seeds "Area Manager" to
+           exactly today's 5-section hide-list, so shipping this changes
+           nothing until the Owner edits it here). Scope note: per-role,
+           not per-person (every Area Manager shares one list) and these 5
+           sections only, per the owner's own instruction - the Trend
+           charts and the Last Month report's own company-wide totals stay
+           tied to AllowedAreas as before, since those are data-availability
+           limits, not a configurable permission.
+
+           The "reportMonth" key's checkbox now reads "Report period
+           picker (Month/Week/Quarter/Year)" (2 Oct 2026) - the single
+           bare month picker it originally gated grew into the full
+           Month/Week/Quarter/Year period picker, and the owner asked
+           that the whole thing stay Owner/Manager-only, not Area Manager
+           ("given all these options to be shown to owner and manager
+           only not for area manager"). No new key was added: the same
+           stored per-role list and the same default
+           ("Area Manager": "reportMonth,...") already cover it, since
+           all four period rows are hidden/shown together by this one
+           switch - see the reportMonthHidden block in afterLogin_().
+
+           "groupSummary" changed 2 Oct 2026 - no longer a plain on/off
+           switch for Area Manager ("Collection Group Summary to show his
+           area only"). Checking it still hides the section completely
+           for that role (unchanged behavior, e.g. for a future role with
+           no area of its own), but LEAVING IT UNCHECKED (the new 2 Oct
+           2026 default) no longer means "full company figures" the way
+           it used to - the section is now always scoped to the viewer's
+           own AllowedAreas when unchecked, same data-availability
+           treatment as the Trend charts/Last Month report mentioned
+           above, computed in restrictedGroupDealers_()/
+           restrictedGroupTotals_() in dashboard_index.html. See
+           SECTION_VIS_DEFAULTS_'s own comment in Code.gs for the
+           already-seeded-sheet migration note - this code change alone
+           does not update a HiddenSections value already saved before
+           2 Oct 2026, so an existing Area Manager row needs this
+           checkbox unchecked and saved once by hand. -->
+      <div id="sectionVisBlock" class="admin-block" hidden>
+        <h4>Section visibility (by role)</h4>
+        <div class="admin-msg" style="opacity:0.75;">Pick a role, then check the sections that role should NOT see. Save applies to everyone with that role.</div>
+        <div class="admin-field-row">
+          <select id="sectionVisRoleSelect">
+            <option value="Owner">Owner</option>
+            <option value="Manager">Manager</option>
+            <option value="Area Manager" selected>Area Manager</option>
+          </select>
+        </div>
+        <div class="admin-field-row" style="flex-wrap:wrap;gap:8px 18px;">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:normal;"><input type="checkbox" id="sectionVis_reportMonth"> Report period picker (Month/Week/Quarter/Year)</label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:normal;"><input type="checkbox" id="sectionVis_dayBook"> Day Book (Petronas)</label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:normal;"><input type="checkbox" id="sectionVis_groupSummary"> Collection Group Summary (hide entirely - unchecked shows it scoped to the role's own area)</label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:normal;"><input type="checkbox" id="sectionVis_stocks"> Stocks</label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:normal;"><input type="checkbox" id="sectionVis_petronasSummary"> Petronas Business Summary</label>
+        </div>
+        <div class="admin-field-row">
+          <input type="password" id="sectionVisConfirmPassword" placeholder="Your password (confirm)" autocomplete="current-password">
+          <button type="button" id="sectionVisSaveBtn" class="admin-save-btn">Save section visibility</button>
+        </div>
+        <div id="sectionVisMsg" class="admin-msg"></div>
       </div>
       <!-- "Run Full Archive", added 30 Sep 2026 at the owner's request
            ("that reportbot not working so please keep a run full archive
@@ -924,56 +1009,117 @@
     </button>
   </div>
 
-  <!-- Report month picker, added 30 Sep 2026 at the owner's request ("Can
+  <!-- Report period picker, added 30 Sep 2026 at the owner's request ("Can
        we have a month changing option in dashboard, if we selected a
        month then the last day of the report having in the month to be
-       displayed for full cards"). Scope clarified via two questions
-       before building: (1) applies to the WHOLE dashboard (every card
-       and every company-wide section below), not just the DSR cards;
-       (2) for now, only the real current calendar month has real data -
-       picking any other month shows a plain "No data" message instead of
-       the report, exactly as the owner asked ("we are having data only
-       from sep if previous month selected tell no data").
+       displayed for full cards"), and expanded 2 Oct 2026 from a bare
+       month picker into Month/Week/Quarter/Year. Scope: applies to the
+       WHOLE dashboard (every card and every company-wide section below),
+       not just the DSR cards. Real data only exists from
+       DAYBOOK_FIRST_MONTH_ (Sep 2026) onward - anything before that, or
+       any period whose underlying frozen boundary data doesn't exist yet,
+       shows a plain "No data" message rather than faked figures.
 
-       Revised 1 Oct 2026 after a real screenshot report ("month picker of
-       last month did not showing the screen of last month , full data we
-       are having from sep 26 only so on the dropdown box should show from
-       sep 26 only") - clarified via AskUserQuestion that the owner wants
-       the immediately-previous month to show REAL data, not just a
-       trimmed list. Two changes: (a) the dropdown now starts at
-       DAYBOOK_FIRST_MONTH_ (Sep 2026, the same "data genuinely starts
-       here" constant the Day Book export picker already uses) instead of
-       a blind 12-month rolling lookback that included months with zero
-       data; (b) selecting exactly ONE month back from today now renders a
-       real "last month" summary (see renderLastMonthReport_() further
-       down) built entirely from fields ALREADY flowing into this page -
-       no new Tally fetch, no new backend endpoint. What it covers, and why
-       it can't cover everything: Sales/Collection per-DSR+Area (from each
-       DSR's own lastMonthFullLtr/lastMonthFull fields, already loaded for
-       the small "Last month: X" line inside every card since 21 Sep
-       2026), the same company-wide totals via salesTrendMap/
-       collectionTrendMap/salesRsTrendMap's daily figures (already loaded
-       for the Trend chart since 20 Sep 2026), Day Book (already stores a
-       real per-month sheet tab, see DAYBOOK_FIRST_MONTH_'s own comment),
-       and Collection Group Summary (already keeps every month in one
-       sheet, see GROUP_SUMMARY_GROUPS_'s own history). Stock, Outstanding/
-       60+ ageing, Needs attention, Dealer review's own 6-month-average
-       comparison, Ranking, Top selling SKU, and Items Covered have NO
-       historical equivalent anywhere in this system - every one of those
-       is a live Tally snapshot that gets overwritten, not accumulated -
-       so they're left out of the last-month view with one honest note
-       rather than faked. Anything OLDER than one month back still shows
-       "No data" (unchanged) - the lastMonthFull*/trend fields only ever
-       hold ONE prior month, not a real archive; a genuine multi-month
-       history would be the same kind of new, diagnostic-first build as
-       the Jan-Oct 2026 Excel template delivered 1 Oct 2026, not a UI
-       change. The Account &amp; Usage panel above this row is NOT gated by
-       month - it's account actions, not a report. -->
-  <div class="month-select-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 18px;">
-    <label for="reportMonthSelect" style="font-size:13px;color:var(--ink-secondary);">Report month:</label>
-    <select id="reportMonthSelect"></select>
-    <span id="reportMonthNote" style="font-size:12px;color:var(--ink-muted);"></span>
-  </div>
+       Visibility: hidden in full for a role with sectionHidden_('reportMonth')
+       set (Area Manager by default, see SECTION_VIS_DEFAULTS_ in Code.gs
+       and afterLogin_() below) - Owner and Manager see it, Area Manager
+       does not ("given all these options to be shown to owner and manager
+       only not for area manager" - 2 Oct 2026). One switch gates all 4
+       rows below, not just the month row, since Week/Quarter/Year are the
+       same feature.
+
+       Month: selecting the real current month shows the live dashboard
+       (#reportContent); the immediately-previous month renders a real
+       "last month" summary (renderLastMonthReport_() further down) built
+       from fields already flowing into this page - no new Tally fetch.
+       What it covers, and why it can't cover everything: Sales/Collection
+       per-DSR+Area (lastMonthFullLtr/lastMonthFull fields, already loaded
+       since 21 Sep 2026), company-wide totals via salesTrendMap/
+       collectionTrendMap/salesRsTrendMap (already loaded for the Trend
+       chart since 20 Sep 2026), Day Book (real per-month sheet tab, see
+       DAYBOOK_FIRST_MONTH_'s own comment), and Collection Group Summary
+       (keeps every month in one sheet, see GROUP_SUMMARY_GROUPS_'s own
+       history). Stock, Outstanding/60+ ageing, Needs attention, Dealer
+       review's 6-month-average comparison, Ranking, Top selling SKU, and
+       Items Covered have NO historical equivalent anywhere in this system
+       - every one is a live Tally snapshot that gets overwritten, not
+       accumulated - so they're left out of the last-month view with one
+       honest note rather than faked. Anything older than one month back
+       still shows "No data" - the lastMonthFull*/trend fields only ever
+       hold ONE prior month.
+
+       Week/Quarter/Year: see the long "Report period" comment above
+       applyReportPeriodSelection_() in the script below for the full
+       design (Week = fixed 7-day blocks within a month, never crossing a
+       month boundary; Quarter/Year are calendar, Jan-Dec, not financial -
+       confirmed by the owner). These three reuse the SAME reduced
+       Combined + By-DSR (tap to expand) card set as the Month picker's
+       Last Month view, not the full every-card treatment.
+
+       The Account &amp; Usage panel above this row is NOT gated by this
+       picker - it's account actions, not a report.
+
+       Foldable, added 2 Oct 2026 (owner: "month view should be in
+       foldable if click it has to expand") - the whole picker (the
+       View: dropdown AND whichever sub-row is active) now sits collapsed
+       by default inside the same native <details class="dsr-row">
+       "+/-" convention already used for Stocks/Day Book/Petronas Summary
+       elsewhere on this page (see stocksMasterDetails above), instead of
+       always taking up space at the top of the Report section. The
+       summary line's right-hand text (#reportPeriodSummaryText, set by
+       updateReportPeriodSummaryText_() in the script below) always shows
+       the CURRENTLY ACTIVE period's label - "October 2026", "Week 2
+       (8-14 Oct) 2026", "Q4 (Oct-Dec) 2026", "2026 (Jan-Dec)" - so the
+       owner can see what's being viewed without opening it. Area
+       Manager's full-picker hide (afterLogin_() below) now hides this
+       ONE #reportPeriodDetails element instead of the 5 rows separately
+       - simpler, and correctly hides the summary line too, not just the
+       controls inside it. -->
+  <details class="dsr-row" id="reportPeriodDetails" style="margin:0 0 18px;">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Report period</span>
+        <span class="card-territory" id="reportPeriodSummaryText">This Month</span></span>
+    </summary>
+    <div class="dsr-row-body">
+      <div class="period-select-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0;">
+        <label for="reportPeriodType" style="font-size:13px;color:var(--ink-secondary);">View:</label>
+        <select id="reportPeriodType">
+          <option value="month">Month</option>
+          <option value="week">Week</option>
+          <option value="quarter">Quarter</option>
+          <option value="year">Year</option>
+        </select>
+      </div>
+      <div class="month-select-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0;">
+        <label for="reportMonthSelect" style="font-size:13px;color:var(--ink-secondary);">Report month:</label>
+        <select id="reportMonthSelect"></select>
+        <span id="reportMonthNote" style="font-size:12px;color:var(--ink-muted);"></span>
+      </div>
+      <div class="week-select-row" hidden style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0;">
+        <label for="reportWeekMonthSelect" style="font-size:13px;color:var(--ink-secondary);">Week of:</label>
+        <select id="reportWeekMonthSelect"></select>
+        <select id="reportWeekSelect"></select>
+        <span id="reportWeekNote" style="font-size:12px;color:var(--ink-muted);"></span>
+      </div>
+      <div class="quarter-select-row" hidden style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0;">
+        <label for="reportQuarterYearSelect" style="font-size:13px;color:var(--ink-secondary);">Quarter:</label>
+        <select id="reportQuarterSelect">
+          <option value="1">Q1 (Jan-Mar)</option>
+          <option value="2">Q2 (Apr-Jun)</option>
+          <option value="3">Q3 (Jul-Sep)</option>
+          <option value="4">Q4 (Oct-Dec)</option>
+        </select>
+        <select id="reportQuarterYearSelect"></select>
+        <span id="reportQuarterNote" style="font-size:12px;color:var(--ink-muted);"></span>
+      </div>
+      <div class="year-select-row" hidden style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0;">
+        <label for="reportYearSelect" style="font-size:13px;color:var(--ink-secondary);">Year:</label>
+        <select id="reportYearSelect"></select>
+        <span id="reportYearNote" style="font-size:12px;color:var(--ink-muted);"></span>
+      </div>
+    </div>
+  </details>
 
   <div id="noDataBanner" class="admin-msg" hidden style="margin:0 0 18px;padding:14px 16px;border-radius:10px;background:var(--card);border:1px solid var(--border);font-size:13.5px;"></div>
 
@@ -998,6 +1144,27 @@
     </div>
     <div id="lastMonthGroupSummaryWrap"></div>
     <p style="font-size:12.5px;color:var(--ink-muted);margin-top:16px;">Stock, Outstanding/60+ ageing, Needs attention, Dealer review, Ranking, Top selling SKU and Items Covered are current-month snapshots only — Tally doesn't keep a historical record for these, so they're not shown here for a past month.</p>
+  </div>
+
+  <!-- "Report period" Week/Quarter/Year reduced view, added 2 Oct 2026 -
+       see the long comment above applyReportPeriodSelection_() in the
+       script below for the full design. Deliberately a SMALLER view than
+       #lastMonthReportContent above (no Day Book, no Collection Group
+       Summary, no per-card every-figure treatment) - just Combined Sales
+       + Combined Collection + the same AAA Direct/Madurai/Tirunelveli ->
+       DSR -> dealer tap-to-expand table, per the owner's own scope
+       ("Combined that selected date — Sales and Combined — Collection,
+       show of By DSR — tap a name to expand all cards... if no remove
+       all other cards"). Populated by renderPeriodSummary_(), shown
+       instead of #reportContent/#lastMonthReportContent/#noDataBanner
+       only while CURRENT_VIEW_PERIOD is set. -->
+  <div id="periodReportContent" hidden style="margin:0 0 18px;">
+    <div id="periodCombinedWrap" style="margin:0 0 16px;"></div>
+    <div class="section-label-row">
+      <p class="section-label">Full Petronas — Sales &amp; Collection</p>
+    </div>
+    <div id="periodAreaWrap"></div>
+    <p style="font-size:12.5px;color:var(--ink-muted);margin-top:16px;">Stock, Day Book, Collection Group Summary, Outstanding/60+ ageing, Needs attention, Dealer review, Ranking, Top selling SKU and Items Covered aren't shown for a Week/Quarter/Year view - only Combined Sales/Collection and the By-DSR breakdown above.</p>
   </div>
 
   <div id="reportContent">
@@ -2009,6 +2176,17 @@
   // watcher itself stamps on every row it pushes (see
   // tally_live_watcher.py's fetch_group_summary()) - same inline
   // computation the Day Book export button above already uses.
+  // "Monthly Freeze" (1 Oct 2026) - currentMonthKey_() below always means
+  // the REAL calendar current month (several unrelated features - the
+  // Day Book/Group Summary export pickers' own "(current)" label among
+  // them - rely on that staying unchanged). currentViewMonthKey_() is the
+  // narrower "what month is #reportContent actually showing right now"
+  // used only by the handful of call sites whose own displayed data (or
+  // an export/share of it) must match a FROZEN month when one is being
+  // viewed - CURRENT_VIEW_FROZEN_MONTH || currentMonthKey_().
+  function currentViewMonthKey_() {
+    return CURRENT_VIEW_FROZEN_MONTH || currentMonthKey_();
+  }
   function currentMonthKey_() {
     var d = new Date();
     var mm = d.getMonth() + 1;
@@ -2100,6 +2278,18 @@
     });
   }
 
+  // Same style as nowStamp() above, for a frozen month's "FrozenAt" ISO
+  // timestamp (1 Oct 2026, "Monthly Freeze") - falls back to the raw
+  // string if it somehow isn't a parseable date, rather than showing
+  // "Invalid Date".
+  function frozenAtStamp_(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso || '');
+    return d.toLocaleString('en-IN', {
+      day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true
+    });
+  }
+
   // "yyyy-MM" for the previous calendar month, added 20 Sep 2026 for the
   // Sales trend chart. Sets the date to the 1st before subtracting a
   // month so this never skips/rolls over depending on today's day-of-month.
@@ -2107,6 +2297,17 @@
     var d = new Date();
     d.setDate(1);
     d.setMonth(d.getMonth() - 1);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  }
+
+  // "yyyy-MM" shifted by `delta` whole months - added 1 Oct 2026 for
+  // "Monthly Freeze" so the Trend chart/Daily spikes panel can compare a
+  // FROZEN month against the month before IT (not always the real
+  // current/previous month) - see renderTrend()/renderTrendBars()'s own
+  // CURRENT_VIEW_FROZEN_MONTH check below.
+  function monthKeyOffset_(ym, delta) {
+    var parts = ym.split('-');
+    var d = new Date(Number(parts[0]), Number(parts[1]) - 1 + delta, 1);
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
   }
 
@@ -3901,11 +4102,46 @@
   // defaulting to the original hardcoded behavior (groupSummaryWrap,
   // the real current month) so the one existing call site below (inside
   // the normal live refresh cycle) is completely unaffected.
+  // "Area Manager sees own area only" (2 Oct 2026) - replaces the old
+  // "hide Collection Group Summary entirely for a restricted Area
+  // Manager" behavior (see SECTION_VIS_DEFAULTS_ in Code.gs and
+  // sectionHidden_('groupSummary') in afterLogin_() - 'groupSummary' was
+  // removed from Area Manager's default hidden-sections list the same
+  // day). GROUP_SUMMARY_GROUPS_' own precomputed Opening/Debit/Credit/
+  // Closing totals come straight off Tally's own ledger "Group" rows -
+  // real company-wide figures with no per-DSR split anywhere in that
+  // data. So for a restricted Area Manager, a group's totals are instead
+  // RECOMPUTED here by summing only the dealer-level rows (from
+  // groupSummaryByDealerList, via dealersByGroup) whose dealer maps,
+  // through knownDealerDsrMap_() (itself already scoped to
+  // visibleDsrs_()), to one of their own visible DSRs. A dealer that
+  // doesn't map to any known DSR roster at all is left OUT of a
+  // restricted total entirely - unlike the unrestricted view's "Other
+  // Dealers" catch-all bucket, an unmapped dealer is never attributed to
+  // a specific Area Manager just because it happens to sit in a group
+  // they can otherwise see. A group with none of their own DSRs' dealers
+  // in it has no restricted total at all (null) and is skipped
+  // completely, same "hide rather than leak" rule used everywhere else
+  // in this file - this is how the 4 groups with no DSR mapping at all
+  // (OE AM WS Sales, Other Area, Ramnad (Other)/(Pioneer)) end up never
+  // shown to a restricted Area Manager, with zero extra code for them
+  // specifically. An unrestricted Owner/Manager never calls this - they
+  // keep seeing the real ledger-level group totals exactly as before.
+  function restrictedGroupDealers_(gname, dealersByGroup, dealerDsrMap) {
+    return (dealersByGroup[gname] || []).filter(function (d) { return !!dealerDsrMap[d.dealer]; });
+  }
+  function restrictedGroupTotals_(dealers) {
+    if (!dealers.length) return null;
+    return dealers.reduce(function (s, d) {
+      s.opening += d.opening || 0; s.debit += d.debit || 0; s.credit += d.credit || 0; s.closing += d.closing || 0;
+      return s;
+    }, { opening: 0, debit: 0, credit: 0, closing: 0 });
+  }
   function renderGroupSummaryTable_(opts) {
     opts = opts || {};
     var wrap = document.getElementById(opts.wrapId || 'groupSummaryWrap');
     if (!wrap) return;
-    var monthKey = opts.monthKey || currentMonthKey_();
+    var monthKey = opts.monthKey || currentViewMonthKey_();
     var rowsByGroup = {};
     (groupSummaryList || []).forEach(function (r) {
       if (r.monthKey === monthKey) rowsByGroup[r.group] = r;
@@ -3943,6 +4179,7 @@
       dealersByGroup[g].sort(function (a, b) { return a.dealer < b.dealer ? -1 : a.dealer > b.dealer ? 1 : 0; });
     });
     var dealerDsrMap = knownDealerDsrMap_();
+    var restricted = !!CURRENT_ALLOWED_AREAS;
 
     // Shown as a plain magnitude, no minus sign - added 28 Sep 2026 at the
     // owner's request ("remove the - symbol in front of the amount").
@@ -3959,8 +4196,9 @@
     var grand = { opening: 0, debit: 0, credit: 0, closing: 0 };
     var anyData = false;
     GROUP_SUMMARY_GROUPS_.forEach(function (gname) {
-      var rec = rowsByGroup[gname];
-      if (!rec) return; // no sync yet this month for this group - leave it out rather than show a false zero row
+      var dealers = restricted ? restrictedGroupDealers_(gname, dealersByGroup, dealerDsrMap) : (dealersByGroup[gname] || []);
+      var rec = restricted ? restrictedGroupTotals_(dealers) : rowsByGroup[gname];
+      if (!rec) return; // no sync yet this month for this group (or, for a restricted Area Manager, none of their own dealers in it) - leave it out rather than show a false zero row
       anyData = true;
       grand.opening += rec.opening || 0;
       grand.debit += rec.debit || 0;
@@ -3969,7 +4207,6 @@
       rowsHtml += '<tr class="area-toggle-row" data-area-toggle="' + gname + '">' +
         '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + gname + '</td>' +
         cell(rec.opening) + cell(rec.debit) + cell(rec.credit) + cell(rec.closing) + '</tr>';
-      var dealers = dealersByGroup[gname] || [];
       if (!dealers.length) {
         rowsHtml += '<tr class="area-child-row" data-area-child="' + gname + '" style="display:none;">' +
           '<td colspan="5" style="padding-left:26px;color:var(--ink-muted);text-align:left;">No dealer-level data synced yet</td></tr>';
@@ -4066,8 +4303,15 @@
   // already-flowing, already-verified data. Never rejects (matches
   // fetchLive()'s own error-tolerant convention) so one failed fetch
   // doesn't break the rest of refreshAll()'s Promise.all.
-  function fetchDaybookItemGroupRows_() {
-    var monthKey = currentMonthKey_();
+  // `monthKey` is optional (added 1 Oct 2026 for "Monthly Freeze") -
+  // defaults to the real current month (the only thing this ever fetched
+  // before), or pass a past month's "yyyy-MM" explicitly so the Day Book
+  // card can show THAT month's rows while loadFrozenMonth_() below is
+  // viewing it - Day Book never needed freezing itself (it's already its
+  // own real per-month data, see Code.gs's "Monthly Freeze" comment), it
+  // just needed this function able to ask for a month other than "now".
+  function fetchDaybookItemGroupRows_(monthKey) {
+    monthKey = monthKey || currentMonthKey_();
     var url = ORDERS_API_URL + '?type=daybookMonth&month=' + encodeURIComponent(monthKey) + '&_ts=' + Date.now();
     // 45s timeout here too, same 1 Oct 2026 fix/correction as fetchLive()
     // above - a whole month's Day Book scan is also a heavier read than a
@@ -4122,7 +4366,7 @@
     });
     var mainGroupNames = Object.keys(byMainGroup).sort(function (a, b) { return byMainGroup[b].total - byMainGroup[a].total; });
     if (!mainGroupNames.length) {
-      wrap.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);">No Petronas item-group sales synced for ' + currentMonthKey_() + ' yet.</p>';
+      wrap.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);">No Petronas item-group sales synced for ' + currentViewMonthKey_() + ' yet.</p>';
       if (summaryTotalEl) summaryTotalEl.textContent = 'Total ALT QTY 0 Ltr';
       if (headerTotalEl) headerTotalEl.textContent = 'Total ALT QTY 0 Ltr';
       return;
@@ -4623,6 +4867,13 @@
       // Group->DSR->dealer breakdown, same knownDealerDsrMap_() join -
       // "Other Dealers" for a dealer not in any of the 7 DSR apps' rosters.
       var dealerDsrMap = knownDealerDsrMap_();
+      // "Area Manager sees own area only" (2 Oct 2026) - same
+      // restrictedGroupDealers_()/restrictedGroupTotals_() recompute as
+      // renderGroupSummaryTable_() above, so the Excel export a restricted
+      // Area Manager downloads matches what's now on their screen instead
+      // of leaking the full company ledger figures. See the long comment
+      // above those two functions for why.
+      var restricted = !!CURRENT_ALLOWED_AREAS;
       // Shown as a plain magnitude, no minus sign - same 28 Sep 2026 request
       // as the on-screen table's own cell() above, applied here too so the
       // Excel export matches what's on screen. absOrBlank_() only affects
@@ -4635,10 +4886,10 @@
       var grand = { opening: 0, debit: 0, credit: 0, closing: 0 };
       var anyData = false;
       GROUP_SUMMARY_GROUPS_.forEach(function (gname) {
-        var rec = rowsByGroup[gname];
+        var dealers = restricted ? restrictedGroupDealers_(gname, dealersByGroup, dealerDsrMap) : (dealersByGroup[gname] || []);
+        var rec = restricted ? restrictedGroupTotals_(dealers) : rowsByGroup[gname];
         if (!rec) return;
         anyData = true;
-        var dealers = dealersByGroup[gname] || [];
         dealers.forEach(function (d) {
           rows.push([gname, dealerDsrMap[d.dealer] || 'Other Dealers', d.dealer,
             absOrBlank_(d.opening), absOrBlank_(d.debit), absOrBlank_(d.credit), absOrBlank_(d.closing)]);
@@ -4718,7 +4969,7 @@
         g.total += ltr;
         g.byDsr[dsrName] = (g.byDsr[dsrName] || 0) + ltr;
       });
-      var monthKey = currentMonthKey_();
+      var monthKey = currentViewMonthKey_();
       var mainGroupNames = Object.keys(byMainGroup).sort(function (a, b) { return byMainGroup[b].total - byMainGroup[a].total; });
       if (!mainGroupNames.length) {
         alert('No Petronas item-group sales synced for ' + monthKey + ' yet.');
@@ -4797,8 +5048,17 @@
       wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Loading…</p>';
       return;
     }
-    var thisMonthKey = todayISO().slice(0, 7);
-    var lastMonthKey = lastMonthKeyISO();
+    // "Monthly Freeze" (1 Oct 2026) - while viewing a frozen past month,
+    // compare THAT month against the one right before it, not always the
+    // real current/previous month (salesTrendMap/collectionTrendMap are
+    // never frozen themselves - they already keep a full daily history -
+    // so this just changes which two months get pulled out of them).
+    // Extended for "Daily Freeze" (2 Oct 2026) - currentViewMonthKey_()
+    // also covers a frozen single DAY (that day's own month), so viewing
+    // e.g. 15 Sep correctly compares Sep vs Aug, not whatever month it
+    // happens to be live right now.
+    var thisMonthKey = currentViewMonthKey_();
+    var lastMonthKey = monthKeyOffset_(thisMonthKey, -1);
 
     // {"yyyy-MM-dd": total} -> running cumulative Ltr/Rs by day-of-month
     // (1..N), for just one calendar month - a flat trend reads as
@@ -4903,7 +5163,9 @@
   // the two are different units.
   function renderTrendBars() {
     var wrap = document.getElementById('trendBarsWrap');
-    var thisMonthKey = todayISO().slice(0, 7);
+    // "Monthly Freeze" (1 Oct 2026) - see renderTrend()'s own identical
+    // comment just above.
+    var thisMonthKey = currentViewMonthKey_();
     var labelEl = document.getElementById('trendBarsLabel');
     if (labelEl) labelEl.textContent = 'Daily spikes — ' + monthNameLabel_(thisMonthKey);
     // Same reasoning as renderTrend() above - company-wide only, no
@@ -5407,7 +5669,7 @@
     }
     if (!targetRow) {
       el.innerHTML = '<p class="card-name" style="margin:0;">Sales by Item Group (Alt Qty)</p>' +
-        '<p style="margin:8px 0 0;color:var(--ink-muted);">No Petronas item-group sales synced for ' + currentMonthKey_() + ' yet.</p>';
+        '<p style="margin:8px 0 0;color:var(--ink-muted);">No Petronas item-group sales synced for ' + currentViewMonthKey_() + ' yet.</p>';
       document.body.appendChild(el);
       return el;
     }
@@ -5440,7 +5702,7 @@
     var toggleRows = wrap ? wrap.querySelectorAll('.area-toggle-row') : [];
     var listEl = document.getElementById('itemGroupPickerList');
     if (!toggleRows.length) {
-      listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);">No Petronas item-group sales synced for ' + currentMonthKey_() + ' yet.</p>';
+      listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);">No Petronas item-group sales synced for ' + currentViewMonthKey_() + ' yet.</p>';
     } else {
       listEl.innerHTML = Array.prototype.map.call(toggleRows, function (tr) {
         var name = tr.getAttribute('data-area-toggle') || '';
@@ -6098,7 +6360,7 @@
       byMainGroup[mainGroup] = (byMainGroup[mainGroup] || 0) + (Number(r.altQtyLtr) || 0);
     });
     var names = Object.keys(byMainGroup).sort(function (a, b) { return byMainGroup[b] - byMainGroup[a]; });
-    if (!names.length) { lines.push('No Petronas item-group sales synced for ' + currentMonthKey_() + ' yet.'); return lines.join('\n'); }
+    if (!names.length) { lines.push('No Petronas item-group sales synced for ' + currentViewMonthKey_() + ' yet.'); return lines.join('\n'); }
     if (groupName) {
       if (!(groupName in byMainGroup)) { lines.push('No data for ' + groupName + ' this month.'); return lines.join('\n'); }
       lines.push(groupName + ': ' + fmt(byMainGroup[groupName]) + ' Ltr');
@@ -7156,6 +7418,42 @@
   // lives on the VIEWER's own row, not the target's. Set once in
   // afterLogin_() below from the login response's hiddenUsageFor string.
   var CURRENT_HIDDEN_USAGE_NAMES = null;
+  // "Section visibility (by role)", added 1 Oct 2026 at the owner's request
+  // ("i have a idea in admin page write the heading and ask which one to be
+  // available for whom") - a direct, explicit, Owner-configured per-role
+  // on/off switch for 5 company-wide sections (Report month picker, Day
+  // Book, Collection Group Summary, Stocks, Petronas Business Summary),
+  // replacing blind reliance on a restricted Area Manager's AllowedAreas
+  // field (which was found to sometimes be blank/unset on a real account
+  // even when the person was nominally "Area Manager", silently leaking
+  // all 5 of these sections). Set once in afterLogin_() below from the
+  // login response's hiddenSections string (comma-separated section keys -
+  // see SECTION_VIS_KNOWN_KEYS_ in Code.gs). Deliberately independent of
+  // CURRENT_ALLOWED_AREAS, which still drives data scoping (which DSR
+  // cards/totals show) plus the Trend charts and the Last Month report's
+  // own company-wide-totals hiding - both of those are genuine
+  // data-availability limits, not a configurable permission, and are out
+  // of scope for this feature.
+  var CURRENT_HIDDEN_SECTIONS = null;
+  var SECTION_VIS_KEYS = ['reportMonth', 'dayBook', 'groupSummary', 'stocks', 'petronasSummary'];
+  function sectionHidden_(key) {
+    return !!CURRENT_HIDDEN_SECTIONS && CURRENT_HIDDEN_SECTIONS.indexOf(key) !== -1;
+  }
+  // "Monthly Freeze" (1 Oct 2026) - null while viewing the real current,
+  // live month (normal); a "yyyy-MM" string while viewing a past month's
+  // FROZEN snapshot (loadFrozenMonth_() below), so refreshAll() and the
+  // Report month picker know to treat the dashboard's own globals as
+  // holding that past month's data rather than today's. See the long
+  // "Monthly Freeze" comment in Code.gs for the full feature.
+  var CURRENT_VIEW_FROZEN_MONTH = null;
+  var CURRENT_VIEW_FROZEN_AT = null;
+
+  // "Report period" (2 Oct 2026) - which reduced view (Week/Quarter/Year)
+  // is currently showing in #lastMonthReportContent, or null when that
+  // panel isn't driven by a period selection (plain live, the real last
+  // month, or a frozen CURRENT_VIEW_FROZEN_MONTH). See the long "Report
+  // period" comment above applyReportPeriodSelection_() further down.
+  var CURRENT_VIEW_PERIOD = null; // {kind:'week'|'quarter'|'year', label, ...} | null
 
   function dashboardApiPost_(action, payload) {
     payload = payload || {};
@@ -7486,7 +7784,36 @@
       .catch(function () {});
   }
 
-  function afterLogin_(sessionId, name, role, allowedAreas, hiddenUsageFor) {
+  // "Section visibility (by role)" admin panel - added 1 Oct 2026. Loads
+  // the current per-role hidden-sections map from the backend (new
+  // ?type=sectionVisibility GET, see handleSectionVisibilityGet_() in
+  // Code.gs) and keeps it cached client-side so switching the role
+  // dropdown redraws the checkboxes instantly without a re-fetch.
+  var SECTION_VIS_MAP_CACHE = null; // {role: "comma,separated,keys"}
+  function loadSectionVisibility_() {
+    var roleSel = document.getElementById('sectionVisRoleSelect');
+    if (!roleSel) return;
+    fetch(ORDERS_API_URL + '?type=sectionVisibility&_ts=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.ok) return;
+        SECTION_VIS_MAP_CACHE = res.visibility || {};
+        applySectionVisToCheckboxes_();
+      })
+      .catch(function () {});
+  }
+  function applySectionVisToCheckboxes_() {
+    var roleSel = document.getElementById('sectionVisRoleSelect');
+    if (!roleSel || !SECTION_VIS_MAP_CACHE) return;
+    var role = roleSel.value;
+    var hiddenForRole = String(SECTION_VIS_MAP_CACHE[role] || '').split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s; });
+    SECTION_VIS_KEYS.forEach(function (key) {
+      var cb = document.getElementById('sectionVis_' + key);
+      if (cb) cb.checked = hiddenForRole.indexOf(key) !== -1;
+    });
+  }
+
+  function afterLogin_(sessionId, name, role, allowedAreas, hiddenUsageFor, hiddenSections) {
     CURRENT_SESSION_ID = sessionId;
     CURRENT_USER_NAME = name;
     CURRENT_USER_ROLE = role;
@@ -7500,6 +7827,11 @@
     // CURRENT_HIDDEN_USAGE_NAMES's own declaration above).
     var hiddenList = String(hiddenUsageFor || '').split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s; });
     CURRENT_HIDDEN_USAGE_NAMES = hiddenList.length ? hiddenList : null;
+    // Same parse for the 1 Oct 2026 per-role section visibility list (see
+    // CURRENT_HIDDEN_SECTIONS's own declaration above) - this is what
+    // sectionHidden_() checks below, in place of CURRENT_ALLOWED_AREAS.
+    var hiddenSectionsList = String(hiddenSections || '').split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s; });
+    CURRENT_HIDDEN_SECTIONS = hiddenSectionsList.length ? hiddenSectionsList : null;
     var overlay = document.getElementById('loginGateOverlay');
     if (overlay) overlay.style.display = 'none';
     var accountPanel = document.getElementById('accountPanel');
@@ -7516,7 +7848,11 @@
     if (whoEl) whoEl.textContent = name + (roleLabel ? ' (' + roleLabel + ')' : '');
     var adminBlock = document.getElementById('adminBlock');
     if (adminBlock) adminBlock.hidden = (role !== 'Owner');
-    if (role === 'Owner') loadAdminUsersList_();
+    // "Section visibility (by role)", added 1 Oct 2026 - Owner only, same
+    // gating as adminBlock just above.
+    var sectionVisBlock = document.getElementById('sectionVisBlock');
+    if (sectionVisBlock) sectionVisBlock.hidden = (role !== 'Owner');
+    if (role === 'Owner') { loadAdminUsersList_(); loadSectionVisibility_(); }
     // "Run Full Archive", added 30 Sep 2026 - Owner only, same gating as
     // the password-reset admin block just above (see the long HTML
     // comment above #archiveBlock for why this exists).
@@ -7528,47 +7864,56 @@
     // to be shared with the team).
     var teamSummaryBlock = document.getElementById('teamSummaryBlock');
     if (teamSummaryBlock) teamSummaryBlock.hidden = (role !== 'Owner');
-    // 28 Sep 2026 ("area manager role did not want to see the stocks and
-    // daybook"): both are company-wide, ALL-dealer panels with no
-    // per-area breakdown at all (unlike everything visibleDsrs_() scopes),
-    // so - same "hide rather than leak/half-show" rule as the trend
-    // charts above - they're hidden outright for a restricted Area
-    // Manager rather than shown company-wide or awkwardly filtered.
+    // Day Book / Collection Group Summary / Stocks / Petronas Business
+    // Summary / Report period picker - 5 company-wide, all-dealer sections
+    // with no per-area breakdown at all (unlike everything visibleDsrs_()
+    // scopes). Through 1 Oct 2026 these were hidden by a blanket
+    // !!CURRENT_ALLOWED_AREAS check (hide for ANY restricted account) -
+    // that silently depended on a restricted account's AllowedAreas field
+    // actually being set, which turned out NOT to be reliable (a real
+    // account could be nominally "Area Manager" with AllowedAreas blank,
+    // leaking all 5). Replaced 1 Oct 2026 with sectionHidden_(), an
+    // explicit, Owner-configured per-ROLE switch (see "Section visibility
+    // (by role)" in the Admin panel, CURRENT_HIDDEN_SECTIONS above, and
+    // SECTION_VIS_DEFAULTS_ in Code.gs, which seeds Area Manager's default
+    // hidden list to exactly these 5 keys so this change is a no-op until
+    // the Owner actively edits it there). The Report period picker's own
+    // hide still has the same practical effect as before: with ALL FOUR
+    // of its rows hidden (period-select-row/month-select-row/
+    // week-select-row/quarter-select-row/year-select-row - 2 Oct 2026,
+    // "given all these options to be shown to owner and manager only not
+    // for area manager"), #reportMonthSelect never leaves the real
+    // current month (initReportMonthPicker_() below) and the Week/
+    // Quarter/Year selects are never reachable either, so a role with
+    // 'reportMonth' hidden can never leave the live current month;
+    // #reportContent (this month, scoped by CURRENT_ALLOWED_AREAS as
+    // always) is unaffected.
     var dayBookRow = document.getElementById('dayBookRow');
-    if (dayBookRow) dayBookRow.hidden = !!CURRENT_ALLOWED_AREAS;
-    // Collection Group Summary, added 28 Sep 2026 - same reasoning as
-    // Day Book/Stocks just above/below (owner: "this should be not shown
-    // to area manager") - company-wide/all-group, no per-area breakdown.
+    if (dayBookRow) dayBookRow.hidden = sectionHidden_('dayBook');
     var groupSummaryBlock = document.getElementById('captureGroupSummary');
-    if (groupSummaryBlock) groupSummaryBlock.hidden = !!CURRENT_ALLOWED_AREAS;
+    if (groupSummaryBlock) groupSummaryBlock.hidden = sectionHidden_('groupSummary');
     var daybookItemGroupBlock = document.getElementById('captureDaybookItemGroup');
-    if (daybookItemGroupBlock) daybookItemGroupBlock.hidden = !!CURRENT_ALLOWED_AREAS;
+    if (daybookItemGroupBlock) daybookItemGroupBlock.hidden = sectionHidden_('dayBook');
     var stockLabel = document.getElementById('stockSectionLabel');
-    if (stockLabel) stockLabel.hidden = !!CURRENT_ALLOWED_AREAS;
+    if (stockLabel) stockLabel.hidden = sectionHidden_('stocks');
     var stockDetails = document.getElementById('stocksMasterDetails');
-    if (stockDetails) stockDetails.hidden = !!CURRENT_ALLOWED_AREAS;
-    // Petronas Business Summary, added 30 Sep 2026 - same "company-wide/
-    // all-group, no per-area breakdown" reasoning as Stocks/Day Book/
-    // Collection Group Summary just above, hidden outright for a
-    // restricted Area Manager rather than shown company-wide or filtered -
-    // this one carries real Rupee payment figures to the supplier, more
-    // sensitive than any of those three, not less.
+    if (stockDetails) stockDetails.hidden = sectionHidden_('stocks');
     var petronasSummaryBlock = document.getElementById('capturePetronasSummary');
-    if (petronasSummaryBlock) petronasSummaryBlock.hidden = !!CURRENT_ALLOWED_AREAS;
-    // Report month picker (and the Last Month report it opens), added 1
-    // Oct 2026 - owner: "for area manager no need last month report to
-    // see". Same "hide rather than leak/half-show" rule as everything
-    // else on this list - the Last Month report was already partially
-    // scoped for a restricted Area Manager (see renderLastMonthReport_()'s
-    // own CURRENT_ALLOWED_AREAS check), but the owner wants it gone
-    // entirely for that role, not partially shown. Hiding the picker row
-    // is enough on its own: #reportMonthSelect defaults to and only ever
-    // starts on the current month (initReportMonthPicker_() below), so
-    // with no way to change it a restricted Area Manager can never land
-    // on the Last Month view - #reportContent (this month, already
-    // correctly scoped) stays exactly as visible as it always was.
-    var monthSelectRow = document.querySelector('.month-select-row');
-    if (monthSelectRow) monthSelectRow.hidden = !!CURRENT_ALLOWED_AREAS;
+    if (petronasSummaryBlock) petronasSummaryBlock.hidden = sectionHidden_('petronasSummary');
+    // Simplified 2 Oct 2026 when the picker became one foldable
+    // <details id="reportPeriodDetails"> (see the long HTML comment above
+    // it) - hiding that one wrapper hides the summary line AND every row
+    // inside it in one shot, instead of the previous 5-selector forEach.
+    var reportMonthHidden = sectionHidden_('reportMonth');
+    var reportPeriodDetails = document.getElementById('reportPeriodDetails');
+    if (reportPeriodDetails) reportPeriodDetails.hidden = reportMonthHidden;
+    // If this role can't reach the period picker at all, make sure it
+    // isn't left stuck showing a Week/Quarter/Year view from a PREVIOUS
+    // login on the same device/browser (CURRENT_VIEW_PERIOD only lives in
+    // memory for this page load, but resetting defensively costs nothing
+    // and keeps this block the single source of truth for the role's
+    // access to this feature).
+    if (reportMonthHidden) CURRENT_VIEW_PERIOD = null;
     loadUsageReport_();
     startLoginHeartbeat_();
     startUsageReportAutoRefresh_();
@@ -7599,7 +7944,7 @@
         errEl.hidden = false;
         return;
       }
-      afterLogin_(res.sessionId, res.name, res.role, res.allowedAreas, res.hiddenUsageFor);
+      afterLogin_(res.sessionId, res.name, res.role, res.allowedAreas, res.hiddenUsageFor, res.hiddenSections);
     }).catch(function () {
       btnEl.disabled = false;
       errEl.textContent = 'Could not reach the server - check your connection';
@@ -7704,6 +8049,46 @@
         msgEl.textContent = 'Could not reach the server - check your connection';
       });
     });
+
+    // "Section visibility (by role)" - added 1 Oct 2026.
+    var sectionVisRoleSelectEl = document.getElementById('sectionVisRoleSelect');
+    if (sectionVisRoleSelectEl) sectionVisRoleSelectEl.addEventListener('change', applySectionVisToCheckboxes_);
+
+    var sectionVisSaveBtn = document.getElementById('sectionVisSaveBtn');
+    if (sectionVisSaveBtn) sectionVisSaveBtn.addEventListener('click', function () {
+      var roleSel = document.getElementById('sectionVisRoleSelect');
+      var confirmPwEl = document.getElementById('sectionVisConfirmPassword');
+      var msgEl = document.getElementById('sectionVisMsg');
+      var role = roleSel.value;
+      var confirmPassword = confirmPwEl.value || '';
+      msgEl.className = 'admin-msg';
+      msgEl.textContent = '';
+      if (!confirmPassword) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'Enter your own password to confirm'; return; }
+      var hiddenKeys = SECTION_VIS_KEYS.filter(function (key) {
+        var cb = document.getElementById('sectionVis_' + key);
+        return cb && cb.checked;
+      });
+      sectionVisSaveBtn.disabled = true;
+      dashboardApiPost_('setSectionVisibility', {
+        role: role, hiddenSections: hiddenKeys.join(','),
+        auth: { name: CURRENT_USER_NAME, password: confirmPassword }
+      }).then(function (res) {
+        sectionVisSaveBtn.disabled = false;
+        if (!res || !res.ok) {
+          msgEl.className = 'admin-msg err';
+          msgEl.textContent = (res && res.error) || 'Could not save';
+          return;
+        }
+        msgEl.className = 'admin-msg ok';
+        msgEl.textContent = 'Section visibility saved for ' + role + '.';
+        confirmPwEl.value = '';
+        if (SECTION_VIS_MAP_CACHE) SECTION_VIS_MAP_CACHE[role] = hiddenKeys.join(',');
+      }).catch(function () {
+        sectionVisSaveBtn.disabled = false;
+        msgEl.className = 'admin-msg err';
+        msgEl.textContent = 'Could not reach the server - check your connection';
+      });
+    });
   })();
 
   function setNote(msg, isErr) {
@@ -7777,6 +8162,123 @@
   // the card shows "waiting for sync" instead of a false ₹0; a DSR present
   // but with a null today/month value (sheet row exists but a field is
   // blank) is treated the same way, field by field.
+  // Extracted out of fetchLive() 1 Oct 2026, for the new "Monthly Freeze"
+  // feature (see its own long comment in Code.gs) - this is the ONE place
+  // that knows how a ?type=live-shaped payload maps onto this page's live
+  // globals/DSR fields, reused by BOTH fetchLive() (today's real live
+  // data) and loadFrozenMonth_() below (a past, frozen month's data from
+  // ?type=monthlyFreeze, which Code.gs deliberately returns in the exact
+  // same shape) - so there is exactly one place that could ever drift out
+  // of sync with the backend's field names, not two.
+  function applyLivePayloadToState_(res) {
+    var collection = (res && res.ok && res.collection) ? res.collection : null;
+    DSRS.forEach(function (d) {
+      if (d.collectionTarget <= 0) return;
+      d.collectionError = !collection;
+      if (!collection) return;
+      var entry = collection[d.dsrName];
+      if (!entry) return; // no Tally sync for this DSR yet today - leave as-is (null)
+      if (entry.today !== null && entry.today !== undefined) d.todayCollected = entry.today;
+      if (entry.month !== null && entry.month !== undefined) d.monthCollected = entry.month;
+      // "Last month, same date" + bracket figure, added 21 Sep 2026 -
+      // same fields Arun's own DSR app already reads from this exact
+      // `collection` map (see Code.gs's buildLivePayload_()).
+      if (entry.lastMonthSameDate !== null && entry.lastMonthSameDate !== undefined) d.lastMonthSameDate = entry.lastMonthSameDate;
+      if (entry.lastMonthFull !== null && entry.lastMonthFull !== undefined) d.lastMonthFull = entry.lastMonthFull;
+      // "6M AVG" (Collection), added 26 Sep 2026 for the "Full
+      // Petronas This Month Collection" area table's new column - see
+      // Code.gs's buildLivePayload_()/tally_live_watcher.py's
+      // fetch_collection() dsr_sixmo_totals comment.
+      if (entry.avg6moCollectedRs !== null && entry.avg6moCollectedRs !== undefined) d.avg6moCollectedRs = entry.avg6moCollectedRs;
+    });
+    // Added 17 Sep 2026 - same response, new field (see Code.gs's
+    // buildLivePayload_()). Kept as the full map, not pre-sorted - top-5
+    // sorting happens in renderTop5() alongside the other two panels.
+    if (res && res.ok && res.collectionByDealer) collectionByDealer = res.collectionByDealer;
+    // Added 17 Sep 2026 - the SAME `outstanding` map every DSR app's
+    // own Manage Dealers list already reads (see order-slip-
+    // template.html's outstandingBadgeHtml()), company-wide, not
+    // scoped to one DSR - this dashboard only ever needed the
+    // company-wide overdue COUNT (see renderNeedsAttention()), not a
+    // per-DSR breakdown (there's no single place that maps every
+    // dealer to their DSR company-wide, only each app's own baked-in
+    // list - see the 17 Sep scoping discussion in
+    // claude/dsr-app-registry.md).
+    if (res && res.ok && res.outstanding) outstandingMap = res.outstanding;
+    if (res && res.ok && res.creditLimit) creditLimitMap = res.creditLimit;
+    if (res && res.ok && res.dealerRoster) dealerRoster = res.dealerRoster;
+    if (res && res.ok && res.newDealers) newDealers = res.newDealers;
+
+    // Added 18 Sep 2026 - actually-billed Sales, from Tally's own
+    // Sales vouchers (see Code.gs's buildLivePayload_()/
+    // tally_live_watcher.py's fetch_sales()). Same
+    // "leave as null/last-known if this DSR hasn't synced" pattern
+    // as collection above - a DSR with no entry yet keeps
+    // monthLtr === null so the card/ranking show "waiting for sync"
+    // rather than a false 0%. salesByDealer/salesByItem feed the
+    // Top 5 panels below the same way collectionByDealer does.
+    var sales = (res && res.ok && res.sales) ? res.sales : null;
+    DSRS.forEach(function (d) {
+      d.salesError = !sales;
+      if (!sales) return;
+      var entry = sales[d.dsrName];
+      if (!entry) return; // no Tally Sales sync for this DSR yet - leave as-is (null)
+      if (entry.today !== null && entry.today !== undefined) d.todayLtr = entry.today;
+      if (entry.month !== null && entry.month !== undefined) d.monthLtr = entry.month;
+      // "Last month, same date" + bracket figure, added 21 Sep 2026 -
+      // same fields Arun's own DSR app already reads from this exact
+      // `sales` map (see Code.gs's buildLivePayload_()).
+      if (entry.lastMonthSameDateLtr !== null && entry.lastMonthSameDateLtr !== undefined) d.lastMonthSameDateLtr = entry.lastMonthSameDateLtr;
+      if (entry.lastMonthFullLtr !== null && entry.lastMonthFullLtr !== undefined) d.lastMonthFullLtr = entry.lastMonthFullLtr;
+      // "6M AVG" (Sales), added 26 Sep 2026 for the "Full Petronas
+      // This Month Sales" area table's new column - see Code.gs's
+      // buildLivePayload_()/tally_live_watcher.py's fetch_sales()
+      // dsr_sixmo_totals comment. avg6moRs read too (not yet shown
+      // anywhere, kept for parity/future use - same reasoning as
+      // other Rs twins on this object).
+      if (entry.avg6moLtr !== null && entry.avg6moLtr !== undefined) d.avg6moLtr = entry.avg6moLtr;
+      if (entry.avg6moRs !== null && entry.avg6moRs !== undefined) d.avg6moRs = entry.avg6moRs;
+    });
+    if (res && res.ok && res.salesByDealer) salesByDealer = res.salesByDealer;
+    if (res && res.ok && res.salesByItem) salesByItem = res.salesByItem;
+    // stockMap/salesByDsrItemList added 22 Sep 2026 - see their own
+    // comments near the var declarations above.
+    if (res && res.ok && res.stock) stockMap = res.stock;
+    if (res && res.ok && res.salesByDsrItem) salesByDsrItemList = dedupeSalesByDsrItem_(res.salesByDsrItem);
+    // Added 23 Sep 2026 - see sixtyPlusByDealer's own comment near the
+    // var declaration above.
+    if (res && res.ok && res.sixtyPlusByDealer) sixtyPlusByDealer = res.sixtyPlusByDealer;
+    // Added 28 Sep 2026 - see groupSummaryList's own comment near the
+    // var declaration above.
+    if (res && res.ok && res.groupSummary) groupSummaryList = res.groupSummary;
+    if (res && res.ok && res.groupSummaryByDealer) groupSummaryByDealerList = res.groupSummaryByDealer;
+    // Petronas Business Summary, Sep 2026 onward - added 1 Oct 2026,
+    // see the big comment on PETRONAS_SUMMARY_DATA_/petronasSummaryLive
+    // near renderPetronasSummary_() for the full "why live from here"
+    // rationale. Re-render immediately when new rows arrive so the
+    // table/Balance column/note text update without waiting for some
+    // other panel's render to happen to run next. (Never actually
+    // differs between live and a frozen month - Code.gs's
+    // buildLivePayload_() always reads this one from the live sheet
+    // regardless of rowSource, since it already keeps its own full
+    // month history - see that function's own comment.)
+    if (res && res.ok && res.petronasSummary) {
+      petronasSummaryLive = res.petronasSummary;
+      renderPetronasSummary_();
+    }
+
+    // Sales + Collection trend, rebuilt 20 Sep 2026 on the same
+    // ?type=live response - see salesTrendMap's own comment above.
+    if (res && res.ok) {
+      salesTrendMap = res.salesTrend || {};
+      salesRsTrendMap = res.salesRsTrend || {};
+      collectionTrendMap = res.collectionTrend || {};
+      trendError = false;
+    } else {
+      trendError = true;
+    }
+  }
+
   function fetchLive() {
     var url = ORDERS_API_URL + "?type=live&_ts=" + Date.now();
     // Fixed 1 Oct 2026, same day as fetchJson_() was introduced: this
@@ -7793,110 +8295,7 @@
     // connection still gets caught (the whole point of this change) without
     // cutting off a merely-slow-under-load one.
     return fetchJson_(url, 3, 45000)
-      .then(function (res) {
-        var collection = (res && res.ok && res.collection) ? res.collection : null;
-        DSRS.forEach(function (d) {
-          if (d.collectionTarget <= 0) return;
-          d.collectionError = !collection;
-          if (!collection) return;
-          var entry = collection[d.dsrName];
-          if (!entry) return; // no Tally sync for this DSR yet today - leave as-is (null)
-          if (entry.today !== null && entry.today !== undefined) d.todayCollected = entry.today;
-          if (entry.month !== null && entry.month !== undefined) d.monthCollected = entry.month;
-          // "Last month, same date" + bracket figure, added 21 Sep 2026 -
-          // same fields Arun's own DSR app already reads from this exact
-          // `collection` map (see Code.gs's handleLiveGet_()).
-          if (entry.lastMonthSameDate !== null && entry.lastMonthSameDate !== undefined) d.lastMonthSameDate = entry.lastMonthSameDate;
-          if (entry.lastMonthFull !== null && entry.lastMonthFull !== undefined) d.lastMonthFull = entry.lastMonthFull;
-          // "6M AVG" (Collection), added 26 Sep 2026 for the "Full
-          // Petronas This Month Collection" area table's new column - see
-          // Code.gs's handleLiveGet_()/tally_live_watcher.py's
-          // fetch_collection() dsr_sixmo_totals comment.
-          if (entry.avg6moCollectedRs !== null && entry.avg6moCollectedRs !== undefined) d.avg6moCollectedRs = entry.avg6moCollectedRs;
-        });
-        // Added 17 Sep 2026 - same response, new field (see Code.gs's
-        // handleLiveGet_()). Kept as the full map, not pre-sorted - top-5
-        // sorting happens in renderTop5() alongside the other two panels.
-        if (res && res.ok && res.collectionByDealer) collectionByDealer = res.collectionByDealer;
-        // Added 17 Sep 2026 - the SAME `outstanding` map every DSR app's
-        // own Manage Dealers list already reads (see order-slip-
-        // template.html's outstandingBadgeHtml()), company-wide, not
-        // scoped to one DSR - this dashboard only ever needed the
-        // company-wide overdue COUNT (see renderNeedsAttention()), not a
-        // per-DSR breakdown (there's no single place that maps every
-        // dealer to their DSR company-wide, only each app's own baked-in
-        // list - see the 17 Sep scoping discussion in
-        // claude/dsr-app-registry.md).
-        if (res && res.ok && res.outstanding) outstandingMap = res.outstanding;
-        if (res && res.ok && res.creditLimit) creditLimitMap = res.creditLimit;
-        if (res && res.ok && res.dealerRoster) dealerRoster = res.dealerRoster;
-        if (res && res.ok && res.newDealers) newDealers = res.newDealers;
-
-        // Added 18 Sep 2026 - actually-billed Sales, from Tally's own
-        // Sales vouchers (see Code.gs's handleLiveGet_()/
-        // tally_live_watcher.py's fetch_sales()). Same
-        // "leave as null/last-known if this DSR hasn't synced" pattern
-        // as collection above - a DSR with no entry yet keeps
-        // monthLtr === null so the card/ranking show "waiting for sync"
-        // rather than a false 0%. salesByDealer/salesByItem feed the
-        // Top 5 panels below the same way collectionByDealer does.
-        var sales = (res && res.ok && res.sales) ? res.sales : null;
-        DSRS.forEach(function (d) {
-          d.salesError = !sales;
-          if (!sales) return;
-          var entry = sales[d.dsrName];
-          if (!entry) return; // no Tally Sales sync for this DSR yet - leave as-is (null)
-          if (entry.today !== null && entry.today !== undefined) d.todayLtr = entry.today;
-          if (entry.month !== null && entry.month !== undefined) d.monthLtr = entry.month;
-          // "Last month, same date" + bracket figure, added 21 Sep 2026 -
-          // same fields Arun's own DSR app already reads from this exact
-          // `sales` map (see Code.gs's handleLiveGet_()).
-          if (entry.lastMonthSameDateLtr !== null && entry.lastMonthSameDateLtr !== undefined) d.lastMonthSameDateLtr = entry.lastMonthSameDateLtr;
-          if (entry.lastMonthFullLtr !== null && entry.lastMonthFullLtr !== undefined) d.lastMonthFullLtr = entry.lastMonthFullLtr;
-          // "6M AVG" (Sales), added 26 Sep 2026 for the "Full Petronas
-          // This Month Sales" area table's new column - see Code.gs's
-          // handleLiveGet_()/tally_live_watcher.py's fetch_sales()
-          // dsr_sixmo_totals comment. avg6moRs read too (not yet shown
-          // anywhere, kept for parity/future use - same reasoning as
-          // other Rs twins on this object).
-          if (entry.avg6moLtr !== null && entry.avg6moLtr !== undefined) d.avg6moLtr = entry.avg6moLtr;
-          if (entry.avg6moRs !== null && entry.avg6moRs !== undefined) d.avg6moRs = entry.avg6moRs;
-        });
-        if (res && res.ok && res.salesByDealer) salesByDealer = res.salesByDealer;
-        if (res && res.ok && res.salesByItem) salesByItem = res.salesByItem;
-        // stockMap/salesByDsrItemList added 22 Sep 2026 - see their own
-        // comments near the var declarations above.
-        if (res && res.ok && res.stock) stockMap = res.stock;
-        if (res && res.ok && res.salesByDsrItem) salesByDsrItemList = dedupeSalesByDsrItem_(res.salesByDsrItem);
-        // Added 23 Sep 2026 - see sixtyPlusByDealer's own comment near the
-        // var declaration above.
-        if (res && res.ok && res.sixtyPlusByDealer) sixtyPlusByDealer = res.sixtyPlusByDealer;
-        // Added 28 Sep 2026 - see groupSummaryList's own comment near the
-        // var declaration above.
-        if (res && res.ok && res.groupSummary) groupSummaryList = res.groupSummary;
-        if (res && res.ok && res.groupSummaryByDealer) groupSummaryByDealerList = res.groupSummaryByDealer;
-        // Petronas Business Summary, Sep 2026 onward - added 1 Oct 2026,
-        // see the big comment on PETRONAS_SUMMARY_DATA_/petronasSummaryLive
-        // near renderPetronasSummary_() for the full "why live from here"
-        // rationale. Re-render immediately when new live rows arrive so
-        // the table/Balance column/note text update without waiting for
-        // some other panel's render to happen to run next.
-        if (res && res.ok && res.petronasSummary) {
-          petronasSummaryLive = res.petronasSummary;
-          renderPetronasSummary_();
-        }
-
-        // Sales + Collection trend, rebuilt 20 Sep 2026 on the same
-        // ?type=live response - see salesTrendMap's own comment above.
-        if (res && res.ok) {
-          salesTrendMap = res.salesTrend || {};
-          salesRsTrendMap = res.salesRsTrend || {};
-          collectionTrendMap = res.collectionTrend || {};
-          trendError = false;
-        } else {
-          trendError = true;
-        }
-      })
+      .then(applyLivePayloadToState_)
       .catch(function () {
         DSRS.forEach(function (d) { if (d.collectionTarget > 0) d.collectionError = true; d.salesError = true; });
         trendError = true;
@@ -7928,11 +8327,94 @@
   // renders as soon as fetchLive()+the Day Book fetch (the data it
   // actually needs) are back, and the 8 secondary calls repaint that one
   // comparison line a moment later without holding up everything else.
+  // "Monthly Freeze" (1 Oct 2026) - fetches a FROZEN past month's full
+  // live-shaped payload (Code.gs's handleMonthlyFreezeGet_(), via GET
+  // ?type=monthlyFreeze) and swaps it into the SAME globals fetchLive()
+  // fills, via the shared applyLivePayloadToState_() above - every
+  // existing card-rendering function (Stocks, Ranking, Needs attention,
+  // the per-DSR cards, etc.) then "just works" against a past month with
+  // ZERO changes of its own. Resolves {found:true, frozenAt} if a frozen
+  // snapshot existed for `ym` and was applied + rendered, or
+  // {found:false} if that month was never frozen (the caller - see
+  // applyReportMonthSelection_() below - falls back to the older,
+  // narrower Last Month view in that case, exactly as before this
+  // feature existed).
+  function loadFrozenMonth_(ym) {
+    var url = ORDERS_API_URL + "?type=monthlyFreeze&month=" + encodeURIComponent(ym) + "&_ts=" + Date.now();
+    return fetchJson_(url, 3, 45000).then(function (res) {
+      if (!res || !res.ok || !res.found) return { found: false };
+      // Stale-response guard, moved IN HERE (not just in the caller's own
+      // .then()) so a slow response for a month the picker has since
+      // moved on from can never clobber a newer selection's already-
+      // applied state/render - found via a real race in the Daily Freeze
+      // test suite below (same bug class, just never exercised here
+      // until that test caught it). #reportMonthSelect's value equals
+      // `ym` for exactly as long as this request is still the "current"
+      // one, same invariant applyReportMonthSelection_() already relies
+      // on for its own stale-UI-text guard.
+      var sel = document.getElementById('reportMonthSelect');
+      if (sel && sel.value !== ym) return { found: false, stale: true };
+      applyLivePayloadToState_(res);
+      CURRENT_VIEW_FROZEN_MONTH = ym;
+      CURRENT_VIEW_FROZEN_AT = res.frozenAt || null;
+      // Day Book never needed freezing (it's already real per-month
+      // data) - just fetch THAT month's rows, same endpoint the Export
+      // button already uses, before rendering so the Day Book card
+      // matches every other card instead of showing a stale month.
+      return fetchDaybookItemGroupRows_(ym).then(function () {
+        render();
+        return { found: true, frozenAt: res.frozenAt };
+      });
+    }).catch(function () {
+      return { found: false };
+    });
+  }
+
+  // Leaves frozen-month viewing mode and restores the real live view.
+  // Re-fetches live data fresh (rather than trying to cache/restore
+  // whatever the globals held right before entering frozen mode) -
+  // simplest, and guarantees the live view is never stale after however
+  // long was spent looking at a past month.
+  function exitFrozenMonth_() {
+    if (!CURRENT_VIEW_FROZEN_MONTH) return;
+    CURRENT_VIEW_FROZEN_MONTH = null;
+    CURRENT_VIEW_FROZEN_AT = null;
+    refreshAll();
+  }
+
   function refreshAll() {
     var btn = document.getElementById('refreshBtn');
     btn.disabled = true;
     btn.classList.add('loading');
     setNote('');
+
+    // "Monthly Freeze" (1 Oct 2026) - while viewing a frozen past month,
+    // Refresh re-loads that SAME frozen snapshot (cheap and idempotent -
+    // the numbers never change) instead of fetching today's live data
+    // into a view that's supposed to be showing a closed month.
+    if (CURRENT_VIEW_FROZEN_MONTH) {
+      var frozenYm = CURRENT_VIEW_FROZEN_MONTH;
+      return loadFrozenMonth_(frozenYm).then(function () {
+        setNote('Showing ' + reportMonthLabelFor_(frozenYm) + ' (frozen) — switch to the current month for live data.');
+      }).finally(function () {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+      });
+    }
+
+    // "Report period" (2 Oct 2026) - while viewing a Week/Quarter/Year
+    // reduced view, Refresh re-loads that SAME period's summary instead
+    // of fetching today's live data - same reasoning as the frozen-month
+    // branch just above. See applyReportPeriodSelection_() further down.
+    if (CURRENT_VIEW_PERIOD) {
+      var period = CURRENT_VIEW_PERIOD;
+      return loadPeriodSummary_(period).then(function () {
+        setNote('Showing ' + period.label + ' — switch to This month for live data.');
+      }).finally(function () {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+      });
+    }
 
     var criticalDone = Promise.all([fetchLive(), fetchDaybookItemGroupRows_()]).then(function () {
       render();
@@ -7979,6 +8461,33 @@
     var d = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
     return d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
   }
+  // Day-level twin of reportMonthLabelFor_() above, e.g. "01 Oct 2026".
+  // Originally written for the single-day picker (2 Oct 2026, since
+  // removed - see "Report period" below); kept because the "Report
+  // period" Week view (task in progress) labels its date range using
+  // this same format, e.g. "01 Oct 2026 - 07 Oct 2026".
+  function dayLabelFor_(dkey) {
+    var parts = dkey.split('-');
+    var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+  // "yyyy-MM-dd" N days before/after `dkey`, local-date arithmetic (same
+  // convention already used throughout this file - e.g.
+  // lastMonthKeyISO()/todayISO() - no explicit timezone handling beyond
+  // the browser's own local date, consistent with every other "today"/
+  // "yesterday" computation here). Originally written for the single-day
+  // picker (since removed); kept as a generic date-key helper - the
+  // "Report period" Week view needs exactly this kind of arithmetic to
+  // find the day just before a week's first day (for the MTD-subtraction
+  // math described in Code.gs's handleWeekSummaryGet_).
+  function dateKeyOffset_(dkey, deltaDays) {
+    var parts = dkey.split('-');
+    var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    d.setDate(d.getDate() + deltaDays);
+    var mm = d.getMonth() + 1; if (mm < 10) mm = '0' + mm;
+    var dd = d.getDate(); if (dd < 10) dd = '0' + dd;
+    return d.getFullYear() + '-' + mm + '-' + dd;
+  }
   // Real "last month" summary, added 1 Oct 2026 - see the long comment
   // above #reportMonthSelect for what this does and doesn't cover.
   // lastMonthDateRange_() is the FULL previous calendar month (1st to
@@ -8002,15 +8511,37 @@
   // reads two fields from both maps at once (Ltr AND Rs) rather than one
   // field from one map, a different enough shape that threading it
   // through the same helper would make BOTH harder to follow.
+  // Generalized 2 Oct 2026 into periodDealerBreakdown_() below (this is
+  // now a thin wrapper) so the new "Report period" Week/Quarter/Year
+  // views can build the exact same {dsrName: [{name, salesLtr,
+  // collectionRs}]} shape from a DIFFERENT pair of maps - the Week/
+  // Quarter/Year backend endpoints' own salesByDealer/collectionByDealer
+  // responses (keyed "salesLtr"/"collectionRs" directly - see
+  // handleWeekSummaryGet_/handlePeriodSummaryGet_ in Code.gs) - instead
+  // of the live salesByDealer/collectionByDealer globals' own
+  // lastMonthFullLtr/lastMonthFull fields this function originally read.
   function lastMonthDealerBreakdown_() {
+    return periodDealerBreakdown_(salesByDealer, collectionByDealer, 'lastMonthFullLtr', 'lastMonthFull');
+  }
+  // `salesByDealerMap`/`collectionByDealerMap` are plain {dealerName:
+  // {...}} maps (either the live globals, for Last Month, or a Week/
+  // Quarter/Year endpoint response); `salesField`/`collectionField` name
+  // which property of each holds that period's Ltr/Rs figure. Dealer->DSR
+  // grouping always comes from knownDealerDsrMap_() - the live, currently-
+  // loaded roster - regardless of which period is being shown, so the
+  // whole dashboard has exactly ONE dealer->DSR source of truth to reason
+  // about rather than a slightly different one per view (a Week/Quarter/
+  // Year response's own `dealerRoster` field is sent back for
+  // completeness/future use but deliberately not read here).
+  function periodDealerBreakdown_(salesByDealerMap, collectionByDealerMap, salesField, collectionField) {
     var out = {};
     var dealerDsr = knownDealerDsrMap_();
     Object.keys(dealerDsr).forEach(function (dealerName) {
       var dsrName = dealerDsr[dealerName];
-      var sRec = salesByDealer ? salesByDealer[dealerName] : null;
-      var cRec = collectionByDealer ? collectionByDealer[dealerName] : null;
-      var salesLtr = (sRec && sRec.lastMonthFullLtr) || 0;
-      var collectionRs = (cRec && cRec.lastMonthFull) || 0;
+      var sRec = salesByDealerMap ? salesByDealerMap[dealerName] : null;
+      var cRec = collectionByDealerMap ? collectionByDealerMap[dealerName] : null;
+      var salesLtr = (sRec && sRec[salesField]) || 0;
+      var collectionRs = (cRec && cRec[collectionField]) || 0;
       if (salesLtr <= 0 && collectionRs <= 0) return;
       (out[dsrName] = out[dsrName] || []).push({ name: dealerName, salesLtr: salesLtr, collectionRs: collectionRs });
     });
@@ -8029,8 +8560,16 @@
   // Sales+Collection are shown together in one table here instead of two
   // separate ones.
   function buildLastMonthAreaRows_() {
+    return buildAreaRowsFromBreakdown_(lastMonthDealerBreakdown_());
+  }
+  // Generalized 2 Oct 2026 out of the original buildLastMonthAreaRows_()
+  // above (now a thin wrapper) - takes any `breakdown` shaped the way
+  // periodDealerBreakdown_() above produces, so the new "Report period"
+  // Week/Quarter/Year views reuse this exact AAA Direct/Madurai/
+  // Tirunelveli -> DSR -> dealer table (including the tap-to-expand
+  // markup) instead of a second copy of it.
+  function buildAreaRowsFromBreakdown_(breakdown) {
     var visibleNames = visibleDsrs_().map(function (d) { return d.name; });
-    var breakdown = lastMonthDealerBreakdown_();
     function dsrTotals(dsrName) {
       return (breakdown[dsrName] || []).reduce(function (acc, m) {
         acc.salesLtr += m.salesLtr; acc.collectionRs += m.collectionRs; return acc;
@@ -8044,7 +8583,7 @@
       var areaAttr = areaKey ? ' data-area-child="' + areaKey + '"' : '';
       if (!dealers.length) {
         return '<tr class="area-dsr-child" data-dsr-child="' + dsrName + '"' + areaAttr + ' style="display:none;">' +
-          '<td colspan="3" style="padding-left:26px;color:var(--ink-muted);text-align:left;">No dealer-level data for last month</td></tr>';
+          '<td colspan="3" style="padding-left:26px;color:var(--ink-muted);text-align:left;">No dealer-level data for this period</td></tr>';
       }
       return dealers.map(function (m) {
         return '<tr class="area-dsr-child" data-dsr-child="' + dsrName + '"' + areaAttr + ' style="display:none;">' +
@@ -8119,7 +8658,341 @@
     }
     renderGroupSummaryTable_({ wrapId: 'lastMonthGroupSummaryWrap', monthKey: ym });
   }
+
+  // =======================================================================
+  // "Report period" - Week / Quarter / Year (2 Oct 2026)
+  // =======================================================================
+  // Owner's correction after the brief single-day picker shipped the same
+  // day: "sorry misunderstand , i dont want daily view date , i want last
+  // month data... this month , 1st week, 2nd like that - week should be
+  // frozen as month calendar (total of week Combined that selected date —
+  // Sales and Combined — Collection) show of By DSR — tap a name to
+  // expand all cards , if possible all the month data to be converted as
+  // that week - if no remove all other cards , qtr 1 (jan,feb,mar 2026) ,
+  // qtr2... this year , last year". Confirmed via AskUserQuestion + a
+  // follow-up clarification ("this year means full 2026 (jan to dec) no
+  // financial year"): Week = a FIXED 7-day block within one calendar
+  // month, never crossing a month boundary (1st-7th/8th-14th/15th-21st/
+  // 22nd-28th/29th-end); Quarter/Year are plain calendar (Jan-Dec), not
+  // financial; and Week/Quarter/Year all show the SAME reduced view as
+  // the existing Last Month report - Combined Sales + Combined Collection
+  // + the AAA Direct/Madurai/Tirunelveli -> By-DSR (tap to expand to
+  // dealers) table - not the full every-card treatment Last Month gets
+  // when a real frozen month snapshot exists.
+  //
+  // Reuses as much of the existing machinery as possible rather than
+  // building parallel copies:
+  //  - Combined (company-wide) totals need NO backend call at all - they
+  //    come from summing the already-loaded salesTrendMap/
+  //    salesRsTrendMap/collectionTrendMap over the period's own date
+  //    range via sumMapInRange_(), the exact same method
+  //    renderLastMonthReport_() already uses for Last Month's own
+  //    combined totals. An in-progress period (this week/quarter/year,
+  //    not yet finished) naturally shows a PARTIAL total this way - days
+  //    that haven't happened yet simply have no trend entry to sum, no
+  //    special-casing needed here.
+  //  - The By-DSR/by-dealer breakdown comes from the NEW handleWeekSummaryGet_/
+  //    handlePeriodSummaryGet_ endpoints in Code.gs (see their own long
+  //    comment there for how each is computed), fed through
+  //    periodDealerBreakdown_()/buildAreaRowsFromBreakdown_() above -
+  //    the exact same generalized functions Last Month's own breakdown
+  //    now uses, just with different field names ('salesLtr'/
+  //    'collectionRs' instead of 'lastMonthFullLtr'/'lastMonthFull').
+  //
+  // CURRENT_VIEW_PERIOD (declared near CURRENT_VIEW_FROZEN_MONTH above)
+  // is null normally, or the currently-showing period object
+  // ({kind, key, label, combinedRange, ...} - see buildWeekPeriod_()/
+  // buildQuarterPeriod_()/buildYearPeriod_() below) while
+  // #periodReportContent is what's showing. `key` is a short stable
+  // string ('week:2026-09:3', 'quarter:2026:1', 'year:2026') used purely
+  // to detect a stale fetch response the same way #reportMonthSelect's
+  // own sel.value !== ym guard already works for the Month picker - the
+  // picker may have moved on to a different week/quarter/year while a
+  // request was in flight.
+  function daysInMonthFrontend_(year, month1to12) {
+    return new Date(year, month1to12, 0).getDate();
+  }
+  function monthEndDateKey_(year, month1to12) {
+    return dateToISO_(new Date(year, month1to12, 0));
+  }
+  // {value, label} options for a week WITHIN `monthKey` - stops listing
+  // weeks once a week's own start day would fall after the month's last
+  // day (e.g. February never has a Week 5).
+  function weekOptionsForMonth_(monthKey) {
+    var parts = monthKey.split('-');
+    var year = Number(parts[0]), month = Number(parts[1]);
+    var lastDay = daysInMonthFrontend_(year, month);
+    var options = [];
+    for (var w = 1; w <= 5; w++) {
+      var startDay = (w - 1) * 7 + 1;
+      if (startDay > lastDay) break;
+      var endDay = Math.min(startDay + 6, lastDay);
+      options.push({ value: String(w), label: 'Week ' + w + ' (' + startDay + '-' + endDay + ')' });
+    }
+    return options;
+  }
+  // Year options for the Quarter/Year pickers - same DAYBOOK_FIRST_MONTH_
+  // floor as reportMonthOptionsList_() above, newest first.
+  function reportYearOptionsList_() {
+    var curYear = new Date().getFullYear();
+    var startYear = Number(DAYBOOK_FIRST_MONTH_.split('-')[0]);
+    var options = [];
+    for (var y = curYear; y >= startYear; y--) options.push({ value: String(y), label: String(y) });
+    if (!options.length) options.push({ value: String(curYear), label: String(curYear) });
+    return options;
+  }
+  function buildWeekPeriod_(monthKey, weekNum) {
+    var parts = monthKey.split('-');
+    var year = Number(parts[0]), month = Number(parts[1]);
+    var lastDay = daysInMonthFrontend_(year, month);
+    var startDay = (weekNum - 1) * 7 + 1;
+    var endDay = Math.min(startDay + 6, lastDay);
+    var pad2 = function (n) { return (n < 10 ? '0' : '') + n; };
+    var weekStartKey = monthKey + '-' + pad2(startDay);
+    var weekEndKey = monthKey + '-' + pad2(endDay);
+    return {
+      kind: 'week',
+      key: 'week:' + monthKey + ':' + weekNum,
+      monthKey: monthKey,
+      week: weekNum,
+      label: 'Week ' + weekNum + ' (' + dayLabelFor_(weekStartKey) + ' - ' + dayLabelFor_(weekEndKey) + ')',
+      combinedRange: [weekStartKey, weekEndKey]
+    };
+  }
+  function buildQuarterPeriod_(year, quarterNum) {
+    var startMonth1 = (quarterNum - 1) * 3 + 1;
+    var endMonth1 = startMonth1 + 2;
+    var pad2 = function (n) { return (n < 10 ? '0' : '') + n; };
+    var startMonth = year + '-' + pad2(startMonth1);
+    var endMonth = year + '-' + pad2(endMonth1);
+    var qLabels = ['Q1 (Jan-Mar)', 'Q2 (Apr-Jun)', 'Q3 (Jul-Sep)', 'Q4 (Oct-Dec)'];
+    return {
+      kind: 'quarter',
+      key: 'quarter:' + year + ':' + quarterNum,
+      startMonth: startMonth,
+      endMonth: endMonth,
+      label: qLabels[quarterNum - 1] + ' ' + year,
+      combinedRange: [startMonth + '-01', monthEndDateKey_(year, endMonth1)]
+    };
+  }
+  function buildYearPeriod_(year) {
+    return {
+      kind: 'year',
+      key: 'year:' + year,
+      startMonth: year + '-01',
+      endMonth: year + '-12',
+      label: String(year) + ' (Jan-Dec)',
+      combinedRange: [year + '-01-01', year + '-12-31']
+    };
+  }
+  // Fills #periodCombinedWrap/#periodAreaWrap from a successful
+  // handleWeekSummaryGet_/handlePeriodSummaryGet_ response - the
+  // Week/Quarter/Year twin of renderLastMonthReport_() above, minus the
+  // Day Book/Collection Group Summary pieces that don't apply here (see
+  // the long comment above this section and #periodReportContent's own
+  // HTML comment).
+  function renderPeriodSummary_(period, res) {
+    var combinedWrap = document.getElementById('periodCombinedWrap');
+    if (combinedWrap) {
+      // Same CURRENT_ALLOWED_AREAS scoping as renderLastMonthReport_()'s
+      // own combinedWrap - these are company-wide totals with no
+      // per-DSR split, hidden entirely for a restricted Area Manager
+      // rather than shown company-wide (the By-DSR table below is
+      // already correctly scoped to their own visible DSRs).
+      if (CURRENT_ALLOWED_AREAS) {
+        combinedWrap.innerHTML = '';
+      } else if (salesTrendMap === null || collectionTrendMap === null || salesRsTrendMap === null) {
+        combinedWrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Loading ' + period.label + '…</p>';
+      } else {
+        var salesLtr = sumMapInRange_(salesTrendMap, period.combinedRange[0], period.combinedRange[1]);
+        var salesRs = sumMapInRange_(salesRsTrendMap, period.combinedRange[0], period.combinedRange[1]);
+        var collRs = sumMapInRange_(collectionTrendMap, period.combinedRange[0], period.combinedRange[1]);
+        combinedWrap.innerHTML =
+          '<div style="display:flex;gap:14px;flex-wrap:wrap;">' +
+          '<div class="stat"><p class="stat-label">Sales — ' + period.label + '</p><div class="stat-value">' + fmt(salesLtr) + ' Ltr</div><p class="stat-sub">' + fmtRs(salesRs) + '</p></div>' +
+          '<div class="stat"><p class="stat-label">Collection — ' + period.label + '</p><div class="stat-value">' + fmtRs(collRs) + '</div></div>' +
+          '</div>';
+      }
+    }
+    var areaWrap = document.getElementById('periodAreaWrap');
+    if (areaWrap) {
+      var breakdown = periodDealerBreakdown_(res.salesByDealer, res.collectionByDealer, 'salesLtr', 'collectionRs');
+      areaWrap.innerHTML = ageTableWrap_('<thead><tr><th>Area</th><th>Sales (Ltr)</th><th>Collection (Rs)</th></tr></thead>', buildAreaRowsFromBreakdown_(breakdown));
+    }
+  }
+  // GET ?type=weekSummary / ?type=periodSummary, per `period.kind` - the
+  // Week/Quarter/Year twin of loadFrozenMonth_() above, including the
+  // same in-flight-staleness guard (compares CURRENT_VIEW_PERIOD's OWN
+  // key, which the caller sets before calling this, against this
+  // request's own period.key - a response for a week/quarter/year the
+  // picker has since moved on from is dropped rather than applied).
+  function loadPeriodSummary_(period) {
+    var url;
+    if (period.kind === 'week') {
+      url = ORDERS_API_URL + '?type=weekSummary&month=' + encodeURIComponent(period.monthKey) + '&week=' + encodeURIComponent(period.week) + '&_ts=' + Date.now();
+    } else {
+      url = ORDERS_API_URL + '?type=periodSummary&start=' + encodeURIComponent(period.startMonth) + '&end=' + encodeURIComponent(period.endMonth) + '&_ts=' + Date.now();
+    }
+    return fetchJson_(url, 3, 45000).then(function (res) {
+      if (!CURRENT_VIEW_PERIOD || CURRENT_VIEW_PERIOD.key !== period.key) return { found: false, stale: true };
+      if (!res || !res.ok || !res.found) {
+        return { found: false, reason: res && res.reason, dateKey: res && res.dateKey, missingMonth: res && res.missingMonth };
+      }
+      renderPeriodSummary_(period, res);
+      return { found: true, partial: res.partial };
+    });
+  }
+  // Human-readable "why there's nothing to show" text for each
+  // found:false `reason` handleWeekSummaryGet_/handlePeriodSummaryGet_
+  // can return - mirrors applyReportMonthSelection_()'s own plain "No
+  // data for X" banner text style.
+  function periodNoDataMessage_(period, result) {
+    var reason = result && result.reason;
+    if (reason === 'no_such_week') return period.label + ' doesn’t exist in this month.';
+    if (reason === 'future') return period.label + ' hasn’t started yet.';
+    if (reason === 'end_not_frozen' || reason === 'start_not_frozen') {
+      return 'No data for ' + period.label + ' yet — ' + (result.dateKey || 'a day this needs') + ' was never frozen (too long ago, before this feature existed, or pruned past Daily Freeze’s 90-day window).';
+    }
+    if (reason === 'month_not_frozen') {
+      return 'No data for ' + period.label + ' yet — ' + (result.missingMonth || 'a month this needs') + ' was never frozen (before Monthly Freeze existed, or its month-end freeze hasn’t run yet).';
+    }
+    return 'No data for ' + period.label + ' yet.';
+  }
+  // Keeps #reportPeriodDetails' <summary> line (#reportPeriodSummaryText)
+  // showing whichever period is CURRENTLY active, so the owner can see
+  // what's being viewed without opening the now-foldable picker. Called
+  // from applyReportMonthSelection_() (Month/Last Month path) and from
+  // applyReportPeriodSelection_() (Week/Quarter/Year path) every time the
+  // active period actually changes.
+  function updateReportPeriodSummaryText_() {
+    var el = document.getElementById('reportPeriodSummaryText');
+    if (!el) return;
+    if (CURRENT_VIEW_PERIOD) {
+      el.textContent = CURRENT_VIEW_PERIOD.label;
+      return;
+    }
+    var sel = document.getElementById('reportMonthSelect');
+    el.textContent = sel && sel.value ? reportMonthLabelFor_(sel.value) : 'This Month';
+  }
+  // Shows/hides the 4 sub-rows (.month-select-row/.week-select-row/
+  // .quarter-select-row/.year-select-row) under the "View:" dropdown -
+  // the dropdown itself (.period-select-row) is never touched here, only
+  // gated company-wide by sectionHidden_('reportMonth') in afterLogin_().
+  function applyReportPeriodRowVisibility_(kind) {
+    var rows = { month: '.month-select-row', week: '.week-select-row', quarter: '.quarter-select-row', year: '.year-select-row' };
+    Object.keys(rows).forEach(function (k) {
+      var row = document.querySelector(rows[k]);
+      if (row) row.hidden = (k !== kind);
+    });
+  }
+  // Called whenever #reportPeriodType or one of its 3 sub-pickers
+  // (Week's month+week selects, Quarter's quarter+year selects, Year's
+  // year select) changes. `kind` is always the CURRENT value of
+  // #reportPeriodType, even when the change came from a sub-picker.
+  function applyReportPeriodSelection_(kind) {
+    if (kind === 'month') {
+      // Back to the plain Month picker - hand off to the existing flow
+      // entirely (resetPeriodPickerToMonth_() clears CURRENT_VIEW_PERIOD
+      // and hides #periodReportContent; applyReportMonthSelection_()
+      // takes it from there exactly as if the Month option had always
+      // been selected).
+      resetPeriodPickerToMonth_();
+      var monthSel = document.getElementById('reportMonthSelect');
+      if (monthSel) applyReportMonthSelection_(monthSel.value);
+      return;
+    }
+    if (CURRENT_VIEW_FROZEN_MONTH) resetMonthPickerToCurrent_();
+    applyReportPeriodRowVisibility_(kind);
+
+    var period;
+    if (kind === 'week') {
+      var wm = document.getElementById('reportWeekMonthSelect');
+      var ws = document.getElementById('reportWeekSelect');
+      if (!wm || !ws || !ws.value) return; // week list not populated yet for this month
+      period = buildWeekPeriod_(wm.value, Number(ws.value));
+    } else if (kind === 'quarter') {
+      var qs = document.getElementById('reportQuarterSelect');
+      var qy = document.getElementById('reportQuarterYearSelect');
+      if (!qs || !qy || !qy.value) return;
+      period = buildQuarterPeriod_(Number(qy.value), Number(qs.value));
+    } else { // 'year'
+      var ys = document.getElementById('reportYearSelect');
+      if (!ys || !ys.value) return;
+      period = buildYearPeriod_(Number(ys.value));
+    }
+    CURRENT_VIEW_PERIOD = period;
+    updateReportPeriodSummaryText_();
+
+    var reportContent = document.getElementById('reportContent');
+    var lastMonthContent = document.getElementById('lastMonthReportContent');
+    var periodContent = document.getElementById('periodReportContent');
+    var banner = document.getElementById('noDataBanner');
+    if (reportContent) reportContent.hidden = true;
+    if (lastMonthContent) lastMonthContent.hidden = true;
+    if (periodContent) periodContent.hidden = true;
+    if (banner) { banner.hidden = false; banner.textContent = 'Loading ' + period.label + '…'; }
+
+    loadPeriodSummary_(period).then(function (result) {
+      // The picker may have moved on to a different week/quarter/year
+      // while this fetch was in flight - same stale-response guard as
+      // loadPeriodSummary_() itself already applies before rendering;
+      // this second check just decides whether THIS banner/visibility
+      // update should still happen.
+      if (!CURRENT_VIEW_PERIOD || CURRENT_VIEW_PERIOD.key !== period.key) return;
+      if (result && result.found) {
+        if (banner) banner.hidden = true;
+        if (periodContent) periodContent.hidden = false;
+        return;
+      }
+      if (periodContent) periodContent.hidden = true;
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = periodNoDataMessage_(period, result);
+      }
+    });
+  }
+
+  // Rewritten 1 Oct 2026 for "Monthly Freeze" (see the long comment in
+  // Code.gs, and loadFrozenMonth_()/applyLivePayloadToState_() above).
+  // Picking a past month now tries a REAL frozen snapshot first - every
+  // card, exactly as it was at that month's close - and only falls back
+  // to the older, narrower Last Month view (Combined totals + Area table
+  // + Group Summary only, via #lastMonthReportContent/
+  // renderLastMonthReport_()) when no frozen snapshot exists for it yet
+  // (a month before this feature existed, or the just-finished month
+  // whose automatic freeze hasn't run yet) - so nothing regresses before
+  // the first automatic freeze happens.
+  // Mutual-exclusion helpers - the Report month picker and the "Report
+  // period" (Week/Quarter/Year) picker both ultimately decide what's
+  // showing (#reportContent vs #lastMonthReportContent), so only one can
+  // be "active" at a time. These silently clear the OTHER picker's state
+  // and reset its own UI back to its default, without triggering that
+  // picker's own refreshAll() (the caller is about to load its own data
+  // right after). resetPeriodPickerToMonth_() replaces the old "Daily
+  // Freeze" single-day picker's resetDayPickerToToday_() (removed 2 Oct
+  // 2026 - the owner clarified a single-day view wasn't what they
+  // wanted); the fuller show/hide wiring for the period rows themselves
+  // is built out alongside applyReportPeriodSelection_() (separate task,
+  // in progress).
+  function resetPeriodPickerToMonth_() {
+    CURRENT_VIEW_PERIOD = null;
+    var typeSel = document.getElementById('reportPeriodType');
+    if (typeSel) typeSel.value = 'month';
+    applyReportPeriodRowVisibility_('month');
+    var periodContent = document.getElementById('periodReportContent');
+    if (periodContent) periodContent.hidden = true;
+  }
+  function resetMonthPickerToCurrent_() {
+    CURRENT_VIEW_FROZEN_MONTH = null;
+    CURRENT_VIEW_FROZEN_AT = null;
+    var monthSel = document.getElementById('reportMonthSelect');
+    if (monthSel) monthSel.value = reportMonthRealCurrentYm_();
+    var monthNote = document.getElementById('reportMonthNote');
+    if (monthNote) monthNote.textContent = '';
+  }
   function applyReportMonthSelection_(ym) {
+    if (CURRENT_VIEW_PERIOD) resetPeriodPickerToMonth_();
+
     var reportContent = document.getElementById('reportContent');
     var lastMonthContent = document.getElementById('lastMonthReportContent');
     var banner = document.getElementById('noDataBanner');
@@ -8127,32 +9000,78 @@
     var curKey = reportMonthRealCurrentYm_();
     var lastKey = lastMonthKeyISO();
     var isCurrent = (ym === curKey);
-    var isLastMonth = !isCurrent && (ym === lastKey);
-    if (reportContent) reportContent.hidden = !isCurrent;
-    if (lastMonthContent) lastMonthContent.hidden = !isLastMonth;
-    if (banner) banner.hidden = isCurrent || isLastMonth;
     if (note) note.textContent = '';
-    if (isLastMonth) {
-      renderLastMonthReport_(ym);
-    } else if (!isCurrent && banner) {
-      banner.textContent = 'No data for ' + reportMonthLabelFor_(ym) + ' — real historical figures are only kept for the current month and the one right before it (' +
-        reportMonthLabelFor_(lastKey) + '). Earlier months were never recorded.';
+    updateReportPeriodSummaryText_();
+
+    if (isCurrent) {
+      exitFrozenMonth_(); // no-op if already on the live current month
+      if (reportContent) reportContent.hidden = false;
+      if (lastMonthContent) lastMonthContent.hidden = true;
+      if (banner) banner.hidden = true;
+      return;
     }
+
+    if (reportContent) reportContent.hidden = true;
+    if (lastMonthContent) lastMonthContent.hidden = true;
+    if (banner) { banner.hidden = false; banner.textContent = 'Loading ' + reportMonthLabelFor_(ym) + '…'; }
+
+    loadFrozenMonth_(ym).then(function (result) {
+      // The picker may have moved on to a different month while this
+      // fetch was in flight (fast repeated clicking) - a stale response
+      // landing now would otherwise show the wrong month.
+      var sel = document.getElementById('reportMonthSelect');
+      if (sel && sel.value !== ym) return;
+
+      if (result && result.found) {
+        if (banner) banner.hidden = true;
+        if (lastMonthContent) lastMonthContent.hidden = true;
+        if (reportContent) reportContent.hidden = false;
+        var sourceLabel = document.getElementById('sourceLabel');
+        if (sourceLabel) {
+          sourceLabel.textContent = reportMonthLabelFor_(ym) + ' — frozen' +
+            (result.frozenAt ? ' as of ' + frozenAtStamp_(result.frozenAt) : '');
+        }
+        return;
+      }
+
+      // No frozen snapshot for this month - fall back to exactly the
+      // pre-"Monthly Freeze" behavior.
+      var isLastMonth = (ym === lastKey);
+      if (reportContent) reportContent.hidden = true;
+      if (lastMonthContent) lastMonthContent.hidden = !isLastMonth;
+      if (banner) banner.hidden = isLastMonth;
+      if (isLastMonth) {
+        renderLastMonthReport_(ym);
+      } else if (banner) {
+        banner.textContent = 'No data for ' + reportMonthLabelFor_(ym) + ' — real historical figures are only kept for the current month and the one right before it (' +
+          reportMonthLabelFor_(lastKey) + '). Earlier months were never recorded.';
+      }
+    });
   }
-  (function initReportMonthPicker_() {
-    var sel = document.getElementById('reportMonthSelect');
-    if (!sel) return;
-    var curKey = reportMonthRealCurrentYm_();
+
+  // (The single-day "Today/Yesterday/Custom Date" picker that used to
+  // live here - applyReportDaySelection_()/initReportDayPicker_() -  was
+  // removed 2 Oct 2026: the owner clarified that wasn't what they wanted
+  // ("i dont want daily view date"). Its backend (Daily Freeze's Drive
+  // JSON daily snapshots) is kept and repurposed as the Week view's data
+  // source - see the "Report period" comment above
+  // applyReportPeriodSelection_() further down.)
+
+  // Shared "yyyy-MM" options list builder for #reportMonthSelect AND the
+  // new #reportWeekMonthSelect (Week view's own month picker) - factored
+  // out of initReportMonthPicker_()'s original body 2 Oct 2026 so both
+  // selects list exactly the same DAYBOOK_FIRST_MONTH_..real-current-
+  // month range, newest first, instead of maintaining two copies of this
+  // loop. Starts at the real current month and goes back to
+  // DAYBOOK_FIRST_MONTH_ (Sep 2026 - the same "this is genuinely when
+  // real data starts" constant the Day Book export picker already
+  // uses) - replaces the old blind 12-month rolling lookback, which
+  // listed months as far back as a year ago that never had any data at
+  // all. A 60-month hard cap keeps this from ever looping forever if
+  // DAYBOOK_FIRST_MONTH_ is ever mis-set to the future.
+  function reportMonthOptionsList_() {
     var now = new Date();
     var options = [];
-    // Starts at the real current month and goes back to
-    // DAYBOOK_FIRST_MONTH_ (Sep 2026 - the same "this is genuinely when
-    // real data starts" constant the Day Book export picker already
-    // uses), newest first - replaces the old blind 12-month rolling
-    // lookback, which listed months as far back as a year ago that never
-    // had any data at all. Revised 1 Oct 2026, see the long comment
-    // above #reportMonthSelect. A 60-month hard cap keeps this from ever
-    // looping forever if DAYBOOK_FIRST_MONTH_ is ever mis-set to the future.
     var stopParts = DAYBOOK_FIRST_MONTH_.split('-');
     var stop = new Date(Number(stopParts[0]), Number(stopParts[1]) - 1, 1);
     var cursor = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -8165,14 +9084,80 @@
     if (!options.length) {
       // DAYBOOK_FIRST_MONTH_ is somehow after the real current month -
       // fall back to just the current month so the dropdown is never empty.
+      var curKey = reportMonthRealCurrentYm_();
       options.push({ value: curKey, label: reportMonthLabelFor_(curKey) });
     }
+    return options;
+  }
+  (function initReportMonthPicker_() {
+    var sel = document.getElementById('reportMonthSelect');
+    if (!sel) return;
+    var curKey = reportMonthRealCurrentYm_();
+    var options = reportMonthOptionsList_();
     sel.innerHTML = options.map(function (o) {
       return '<option value="' + o.value + '">' + o.label + '</option>';
     }).join('');
     sel.value = curKey;
     applyReportMonthSelection_(sel.value);
     sel.addEventListener('change', function () { applyReportMonthSelection_(sel.value); });
+  })();
+
+  // "Report period" Week/Quarter/Year picker wiring, added 2 Oct 2026 -
+  // see the long comment above applyReportPeriodSelection_() for the
+  // full design. Populates all 3 sub-pickers' options once at page load
+  // (Week's month list reuses reportMonthOptionsList_() above; Quarter/
+  // Year's year lists reuse reportYearOptionsList_()) and wires every
+  // change event to applyReportPeriodSelection_(). Does NOT call
+  // applyReportPeriodSelection_() itself at load time - #reportPeriodType
+  // starts on "month" (both in the HTML and because initReportMonthPicker_()
+  // just above already loaded the live/Last-Month view), so there is
+  // nothing to show here until the owner actually switches to Week/
+  // Quarter/Year.
+  (function initReportPeriodPicker_() {
+    var typeSel = document.getElementById('reportPeriodType');
+    var weekMonthSel = document.getElementById('reportWeekMonthSelect');
+    var weekSel = document.getElementById('reportWeekSelect');
+    var quarterSel = document.getElementById('reportQuarterSelect');
+    var quarterYearSel = document.getElementById('reportQuarterYearSelect');
+    var yearSel = document.getElementById('reportYearSelect');
+    if (!typeSel || !weekMonthSel || !weekSel || !quarterSel || !quarterYearSel || !yearSel) return;
+
+    var monthOptions = reportMonthOptionsList_();
+    weekMonthSel.innerHTML = monthOptions.map(function (o) {
+      return '<option value="' + o.value + '">' + o.label + '</option>';
+    }).join('');
+    weekMonthSel.value = reportMonthRealCurrentYm_();
+    // Default the Quarter row's own quarter-number select to TODAY's real
+    // quarter (e.g. Oct 2026 -> Q4), not the static Q1 the HTML happens to
+    // list first - same "defaults to now" treatment Week (current month,
+    // above) and Year (current year, via reportYearOptionsList_()'s
+    // newest-first order, below) already get.
+    quarterSel.value = String(Math.floor(new Date().getMonth() / 3) + 1);
+
+    function refreshWeekOptions_() {
+      var opts = weekOptionsForMonth_(weekMonthSel.value);
+      weekSel.innerHTML = opts.map(function (o) {
+        return '<option value="' + o.value + '">' + o.label + '</option>';
+      }).join('');
+    }
+    refreshWeekOptions_();
+
+    var yearOptions = reportYearOptionsList_();
+    var yearOptionsHtml = yearOptions.map(function (o) {
+      return '<option value="' + o.value + '">' + o.label + '</option>';
+    }).join('');
+    quarterYearSel.innerHTML = yearOptionsHtml;
+    yearSel.innerHTML = yearOptionsHtml;
+
+    typeSel.addEventListener('change', function () { applyReportPeriodSelection_(typeSel.value); });
+    // Changing the Week picker's own month select needs a fresh week
+    // list for that month FIRST (a short month may have fewer weeks than
+    // whatever was previously selected), then applies the selection.
+    weekMonthSel.addEventListener('change', function () { refreshWeekOptions_(); applyReportPeriodSelection_('week'); });
+    weekSel.addEventListener('change', function () { applyReportPeriodSelection_('week'); });
+    quarterSel.addEventListener('change', function () { applyReportPeriodSelection_('quarter'); });
+    quarterYearSel.addEventListener('change', function () { applyReportPeriodSelection_('quarter'); });
+    yearSel.addEventListener('change', function () { applyReportPeriodSelection_('year'); });
   })();
 </script>
 <script>
