@@ -2,7 +2,28 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 2 Oct 2026: locked to maximum-scale=1/user-scalable=no (was just
+     width=device-width, initial-scale=1) - the owner reported the SAME
+     page rendering visibly smaller in one view (Owner/Manager, more
+     sections loaded) than another (Area Manager, fewer sections, still
+     loading) within the same session. Audited every table/wide element
+     on the page (age-table/petronas-summary-table instances are all
+     wrapped in .age-table-scroll with its own overflow-x:auto, and the
+     only unwrapped one - .usage-table in the Account & Usage panel - sits
+     inside a <details> that was collapsed in both screenshots, so it
+     can't have forced a reflow) and found nothing in this page's own
+     HTML/CSS that differs by role or view - no role-conditional font
+     size, width or scale anywhere. That points to ordinary mobile-browser
+     zoom drift (a previous pinch-to-zoom gesture, most likely while
+     reading a wide table, persisting for the rest of that browser tab's
+     session) rather than anything this page's code can detect or correct
+     per role. Locking the scale is the direct fix: the page now always
+     renders at a true 1:1 scale everywhere, with no zoom drift possible
+     between views - "normal fit" for every role, every time. Trade-off:
+     visitors can no longer pinch-zoom to read small text; acceptable
+     here since this is an installed, native-app-like PWA (see
+     pwa-install-notes.md), not a page meant to be read zoomed-in. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>DSR Sales Dashboard</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap');
@@ -1089,6 +1110,17 @@
           <option value="week">Week</option>
           <option value="quarter">Quarter</option>
           <option value="year">Year</option>
+          <!-- "Today", added 3 Oct 2026 at the owner's request ("add only
+               1 option at last as today - to see only todays
+               transaction") - deliberately the LAST option. No sub-row
+               of its own (nothing to pick - there's only one "today"):
+               see applyReportPeriodRowVisibility_() in the script below,
+               which hides all 4 existing sub-rows for any kind it
+               doesn't recognize, 'today' included, with no change
+               needed there. Reuses the exact same reduced Combined +
+               By-DSR view as Week/Quarter/Year - see
+               handleTodaySummaryGet_() in Code.gs for how it's computed. -->
+          <option value="today">Today</option>
         </select>
       </div>
       <div class="month-select-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0;">
@@ -2212,6 +2244,16 @@
   var salesTrendMap = null;
   var collectionTrendMap = null;
   var trendError = false;
+  // Added 5 Oct 2026 for the "Live Cache" speed fix (see Code.gs's
+  // handleLiveGet_()/refreshLiveCache_()) - null means this fetch's
+  // ?type=live response was a genuinely fresh, this-instant rebuild (no
+  // cache file yet, or it was stale), so the existing nowStamp()
+  // "Updated <now>" text stays accurate. When the backend served a
+  // cached payload instead, this holds that payload's own `_cachedAt`
+  // ISO timestamp (when it was actually built) so refreshAll() below
+  // can show the TRUE data age instead of implying the figures are
+  // from this exact second.
+  var LIVE_CACHED_AT_ISO = null;
   // Rs-value twin of salesTrendMap, added 20 Sep 2026 for the Collection-
   // to-Sales Ratio ("Collection Health") - see renderCollectionRatio_()
   // and tally_live_watcher.py's daily_rs_totals in fetch_sales(). Same
@@ -8171,6 +8213,8 @@
   // same shape) - so there is exactly one place that could ever drift out
   // of sync with the backend's field names, not two.
   function applyLivePayloadToState_(res) {
+    // See LIVE_CACHED_AT_ISO's own comment above.
+    LIVE_CACHED_AT_ISO = (res && res.ok && res._cachedAt) ? res._cachedAt : null;
     var collection = (res && res.ok && res.collection) ? res.collection : null;
     DSRS.forEach(function (d) {
       if (d.collectionTarget <= 0) return;
@@ -8418,7 +8462,16 @@
 
     var criticalDone = Promise.all([fetchLive(), fetchDaybookItemGroupRows_()]).then(function () {
       render();
-      document.getElementById('sourceLabel').textContent = 'Updated ' + nowStamp();
+      // Honest timestamp (added 5 Oct 2026, "Live Cache" fix): when the
+      // backend served a pre-built cached payload, show when that data
+      // was actually built (LIVE_CACHED_AT_ISO), not this instant -
+      // otherwise a few-minutes-stale cached response would still claim
+      // "Updated just now" via nowStamp(). A fresh direct rebuild (no
+      // cache yet, or stale and rebuilt on the spot) still shows the
+      // original "Updated <now>" text, since that one really is current.
+      document.getElementById('sourceLabel').textContent = LIVE_CACHED_AT_ISO
+        ? 'Updated ' + frozenAtStamp_(LIVE_CACHED_AT_ISO)
+        : 'Updated ' + nowStamp();
       updateRefreshNote_();
     });
 
@@ -8785,6 +8838,26 @@
       combinedRange: [year + '-01-01', year + '-12-31']
     };
   }
+  // "Today" - added 3 Oct 2026, the 4th twin of buildWeekPeriod_()/
+  // buildQuarterPeriod_()/buildYearPeriod_() above. No sub-picker inputs
+  // at all (there's only one "today"), so unlike the other three this
+  // takes no arguments - todayISO() is the same "local browser date"
+  // helper already used throughout this file for every other "today"
+  // figure (Collection Health's month-to-date sum, etc.), so this stays
+  // consistent with what "today" already means everywhere else on this
+  // page. combinedRange is a single-day range ([todayKey, todayKey]) -
+  // sumMapInRange_() (used by renderPeriodSummary_() below) handles that
+  // the same as any other range, no special-casing needed.
+  function buildTodayPeriod_() {
+    var todayKey = todayISO();
+    return {
+      kind: 'today',
+      key: 'today:' + todayKey,
+      dateKey: todayKey,
+      label: 'Today (' + dayLabelFor_(todayKey) + ')',
+      combinedRange: [todayKey, todayKey]
+    };
+  }
   // Fills #periodCombinedWrap/#periodAreaWrap from a successful
   // handleWeekSummaryGet_/handlePeriodSummaryGet_ response - the
   // Week/Quarter/Year twin of renderLastMonthReport_() above, minus the
@@ -8830,6 +8903,8 @@
     var url;
     if (period.kind === 'week') {
       url = ORDERS_API_URL + '?type=weekSummary&month=' + encodeURIComponent(period.monthKey) + '&week=' + encodeURIComponent(period.week) + '&_ts=' + Date.now();
+    } else if (period.kind === 'today') {
+      url = ORDERS_API_URL + '?type=todaySummary&_ts=' + Date.now();
     } else {
       url = ORDERS_API_URL + '?type=periodSummary&start=' + encodeURIComponent(period.startMonth) + '&end=' + encodeURIComponent(period.endMonth) + '&_ts=' + Date.now();
     }
@@ -8855,6 +8930,9 @@
     }
     if (reason === 'month_not_frozen') {
       return 'No data for ' + period.label + ' yet — ' + (result.missingMonth || 'a month this needs') + ' was never frozen (before Monthly Freeze existed, or its month-end freeze hasn’t run yet).';
+    }
+    if (reason === 'yesterday_not_frozen') {
+      return 'No data for Today yet — yesterday (' + (result.dateKey || '') + ') was never frozen, so there’s no starting point to measure today’s own transactions from. This resolves automatically after tonight’s Daily Freeze run.';
     }
     return 'No data for ' + period.label + ' yet.';
   }
@@ -8905,7 +8983,9 @@
     applyReportPeriodRowVisibility_(kind);
 
     var period;
-    if (kind === 'week') {
+    if (kind === 'today') {
+      period = buildTodayPeriod_();
+    } else if (kind === 'week') {
       var wm = document.getElementById('reportWeekMonthSelect');
       var ws = document.getElementById('reportWeekSelect');
       if (!wm || !ws || !ws.value) return; // week list not populated yet for this month
