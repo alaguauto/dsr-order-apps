@@ -1290,6 +1290,32 @@
     return "";
   }
 
+  // Scheme nett price (added 5 Oct 2026, per the owner's request: "if any items
+  // having scheme can u show the price what will be the nett after less of that
+  // scheme") — for an FOC-scheme item (schemePaid/schemeFree), works out the
+  // effective per-piece price once the free stock is factored in: the DSR pays
+  // for `schemePaid` pieces but walks away with `schemePaid + schemeFree` pieces,
+  // so the real per-piece cost is rate * schemePaid / (schemePaid + schemeFree) —
+  // same formula regardless of whether the item's own scheme is the "bonus-on-top"
+  // or "discount-within-block" shape (both already unified onto one formula, see
+  // schemeBlockCases()'s own comment above), so this needs no shape detection of
+  // its own either. Shown incl GST, rounded to the nearest rupee, matching the
+  // existing "Rate ₹X incl GST" convention on every item row. Deliberately gated
+  // on schemePaid/schemeFree (not bulkNetPrice) so it never overlaps with the
+  // separate bulk-nett-price badge above — the two fields are already mutually
+  // exclusive by design (see bulkNetPriceText()'s own comment), so at most one of
+  // the two nett badges ever shows on a given item.
+  function schemeNettPriceText(it) {
+    if (!hasNum(it.schemePaid) && !hasNum(it.schemeFree)) return "";
+    if (!hasNum(it.rate)) return "";
+    var paid = hasNum(it.schemePaid) ? it.schemePaid : 0;
+    var free = hasNum(it.schemeFree) ? it.schemeFree : 0;
+    var total = paid + free;
+    if (total <= 0 || paid <= 0) return "";
+    var nettRateInclGst = (it.rate * (paid / total)) * (1 + GST_RATE_PCT / 100);
+    return "Scheme nett ₹" + formatNum(Math.round(nettRateInclGst)) + "/pc incl GST";
+  }
+
   // Display-only Ltr conversion of the ordered qty: Size (Ltr per Nos) x Nos per Unit x qty ordered.
   // Nos per Unit defaults to 1 when not set, so a single-piece unit (e.g. a Barrel sold on its own) still works.
   function ltrPerUnit(it) {
@@ -1375,6 +1401,8 @@
     var ltrHtml = ltr ? '<div class="scheme-badge ltr-badge">' + escapeHtml(ltr) + "</div>" : "";
     var nett = mode === "unit" ? bulkNetPriceText(it) : "";
     var nettHtml = nett ? '<div class="scheme-badge nett-badge">' + escapeHtml(nett) + "</div>" : "";
+    var schemeNett = mode === "unit" ? schemeNettPriceText(it) : "";
+    var schemeNettHtml = schemeNett ? '<div class="scheme-badge nett-badge">' + escapeHtml(schemeNett) + "</div>" : "";
 
     return (
       '<div class="item-row' + (q > 0 ? " has-qty" : "") + (overStock ? " over-stock" : "") + '">' +
@@ -1382,6 +1410,7 @@
         subline +
         valuesHtml +
         schemeHtml +
+        schemeNettHtml +
         ltrHtml +
         nettHtml +
         warn +

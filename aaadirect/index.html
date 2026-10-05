@@ -1693,6 +1693,32 @@
     return "";
   }
 
+  // Scheme nett price (added 5 Oct 2026, per the owner's request: "if any items
+  // having scheme can u show the price what will be the nett after less of that
+  // scheme") — for an FOC-scheme item (schemePaid/schemeFree), works out the
+  // effective per-piece price once the free stock is factored in: the DSR pays
+  // for `schemePaid` pieces but walks away with `schemePaid + schemeFree` pieces,
+  // so the real per-piece cost is rate * schemePaid / (schemePaid + schemeFree) —
+  // same formula regardless of whether the item's own scheme is the "bonus-on-top"
+  // or "discount-within-block" shape (both already unified onto one formula, see
+  // schemeBlockCases()'s own comment above), so this needs no shape detection of
+  // its own either. Shown incl GST, rounded to the nearest rupee, matching the
+  // existing "Rate ₹X incl GST" convention on every item row. Deliberately gated
+  // on schemePaid/schemeFree (not bulkNetPrice) so it never overlaps with the
+  // separate bulk-nett-price badge above — the two fields are already mutually
+  // exclusive by design (see bulkNetPriceText()'s own comment), so at most one of
+  // the two nett badges ever shows on a given item.
+  function schemeNettPriceText(it) {
+    if (!hasNum(it.schemePaid) && !hasNum(it.schemeFree)) return "";
+    if (!hasNum(it.rate)) return "";
+    var paid = hasNum(it.schemePaid) ? it.schemePaid : 0;
+    var free = hasNum(it.schemeFree) ? it.schemeFree : 0;
+    var total = paid + free;
+    if (total <= 0 || paid <= 0) return "";
+    var nettRateInclGst = (it.rate * (paid / total)) * (1 + GST_RATE_PCT / 100);
+    return "Scheme nett ₹" + formatNum(Math.round(nettRateInclGst)) + "/pc incl GST";
+  }
+
   // Display-only Ltr conversion of the ordered qty: Size (Ltr per Nos) x Nos per Unit x qty ordered.
   // Nos per Unit defaults to 1 when not set, so a single-piece unit (e.g. a Barrel sold on its own) still works.
   function ltrPerUnit(it) {
@@ -1778,6 +1804,8 @@
     var ltrHtml = ltr ? '<div class="scheme-badge ltr-badge">' + escapeHtml(ltr) + "</div>" : "";
     var nett = mode === "unit" ? bulkNetPriceText(it) : "";
     var nettHtml = nett ? '<div class="scheme-badge nett-badge">' + escapeHtml(nett) + "</div>" : "";
+    var schemeNett = mode === "unit" ? schemeNettPriceText(it) : "";
+    var schemeNettHtml = schemeNett ? '<div class="scheme-badge nett-badge">' + escapeHtml(schemeNett) + "</div>" : "";
 
     return (
       '<div class="item-row' + (q > 0 ? " has-qty" : "") + (overStock ? " over-stock" : "") + '">' +
@@ -1785,6 +1813,7 @@
         subline +
         valuesHtml +
         schemeHtml +
+        schemeNettHtml +
         ltrHtml +
         nettHtml +
         warn +
@@ -4689,6 +4718,28 @@
     // password form at all. A valid token logs straight in with no typing;
     // an invalid/expired one (or no token, or a network hiccup) falls back
     // to the normal form untouched.
+    //
+    // Added 5 Oct 2026: a hard timeout on this one call. postToApi() is a
+    // bare fetch() with no deadline of its own - if the response never
+    // arrives (a dead/slow mobile connection, or Apps Script taking
+    // unusually long), that promise just sits pending forever. Because the
+    // password field and the login button are hidden the instant this
+    // silent attempt starts ("Signing you in..."), a stuck promise left the
+    // DSR with no password box, no button, and no way back in at all -
+    // confirmed via a screenshot stuck on "Signing you in..." with nothing
+    // else on screen. withTimeout_() races the real call against a plain
+    // timer so the form is guaranteed to reappear either way; it doesn't
+    // (and can't, without AbortController support being assumed everywhere
+    // this runs) cancel the underlying fetch, it just stops waiting on it -
+    // the `settled` guard stops a late-arriving real response from acting
+    // twice if it shows up after the timeout already restored the form.
+    function withTimeout_(promise, ms) {
+      return new Promise(function (resolve, reject) {
+        var timer = setTimeout(function () { reject(new Error("timeout")); }, ms);
+        promise.then(function (v) { clearTimeout(timer); resolve(v); },
+                      function (e) { clearTimeout(timer); reject(e); });
+      });
+    }
     var storedToken = getStoredToken();
     if (storedToken) {
       var subEl = document.querySelector("#loginGateOverlay .login-gate-sub");
@@ -4697,23 +4748,30 @@
       if (subEl) subEl.textContent = "Signing you in...";
       if (inputEl) inputEl.hidden = true;
       if (btnElForSilent) btnElForSilent.hidden = true;
-      postToApi("loginWithToken", { token: storedToken, app: APP_DISPLAY }).then(function (res) {
+      var silentLoginSettled = false;
+      var restoreManualForm_ = function () {
+        if (silentLoginSettled) return;
+        silentLoginSettled = true;
+        if (subEl) subEl.textContent = "Enter your password to continue";
+        if (inputEl) inputEl.hidden = false;
+        if (btnElForSilent) btnElForSilent.hidden = false;
+      };
+      withTimeout_(postToApi("loginWithToken", { token: storedToken, app: APP_DISPLAY }), 12000).then(function (res) {
+        if (silentLoginSettled) return;
         if (res && res.ok) {
+          silentLoginSettled = true;
           if (res.rememberToken) storeToken(res.rememberToken);
           proceedAfterLogin(res.sessionId);
           return;
         }
         // Invalid/expired - forget it and fall back to the normal form.
         storeToken("");
-        if (subEl) subEl.textContent = "Enter your password to continue";
-        if (inputEl) inputEl.hidden = false;
-        if (btnElForSilent) btnElForSilent.hidden = false;
+        restoreManualForm_();
       }).catch(function () {
-        // Network error, not an auth rejection - keep the token for next
-        // time, just fall back to manual login for now.
-        if (subEl) subEl.textContent = "Enter your password to continue";
-        if (inputEl) inputEl.hidden = false;
-        if (btnElForSilent) btnElForSilent.hidden = false;
+        // Network error, timeout, or an auth rejection - keep the token for
+        // next time (an expired/invalid token is the only thing that clears
+        // it, above), just fall back to manual login for now.
+        restoreManualForm_();
       });
     }
   })();

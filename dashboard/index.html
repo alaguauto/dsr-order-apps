@@ -4566,15 +4566,27 @@
   // Sales(Ltr) for that month specifically (not running/cumulative) per
   // the owner's own formula - the separate running Balance column below
   // is the cumulative one.
+  // salesValue below was adjusted 5 Oct 2026, x1.18, to include GST - see
+  // the big comment on fetch_petronas_summary()/report_petronas_summary()
+  // in tally_live_watcher.py for the full reasoning (this static array's
+  // own basic-value figures came from the owner's own screenshot, same as
+  // ever - only the GST conversion is new, applied directly here since it's
+  // a deterministic x1.18 on numbers he's already confirmed correct, not a
+  // new/unverified Tally figure needing a fresh diagnostic run). purchaseLtr/
+  // salesLtr/collected/purchaseValue/payment are UNCHANGED - the owner's
+  // report was Sales (Value) specifically; purchaseValue/payment may still
+  // need a fresh --petronas-summary re-run to pick up the separate
+  // Sales-voucher-exclusion fix (see the same comment) for Jan-Aug, since
+  // that one can't be derived from already-aggregated numbers alone.
   var PETRONAS_SUMMARY_DATA_ = [
-    { month: 'Jan 2026', purchaseLtr: 30982, salesLtr: 27576, salesValue: 6909179.00, collected: 8127543.00, purchaseValue: 7221248.26, payment: 6471590.07 },
-    { month: 'Feb 2026', purchaseLtr: 32564, salesLtr: 29675, salesValue: 25872739.00, collected: 7306703.00, purchaseValue: 8075840.06, payment: 8277424.01 },
-    { month: 'Mar 2026', purchaseLtr: 27885, salesLtr: 35679, salesValue: 8858552.00, collected: 9536059.00, purchaseValue: 7474381.34, payment: 7388067.09 },
-    { month: 'Apr 2026', purchaseLtr: 33512, salesLtr: 31709, salesValue: 7945848.00, collected: 8156942.00, purchaseValue: 10091030.73, payment: 11503190.71 },
-    { month: 'May 2026', purchaseLtr: 30771, salesLtr: 29491, salesValue: 7703865.00, collected: 8639621.00, purchaseValue: 9394405.00, payment: 9580264.64 },
-    { month: 'Jun 2026', purchaseLtr: 34931, salesLtr: 34004, salesValue: 9435177.00, collected: 9687818.00, purchaseValue: 11820364.46, payment: 8023850.54 },
-    { month: 'Jul 2026', purchaseLtr: 35123, salesLtr: 32536, salesValue: 9063214.00, collected: 9152254.00, purchaseValue: 11098907.35, payment: 15671666.23 },
-    { month: 'Aug 2026', purchaseLtr: 35192, salesLtr: 26888, salesValue: 8095684.00, collected: 7923677.00, purchaseValue: 9455076.94, payment: 7646181.04 }
+    { month: 'Jan 2026', purchaseLtr: 30982, salesLtr: 27576, salesValue: 8152831.22, collected: 8127543.00, purchaseValue: 7221248.26, payment: 6471590.07 },
+    { month: 'Feb 2026', purchaseLtr: 32564, salesLtr: 29675, salesValue: 30529832.02, collected: 7306703.00, purchaseValue: 8075840.06, payment: 8277424.01 },
+    { month: 'Mar 2026', purchaseLtr: 27885, salesLtr: 35679, salesValue: 10453091.36, collected: 9536059.00, purchaseValue: 7474381.34, payment: 7388067.09 },
+    { month: 'Apr 2026', purchaseLtr: 33512, salesLtr: 31709, salesValue: 9376100.64, collected: 8156942.00, purchaseValue: 10091030.73, payment: 11503190.71 },
+    { month: 'May 2026', purchaseLtr: 30771, salesLtr: 29491, salesValue: 9090560.70, collected: 8639621.00, purchaseValue: 9394405.00, payment: 9580264.64 },
+    { month: 'Jun 2026', purchaseLtr: 34931, salesLtr: 34004, salesValue: 11133508.86, collected: 9687818.00, purchaseValue: 11820364.46, payment: 8023850.54 },
+    { month: 'Jul 2026', purchaseLtr: 35123, salesLtr: 32536, salesValue: 10694592.52, collected: 9152254.00, purchaseValue: 11098907.35, payment: 15671666.23 },
+    { month: 'Aug 2026', purchaseLtr: 35192, salesLtr: 26888, salesValue: 9552907.12, collected: 7923677.00, purchaseValue: 9455076.94, payment: 7646181.04 }
   ];
 
   // "Balance (Closing Stock)" running column - added 30 Sep 2026, removed
