@@ -621,6 +621,41 @@
     border-radius: 10px;
     background: var(--surface);
   }
+
+  /* Dealer Targets + My Tasks - added 6 Oct 2026, see
+     fetchDealerTargets_()/renderDealerTargets_()/fetchMyTasks_()/
+     renderMyTasks_() below for the live wiring. */
+  .dealer-target-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 4px; border-bottom:1px solid #e8e2d8; flex-wrap:wrap; }
+  .dealer-target-row:last-child { border-bottom:none; }
+  .dealer-target-name { flex:1 1 180px; font-weight:600; font-size:13px; }
+  .dealer-target-fields { display:flex; gap:10px; flex-wrap:wrap; }
+  .dealer-target-fields label { display:flex; flex-direction:column; font-size:10.5px; color:#8a7f6f; gap:3px; }
+  .dealer-target-fields input { width:100px; padding:6px 8px; border-radius:7px; border:1px solid #ddd3c3; font-size:13px; }
+  .dealer-target-status { flex-basis:100%; font-size:10.5px; color:#9a8f7c; }
+  .dealer-target-suggest { flex-basis:100%; font-size:11px; color:#2f6b4f; background:#eaf4ee; border-radius:6px; padding:5px 8px; margin-top:4px; display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+  .dealer-target-suggest-none { color:#8a7f6f; background:#f2efe8; }
+  .dealer-target-use-btn { margin-left:auto; font-size:10.5px; padding:3px 9px; border-radius:6px; border:1px solid #2f6b4f; background:#fff; color:#2f6b4f; cursor:pointer; }
+  .dealer-target-remark { flex-basis:100%; font-size:11px; color:#3a5a8a; background:#eaf0fb; border-radius:6px; padding:5px 8px; margin-top:4px; }
+  .dealer-target-collectable { flex-basis:100%; font-size:11px; color:#b5541c; background:#fdf1e6; border-radius:6px; padding:5px 8px; margin-top:4px; }
+  .dealer-target-collectable b { color:#8a3a0f; }
+
+  .task-card { border: 1px solid #e8e2d8; border-radius: 12px; padding: 12px 14px; margin: 4px; background: #fff; }
+  .task-card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .task-name { font-weight:700; font-size:13px; }
+  .task-type-badge { font-size:10px; font-weight:600; padding:3px 9px; border-radius:999px; white-space:nowrap; background:#fdeee0; color:#a0531f; }
+  .task-type-badge.task-type-payment { background:#fdeee0; color:#a0531f; }
+  .task-type-badge.task-type-sales { background:#eaf4ee; color:#2f6b4f; }
+  .task-type-badge.task-type-stock { background:#fdf1e3; color:#8a5a0f; }
+  .task-type-badge.task-type-general { background:#f0ece2; color:#8a7f6f; }
+  .task-pills { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; align-items:center; }
+  .task-status-select { font-size:11px; font-weight:600; padding:4px 8px; border-radius:999px; border:1px solid #e3b77a; background:#fdf1e3; color:#a0531f; }
+  .task-pill-type { font-size:10.5px; background:#f0ece2; color:#8a7f6f; padding:4px 10px; border-radius:999px; }
+  .task-meta { font-size:10.5px; color:#9a8f7c; margin-top:8px; }
+  .task-card-foot { display:flex; align-items:center; gap:8px; margin-top:10px; }
+  .task-comment-input { flex:1; padding:6px 10px; border-radius:8px; border:1px solid #ddd3c3; font-size:12px; }
+  .task-icon-btn { border:1px solid #ddd3c3; background:#fff; border-radius:8px; padding:5px 10px; font-size:11.5px; cursor:pointer; }
+  .task-empty-note { font-size:12px; color:#9a8f7c; padding:10px 4px; }
+
   details.manage summary {
     padding: 11px 14px;
     cursor: pointer;
@@ -1278,6 +1313,35 @@
       <div class="manage-body">
         <p class="hint">Only items with a live scheme or nett-price offer right now -- order straight from here, it's the same order as the list above.</p>
         <div id="schemeItemsList"></div>
+      </div>
+    </details>
+
+    <!-- Dealer Targets - added 6 Oct 2026. Each dealer's own Sales
+         Target (Ltr) / Collection Plan (Rs) for the current month,
+         fillable here by this DSR; Owner/Manager can also edit any of
+         these from the dashboard's Master File. Suggested Target,
+         Collectable (45+ days overdue) and any owner Remark are shown
+         inline so the DSR has them in front of them while deciding
+         what to enter - see fetchDealerTargets_()/renderDealerTargets_()
+         below for the live wiring. -->
+    <details class="manage" id="dealerTargetsDetails">
+      <summary>Dealer Targets — This Month <span id="dealerTargetsCount" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">Set each dealer's Sales Target (Ltr) and Collection Plan (₹) for this month. Owner/managers can also edit these from the dashboard.</p>
+        <div id="dealerTargetsList"><div class="task-empty-note">Loading…</div></div>
+      </div>
+    </details>
+
+    <!-- My Tasks - added 6 Oct 2026, mirroring the owner's own
+         reference task-tracking app. Shows only tasks assigned to or
+         about this DSR's own area. DSR can change status and add a
+         comment; cannot create a new task (that stays Owner/Manager,
+         from the dashboard's Task Manager). -->
+    <details class="manage" id="myTasksDetails">
+      <summary>My Tasks <span id="myTasksCount" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">Tasks your Owner/Manager or Area Manager created about your area. Update status or add a comment here.</p>
+        <div id="myTasksList"><div class="task-empty-note">Loading…</div></div>
       </div>
     </details>
   </section>
@@ -2888,6 +2952,190 @@
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify(payload)
     }).then(function (r) { return r.json(); });
+  }
+
+  // ===================================================================
+  // Dealer Targets + My Tasks - added 6 Oct 2026. Live-wired to the new
+  // ?type=dealerTargets / ?type=tasks endpoints and the dealerTargetSet/
+  // taskUpdateStatus/taskAddComment actions on Code.gs (see the big
+  // comment block above handleDealerTargetsGet_() there for the full
+  // feature). DSR_SHORT_NAME ("AAA Direct") is used as this app's
+  // identity for both - it's the same short name already used for
+  // "Share last month's report" and matches the dashboard's own DSR
+  // card names, which is also the convention the Master File's
+  // DealerMeta "DSR Name" column is seeded with (the owner's Excel's
+  // own "SALES REP" column). If a DSR app's dealers don't show up here
+  // once real data is imported, the fix is almost certainly just
+  // aligning that one name string in MasterFileRaw's "SALES REP"
+  // column to this DSR_SHORT_NAME value.
+  function currentMonthKeyISO_() {
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  }
+  function escapeHtml_(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function fmtMoney_(n) {
+    if (n === null || n === undefined || n === "") return "";
+    return "₹" + Math.round(Number(n)).toLocaleString("en-IN");
+  }
+  function fmtAgo_(iso) {
+    if (!iso) return "";
+    var then = new Date(iso).getTime();
+    if (isNaN(then)) return "";
+    var days = Math.floor((Date.now() - then) / 86400000);
+    if (days <= 0) return "today";
+    if (days === 1) return "1 day ago";
+    return days + " days ago";
+  }
+
+  var dealerTargetsListEl = document.getElementById("dealerTargetsList");
+  var dealerTargetsCountEl = document.getElementById("dealerTargetsCount");
+  var dealerTargetsDetailsEl = document.getElementById("dealerTargetsDetails");
+  var lastDealerTargetsData_ = [];
+
+  function fetchDealerTargets_() {
+    if (!apiConfigured() || !dealerTargetsListEl) return;
+    var month = currentMonthKeyISO_();
+    fetch(ORDERS_API_URL + "?type=dealerTargets&month=" + encodeURIComponent(month) + "&dsrName=" + encodeURIComponent(DSR_SHORT_NAME) + "&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) { dealerTargetsListEl.innerHTML = '<div class="task-empty-note">Could not load Dealer Targets.</div>'; return; }
+        lastDealerTargetsData_ = data.dealers || [];
+        renderDealerTargets_();
+      })
+      .catch(function () { dealerTargetsListEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>'; });
+  }
+
+  function renderDealerTargets_() {
+    if (!dealerTargetsListEl) return;
+    var rows = lastDealerTargetsData_;
+    if (dealerTargetsCountEl) dealerTargetsCountEl.textContent = rows.length ? String(rows.length) : "";
+    if (!rows.length) { dealerTargetsListEl.innerHTML = '<div class="task-empty-note">No dealers found for this app yet.</div>'; return; }
+    var html = "";
+    for (var i = 0; i < rows.length; i++) {
+      var d = rows[i];
+      var statusLine = d.editedAt ? ("edited by " + escapeHtml_(d.editedBy || "") + ", " + fmtAgo_(d.editedAt)) : "not set yet";
+      var suggestHtml = "";
+      if (d.suggestedLtr !== null && d.suggestedLtr !== undefined) {
+        var basisNote = d.suggestedBasis === "tally6mo" ? "avg of last 6 months’ Tally sales" : "avg of last 3 months’ orders";
+        suggestHtml = '<div class="dealer-target-suggest">Suggested Target: <b>' + d.suggestedLtr.toLocaleString("en-IN") + ' Ltr</b> &middot; ' + basisNote +
+          '<button type="button" class="dealer-target-use-btn" data-dealer="' + escapeHtml_(d.dealer) + '" data-ltr="' + d.suggestedLtr + '">Use</button></div>';
+      } else {
+        suggestHtml = '<div class="dealer-target-suggest dealer-target-suggest-none">No recent purchase pattern to suggest from yet.</div>';
+      }
+      var collectableHtml = "";
+      if (d.collectableRs !== null && d.collectableRs !== undefined && d.collectableRs > 0) {
+        collectableHtml = '<div class="dealer-target-collectable">Collectable (45+ days overdue): <b>' + fmtMoney_(d.collectableRs) + '</b>' +
+          (d.overallOutstandingRs !== null && d.overallOutstandingRs !== undefined ? (' of ' + fmtMoney_(d.overallOutstandingRs) + ' total outstanding') : '') + '</div>';
+      }
+      var remarkHtml = d.remark ? ('<div class="dealer-target-remark">💬 “' + escapeHtml_(d.remark) + '” — ' + escapeHtml_(d.remarkBy || "") + '</div>') : "";
+      html += '<div class="dealer-target-row" data-dealer="' + escapeHtml_(d.dealer) + '">' +
+        '<div class="dealer-target-name">' + escapeHtml_(d.dealer) + '</div>' +
+        '<div class="dealer-target-fields">' +
+        '<label>Sales Target (Ltr)<input type="number" inputmode="decimal" class="dt-target-ltr" value="' + (d.salesTargetLtr === null ? "" : d.salesTargetLtr) + '" placeholder="0"></label>' +
+        '<label>Collection Plan (₹)<input type="number" inputmode="decimal" class="dt-plan-rs" value="' + (d.collectionPlanRs === null ? "" : d.collectionPlanRs) + '" placeholder="0"></label>' +
+        '</div>' +
+        suggestHtml +
+        '<div class="dealer-target-status">' + statusLine + '</div>' +
+        collectableHtml + remarkHtml +
+        '</div>';
+    }
+    dealerTargetsListEl.innerHTML = html;
+  }
+
+  function saveDealerTarget_(rowEl) {
+    var dealer = rowEl.getAttribute("data-dealer");
+    var ltrEl = rowEl.querySelector(".dt-target-ltr");
+    var planEl = rowEl.querySelector(".dt-plan-rs");
+    var salesTargetLtr = ltrEl && ltrEl.value !== "" ? Number(ltrEl.value) : null;
+    var collectionPlanRs = planEl && planEl.value !== "" ? Number(planEl.value) : null;
+    postToApi("dealerTargetSet", {
+      month: currentMonthKeyISO_(), dealer: dealer, dsrName: DSR_SHORT_NAME,
+      salesTargetLtr: salesTargetLtr, collectionPlanRs: collectionPlanRs, editedBy: DSR_SHORT_NAME
+    }).then(function (res) {
+      if (res && res.ok) fetchDealerTargets_();
+    }).catch(function () { /* best-effort, same as every other save in this app */ });
+  }
+
+  if (dealerTargetsListEl) {
+    dealerTargetsListEl.addEventListener("change", function (e) {
+      if (e.target.classList.contains("dt-target-ltr") || e.target.classList.contains("dt-plan-rs")) {
+        saveDealerTarget_(e.target.closest(".dealer-target-row"));
+      }
+    });
+    dealerTargetsListEl.addEventListener("click", function (e) {
+      var btn = e.target.closest(".dealer-target-use-btn");
+      if (!btn) return;
+      var rowEl = btn.closest(".dealer-target-row");
+      var ltrEl = rowEl.querySelector(".dt-target-ltr");
+      if (ltrEl) { ltrEl.value = btn.getAttribute("data-ltr"); saveDealerTarget_(rowEl); }
+    });
+  }
+  if (dealerTargetsDetailsEl) {
+    dealerTargetsDetailsEl.addEventListener("toggle", function () { if (dealerTargetsDetailsEl.open) fetchDealerTargets_(); });
+  }
+
+  // ----- My Tasks -----
+  var myTasksListEl = document.getElementById("myTasksList");
+  var myTasksCountEl = document.getElementById("myTasksCount");
+  var myTasksDetailsEl = document.getElementById("myTasksDetails");
+  var TASK_TYPE_CLASS_ = { "Sales": "task-type-sales", "Stock": "task-type-stock", "Payment": "task-type-payment", "Payment Follow-up": "task-type-payment", "General": "task-type-general", "Others": "task-type-general" };
+
+  function fetchMyTasks_() {
+    if (!apiConfigured() || !myTasksListEl) return;
+    fetch(ORDERS_API_URL + "?type=tasks&viewerName=" + encodeURIComponent(DSR_SHORT_NAME) + "&viewerRole=DSR&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) { myTasksListEl.innerHTML = '<div class="task-empty-note">Could not load tasks.</div>'; return; }
+        renderMyTasks_(data.tasks || []);
+      })
+      .catch(function () { myTasksListEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>'; });
+  }
+
+  function renderMyTasks_(tasks) {
+    if (myTasksCountEl) myTasksCountEl.textContent = tasks.length ? String(tasks.length) : "";
+    if (!tasks.length) { myTasksListEl.innerHTML = '<div class="task-empty-note">No tasks right now.</div>'; return; }
+    var html = "";
+    for (var i = 0; i < tasks.length; i++) {
+      var t = tasks[i];
+      var typeClass = TASK_TYPE_CLASS_[t.type] || "task-type-general";
+      var statuses = ["Open", "In Progress", "On Hold", "Completed"];
+      var optionsHtml = statuses.map(function (s) { return '<option' + (s === t.status ? " selected" : "") + '>' + s + '</option>'; }).join("");
+      html += '<div class="task-card" data-task-id="' + escapeHtml_(t.id) + '">' +
+        '<div class="task-card-head"><span class="task-name">' + escapeHtml_(t.name) + '</span>' +
+        '<span class="task-type-badge ' + typeClass + '">' + escapeHtml_(t.type) + '</span></div>' +
+        '<div class="task-pills"><select class="task-status-select">' + optionsHtml + '</select></div>' +
+        '<div class="task-meta">Due ' + escapeHtml_(t.dueDate || "—") + ' &middot; Created by ' + escapeHtml_(t.createdBy || "") + '</div>' +
+        '<div class="task-card-foot"><input type="text" class="task-comment-input" placeholder="Add a comment…">' +
+        '<button type="button" class="task-icon-btn" title="Comments">💬 ' + (t.comments ? t.comments.length : 0) + '</button></div>' +
+        '</div>';
+    }
+    myTasksListEl.innerHTML = html;
+  }
+
+  if (myTasksListEl) {
+    myTasksListEl.addEventListener("change", function (e) {
+      if (!e.target.classList.contains("task-status-select")) return;
+      var cardEl = e.target.closest(".task-card");
+      postToApi("taskUpdateStatus", { id: cardEl.getAttribute("data-task-id"), status: e.target.value }).catch(function () { /* best-effort */ });
+    });
+    myTasksListEl.addEventListener("click", function (e) {
+      var btn = e.target.closest(".task-icon-btn");
+      if (!btn) return;
+      var cardEl = btn.closest(".task-card");
+      var inputEl = cardEl.querySelector(".task-comment-input");
+      var text = inputEl && inputEl.value.trim();
+      if (!text) return;
+      postToApi("taskAddComment", { taskId: cardEl.getAttribute("data-task-id"), author: DSR_SHORT_NAME, text: text }).then(function (res) {
+        if (res && res.ok) { inputEl.value = ""; fetchMyTasks_(); }
+      }).catch(function () { /* best-effort */ });
+    });
+  }
+  if (myTasksDetailsEl) {
+    myTasksDetailsEl.addEventListener("toggle", function () { if (myTasksDetailsEl.open) fetchMyTasks_(); });
   }
 
   // Offline-resilience queue: a save/update/delete that fails (no signal in the field)
