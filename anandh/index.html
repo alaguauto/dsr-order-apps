@@ -1002,6 +1002,25 @@
 .login-gate-btn{width:100%;padding:12px;font-size:16px;font-weight:600;border:none;border-radius:8px;background:#1a73e8;color:#fff;cursor:pointer;}
 .login-gate-btn:disabled{opacity:0.6;}
 .login-gate-error{color:#c62828;font-size:13px;margin-top:10px;}
+
+  .task-card { border: 1px solid #e8e2d8; border-radius: 12px; padding: 12px 14px; margin: 4px; background: #fff; }
+  .task-card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .task-name { font-weight:700; font-size:13px; }
+  .task-type-badge { font-size:10px; font-weight:600; padding:3px 9px; border-radius:999px; white-space:nowrap; background:#fdeee0; color:#a0531f; }
+  .task-type-badge.task-type-payment { background:#fdeee0; color:#a0531f; }
+  .task-type-badge.task-type-sales { background:#eaf4ee; color:#2f6b4f; }
+  .task-type-badge.task-type-stock { background:#fdf1e3; color:#8a5a0f; }
+  .task-type-badge.task-type-general { background:#f0ece2; color:#8a7f6f; }
+  .task-pills { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; align-items:center; }
+  .task-status-select { font-size:11px; font-weight:600; padding:4px 8px; border-radius:999px; border:1px solid #e3b77a; background:#fdf1e3; color:#a0531f; }
+  .task-pill-type { font-size:10.5px; background:#f0ece2; color:#8a7f6f; padding:4px 10px; border-radius:999px; }
+  .task-meta { font-size:10.5px; color:#9a8f7c; margin-top:8px; }
+  .task-comments { margin-top:6px; }
+  .task-comment-row { font-size: 11px; color: #9a8f7c; padding: 3px 0; border-top: 1px dashed #e8e2d8; }
+  .task-card-foot { display:flex; align-items:center; gap:8px; margin-top:10px; }
+  .task-comment-input { flex:1; padding:6px 10px; border-radius:8px; border:1px solid #ddd3c3; font-size:12px; }
+  .task-icon-btn { border:1px solid #ddd3c3; background:#fff; border-radius:8px; padding:5px 10px; font-size:11.5px; cursor:pointer; }
+  .task-empty-note { font-size:12px; color:#9a8f7c; padding:10px 4px; }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a4a44">
@@ -1066,6 +1085,56 @@
       <div class="manage-body">
         <p class="hint">Cash collected vs. sales billed, this month so far in your own area — live from Tally, nothing to enter here.</p>
         <div class="target-strip" id="collectionHealthStrip"></div>
+      </div>
+    </details>
+  </section>
+
+  <section style="padding-bottom:0;">
+    <!-- My Tasks - added 6 Oct 2026, mirroring the owner's own
+         reference task-tracking app (ported from AAA Direct's app, where
+         this was built and verified first, to all DSR apps same day - see
+         "only task manager give option to all dsr app" and the comment
+         block near TASKS_HEADERS in Code.gs). Shows tasks about this
+         DSR's own area - created by Owner/Manager/Area Manager, OR by
+         this DSR themselves. A DSR-created task is saved with
+         assignedTo=area=DSR_SHORT_NAME, the same identity this app
+         already uses everywhere else, so it: (a) keeps showing in this
+         DSR's own list (assignedTo match), (b) always shows to
+         Owner/Manager (they see every task unconditionally - see
+         taskRowVisible_ in Code.gs), and (c) shows to any Area Manager
+         whose AllowedAreas includes this DSR's short name (NOT the
+         district-name Area dropdown the dashboard's own "+ New" task
+         form uses, which is a different, geography-based field). -->
+    <details class="manage" id="myTasksDetails">
+      <summary>My Tasks <span id="myTasksCount" class="num" style="font-weight:500;"></span>
+        <button type="button" class="task-icon-btn" id="myTasksAddBtn" title="New task" style="float:right;">+ New</button>
+      </summary>
+      <div class="manage-body">
+        <p class="hint">Create a task about your own area, or see what your Owner/Manager/Area Manager created. Update status or add a comment here. Showing open tasks only
+          - <a href="#" id="myTasksShowCompletedLink" style="color:inherit;text-decoration:underline;">show completed too</a>.
+        </p>
+        <div id="myTaskCreateForm" hidden style="padding:8px 0 14px;border-bottom:1px solid var(--border);margin-bottom:10px;">
+          <input type="text" id="mtName" placeholder="Enter your Task Here" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);margin-bottom:8px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <select id="mtType" style="flex:1 1 120px;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+              <option>Sales</option><option>Stock</option><option>Payment</option><option selected>General</option><option>Others</option>
+            </select>
+            <input type="date" id="mtDueDate" style="flex:1 1 140px;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+            <!-- Reminder Time - exactly these 3 fixed slots, no free time
+                 entry. Blank = no reminder. See
+                 TASK_REMINDER_SLOTS_/checkTaskReminders_ further down for
+                 how this turns into an on-screen reminder later. -->
+            <select id="mtReminderTime" style="flex:1 1 140px;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+              <option value="">No reminder</option>
+              <option value="11:00 AM">Remind 11:00 AM</option>
+              <option value="3:00 PM">Remind 3:00 PM</option>
+              <option value="4:30 PM">Remind 4:30 PM</option>
+            </select>
+          </div>
+          <textarea id="mtRemarks" placeholder="Remarks (optional)" rows="2" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);margin-top:8px;resize:vertical;"></textarea>
+          <button type="button" class="task-icon-btn" id="mtSaveBtn" style="margin-top:8px;width:100%;">Create task</button>
+        </div>
+        <div id="myTasksList"><div class="task-empty-note">Loading…</div></div>
       </div>
     </details>
   </section>
@@ -4714,8 +4783,225 @@
       fetchLiveOverlay_();
       checkLastMonthReport_();
       setInterval(fetchLiveOverlay_, LIVE_OVERLAY_POLL_MS);
+      // My Tasks - ported from AAA Direct's app 6 Oct 2026, so a reminder
+      // can fire even if this DSR never opens the My Tasks panel
+      // themselves. 60s cadence matches this app's other "while the page
+      // is open" polls above; checkTaskReminders_() runs after every one
+      // of these fetches, not on its own separate timer.
+      if (typeof fetchMyTasks_ === "function") {
+        fetchMyTasks_();
+        setInterval(fetchMyTasks_, 60000);
+      }
     }
-    function doLoginGateSubmit() {
+  
+  // ----- My Tasks - ported from AAA Direct's app 6 Oct 2026 (see the
+  // HTML comment above the myTasksDetails markup). -----
+  var myTasksListEl = document.getElementById("myTasksList");
+  var myTasksCountEl = document.getElementById("myTasksCount");
+  var myTasksDetailsEl = document.getElementById("myTasksDetails");
+  var myTasksShowCompletedLinkEl = document.getElementById("myTasksShowCompletedLink");
+  var TASK_TYPE_CLASS_ = { "Sales": "task-type-sales", "Stock": "task-type-stock", "Payment": "task-type-payment", "Payment Follow-up": "task-type-payment", "General": "task-type-general", "Others": "task-type-general" };
+  // MY_TASKS_RAW_ holds every task this DSR can see, exactly as the
+  // server returned it (Completed included) - renderMyTasks_() filters
+  // from this on every render, per "always show open task only";
+  // checkTaskReminders_() also reads from this directly so a reminder
+  // can still fire for a task that's currently hidden by the
+  // completed-tasks filter.
+  var MY_TASKS_RAW_ = [];
+  var myTasksShowCompleted_ = false;
+
+  function fetchMyTasks_() {
+    if (!apiConfigured() || !myTasksListEl) return;
+    fetch(ORDERS_API_URL + "?type=tasks&viewerName=" + encodeURIComponent(DSR_SHORT_NAME) + "&viewerRole=DSR&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) { myTasksListEl.innerHTML = '<div class="task-empty-note">Could not load tasks.</div>'; return; }
+        MY_TASKS_RAW_ = data.tasks || [];
+        renderMyTasks_();
+        checkTaskReminders_(MY_TASKS_RAW_);
+      })
+      .catch(function () { myTasksListEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>'; });
+  }
+
+  // "always show open task only" - Completed tasks are hidden from the
+  // list (and from myTasksCount) by default; the "show completed too"
+  // link flips myTasksShowCompleted_ and re-renders from the same
+  // already-fetched MY_TASKS_RAW_, no extra network call.
+  function renderMyTasks_() {
+    var tasks = myTasksShowCompleted_ ? MY_TASKS_RAW_ : MY_TASKS_RAW_.filter(function (t) { return t.status !== "Completed"; });
+    if (myTasksCountEl) myTasksCountEl.textContent = tasks.length ? String(tasks.length) : "";
+    if (!tasks.length) { myTasksListEl.innerHTML = '<div class="task-empty-note">No tasks right now.</div>'; return; }
+    var html = "";
+    for (var i = 0; i < tasks.length; i++) {
+      var t = tasks[i];
+      var typeClass = TASK_TYPE_CLASS_[t.type] || "task-type-general";
+      var statuses = ["Open", "In Progress", "On Hold", "Completed"];
+      var optionsHtml = statuses.map(function (s) { return '<option' + (s === t.status ? " selected" : "") + '>' + s + '</option>'; }).join("");
+      // Delete button - only for the task's own creator (checked again
+      // server-side in handleTaskDelete_ - this is just so the button
+      // isn't even shown to someone it would reject anyway).
+      var deleteBtnHtml = (t.createdBy && t.createdBy === DSR_SHORT_NAME)
+        ? '<button type="button" class="task-icon-btn task-delete-btn" title="Delete this task" style="margin-left:6px;">Delete</button>'
+        : '';
+      var remarksHtml = t.remarks ? ('<div class="task-meta">Remarks: ' + escapeHtml(t.remarks) + '</div>') : '';
+      var reminderHtml = t.reminderTime ? (' &middot; Reminder ' + escapeHtml(t.reminderTime)) : '';
+      var commentsHtml = (t.comments || []).map(function (c) {
+        return '<div class="task-comment-row"><b>' + escapeHtml(c.author) + ':</b> ' + escapeHtml(c.text) + '</div>';
+      }).join("");
+      html += '<div class="task-card" data-task-id="' + escapeHtml(t.id) + '">' +
+        '<div class="task-card-head"><span class="task-name">' + escapeHtml(t.name) + '</span>' +
+        '<span class="task-type-badge ' + typeClass + '">' + escapeHtml(t.type) + '</span></div>' +
+        '<div class="task-pills"><select class="task-status-select">' + optionsHtml + '</select>' + deleteBtnHtml + '</div>' +
+        '<div class="task-meta">Due ' + escapeHtml(t.dueDate || "—") + ' &middot; Created by ' + escapeHtml(t.createdBy || "") + reminderHtml + '</div>' +
+        remarksHtml +
+        '<div class="task-comments">' + commentsHtml + '</div>' +
+        '<div class="task-card-foot"><input type="text" class="task-comment-input" placeholder="Add a comment…">' +
+        '<button type="button" class="task-icon-btn" title="Comments">💬 ' + (t.comments ? t.comments.length : 0) + '</button></div>' +
+        '</div>';
+    }
+    myTasksListEl.innerHTML = html;
+  }
+
+  if (myTasksShowCompletedLinkEl) {
+    myTasksShowCompletedLinkEl.addEventListener("click", function (e) {
+      e.preventDefault();
+      myTasksShowCompleted_ = !myTasksShowCompleted_;
+      myTasksShowCompletedLinkEl.textContent = myTasksShowCompleted_ ? "show open only" : "show completed too";
+      renderMyTasks_();
+    });
+  }
+
+  if (myTasksListEl) {
+    myTasksListEl.addEventListener("change", function (e) {
+      if (!e.target.classList.contains("task-status-select")) return;
+      var cardEl = e.target.closest(".task-card");
+      postToApi("taskUpdateStatus", { id: cardEl.getAttribute("data-task-id"), status: e.target.value }).then(function (res) {
+        if (res && res.ok) fetchMyTasks_();
+      }).catch(function () { /* best-effort */ });
+    });
+    myTasksListEl.addEventListener("click", function (e) {
+      var deleteBtn = e.target.closest(".task-delete-btn");
+      if (deleteBtn) {
+        var delCardEl = deleteBtn.closest(".task-card");
+        var delTaskId = delCardEl.getAttribute("data-task-id");
+        if (!window.confirm("Delete this task? This can't be undone.")) return;
+        postToApi("taskDelete", { id: delTaskId, requestedBy: DSR_SHORT_NAME }).then(function (res) {
+          if (res && res.ok) fetchMyTasks_();
+          else alert("Could not delete: " + ((res && res.error) || "unknown error"));
+        }).catch(function () { alert("Could not reach the server."); });
+        return;
+      }
+      var btn = e.target.closest(".task-icon-btn");
+      if (!btn || !btn.title || btn.title.indexOf("Comments") === -1) return;
+      var cardEl = btn.closest(".task-card");
+      var inputEl = cardEl.querySelector(".task-comment-input");
+      var text = inputEl && inputEl.value.trim();
+      if (!text) return;
+      postToApi("taskAddComment", { taskId: cardEl.getAttribute("data-task-id"), author: DSR_SHORT_NAME, text: text }).then(function (res) {
+        if (res && res.ok) { inputEl.value = ""; fetchMyTasks_(); }
+      }).catch(function () { /* best-effort */ });
+    });
+  }
+  if (myTasksDetailsEl) {
+    myTasksDetailsEl.addEventListener("toggle", function () { if (myTasksDetailsEl.open) fetchMyTasks_(); });
+  }
+
+  // "+ New" - DSR-created task. Status always starts "Open"; createdBy
+  // is this DSR's own display name, same convention as taskAddComment's
+  // author above.
+  var myTasksAddBtnEl = document.getElementById("myTasksAddBtn");
+  var myTaskCreateFormEl = document.getElementById("myTaskCreateForm");
+  if (myTasksAddBtnEl && myTaskCreateFormEl) {
+    myTasksAddBtnEl.addEventListener("click", function (e) {
+      e.preventDefault();
+      myTaskCreateFormEl.hidden = !myTaskCreateFormEl.hidden;
+    });
+  }
+  var mtSaveBtnEl = document.getElementById("mtSaveBtn");
+  if (mtSaveBtnEl) {
+    mtSaveBtnEl.addEventListener("click", function () {
+      var nameEl = document.getElementById("mtName");
+      var name = (nameEl && nameEl.value || "").trim();
+      if (!name) { alert("Enter a task name."); return; }
+      postToApi("taskCreate", {
+        name: name,
+        type: (document.getElementById("mtType") || {}).value || "General",
+        status: "Open",
+        dueDate: (document.getElementById("mtDueDate") || {}).value || "",
+        createdBy: DSR_SHORT_NAME,
+        assignedTo: DSR_SHORT_NAME,
+        area: DSR_SHORT_NAME,
+        remarks: (document.getElementById("mtRemarks") || {}).value || "",
+        reminderTime: (document.getElementById("mtReminderTime") || {}).value || ""
+      }).then(function (res) {
+        if (res && res.ok) {
+          nameEl.value = "";
+          document.getElementById("mtDueDate").value = "";
+          document.getElementById("mtRemarks").value = "";
+          document.getElementById("mtReminderTime").value = "";
+          myTaskCreateFormEl.hidden = true;
+          fetchMyTasks_();
+        } else {
+          alert("Could not create task - please try again.");
+        }
+      }).catch(function () { alert("Could not reach the server."); });
+    });
+  }
+
+  // ----- Task reminders (on-screen, this device only). No push
+  // notifications - this is a plain static page, nothing can wake it up
+  // in the background - so this only works while the app is open:
+  // checked once a minute against the task's own reminderTime slot, and
+  // only for a task due TODAY and not yet Completed. localStorage
+  // remembers which (task, date, slot) combinations already fired so
+  // reopening/re-polling the app doesn't show the same reminder over and
+  // over in the same day. -----
+  var TASK_REMINDER_SLOTS_ = { "11:00 AM": 11 * 60, "3:00 PM": 15 * 60, "4:30 PM": 16 * 60 + 30 };
+  var TASK_REMINDER_WINDOW_MIN_ = 15;
+  var TASK_REMINDER_SEEN_KEY_ = "taskReminderSeen_" + (typeof DSR_SHORT_NAME === "string" ? DSR_SHORT_NAME : "app");
+  function taskReminderTodayKey_() {
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function taskReminderAlreadyShown_(taskId, slot) {
+    try {
+      var seen = JSON.parse(localStorage.getItem(TASK_REMINDER_SEEN_KEY_) || "{}");
+      return seen[taskReminderTodayKey_() + "|" + taskId + "|" + slot] === true;
+    } catch (e) { return false; }
+  }
+  function taskReminderMarkShown_(taskId, slot) {
+    try {
+      var seen = JSON.parse(localStorage.getItem(TASK_REMINDER_SEEN_KEY_) || "{}");
+      seen[taskReminderTodayKey_() + "|" + taskId + "|" + slot] = true;
+      localStorage.setItem(TASK_REMINDER_SEEN_KEY_, JSON.stringify(seen));
+    } catch (e) { /* ignore - private browsing / storage disabled */ }
+  }
+  function showTaskReminderToast_(task) {
+    var toast = document.createElement("div");
+    toast.textContent = "Reminder (" + task.reminderTime + "): " + task.name;
+    toast.style.cssText = "position:fixed;left:12px;right:12px;bottom:18px;z-index:9999;background:#2563eb;color:#fff;padding:12px 14px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.25);font-size:13px;line-height:1.4;";
+    document.body.appendChild(toast);
+    setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 9000);
+  }
+  function checkTaskReminders_(tasks) {
+    if (!tasks || !tasks.length) return;
+    var now = new Date();
+    var nowMinutes = now.getHours() * 60 + now.getMinutes();
+    var todayIso = taskReminderTodayKey_();
+    for (var i = 0; i < tasks.length; i++) {
+      var t = tasks[i];
+      if (!t.reminderTime || t.status === "Completed") continue;
+      if ((t.dueDate || "") !== todayIso) continue;
+      var slotMinutes = TASK_REMINDER_SLOTS_[t.reminderTime];
+      if (slotMinutes === undefined) continue;
+      if (nowMinutes < slotMinutes || nowMinutes > slotMinutes + TASK_REMINDER_WINDOW_MIN_) continue;
+      if (taskReminderAlreadyShown_(t.id, t.reminderTime)) continue;
+      taskReminderMarkShown_(t.id, t.reminderTime);
+      showTaskReminderToast_(t);
+    }
+  }
+
+  function doLoginGateSubmit() {
       var pwEl = document.getElementById("loginGatePassword");
       var errEl = document.getElementById("loginGateError");
       var btnEl = document.getElementById("loginGateBtn");

@@ -2105,7 +2105,7 @@
     <div class="dsr-row-body">
       <div id="taskCreateForm" hidden style="padding:10px 18px;border-bottom:1px solid var(--border);">
         <div class="master-file-filters" style="padding:4px 0;">
-          <span style="flex:1 1 220px;"><label>Task Name</label><input type="text" id="tcName" placeholder="e.g. Petronas Dindigul Area (Arun)" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
+          <span style="flex:1 1 220px;"><label>Task Name</label><input type="text" id="tcName" placeholder="Enter your Task Here" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
           <span><label>Type</label><select id="tcType"><option>Sales</option><option>Stock</option><option>Payment</option><option>General</option><option>Others</option></select></span>
           <span><label>Due Date</label><input type="date" id="tcDueDate" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
           <!-- Reminder Time - added 6 Oct 2026, same 3 fixed slots as the
@@ -8561,6 +8561,20 @@
     if (stockDetails) stockDetails.hidden = sectionHidden_('stocks');
     var petronasSummaryBlock = document.getElementById('capturePetronasSummary');
     if (petronasSummaryBlock) petronasSummaryBlock.hidden = sectionHidden_('petronasSummary');
+    // Master File - added 6 Oct 2026, hard-coded Owner-only for now (NOT
+    // wired through sectionHidden_()/the Admin panel's per-role toggle,
+    // unlike the blocks above) per the owner's explicit instruction:
+    // "remove master file from manager and area manager id - will
+    // develop it with me and after full setup will give to all". Revisit
+    // once that development/rollout is actually done - at that point this
+    // probably belongs in SECTION_VIS_KNOWN_KEYS_ instead so the owner can
+    // turn it on from the Admin panel per role rather than needing a code
+    // change. isManagerRole_() covers exactly 'Manager' and 'Area Manager'.
+    var masterFileHideForRole = isManagerRole_(role);
+    var masterFileLabelEl = document.getElementById('masterFileLabel');
+    if (masterFileLabelEl) masterFileLabelEl.hidden = masterFileHideForRole;
+    var masterFileDetailsEl = document.getElementById('masterFileDetails');
+    if (masterFileDetailsEl) masterFileDetailsEl.hidden = masterFileHideForRole;
     // Simplified 2 Oct 2026 when the picker became one foldable
     // <details id="reportPeriodDetails"> (see the long HTML comment above
     // it) - hiding that one wrapper hides the summary line AND every row
