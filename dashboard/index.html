@@ -503,6 +503,50 @@
   .age-table { border-collapse: collapse; min-width: 480px; font-size: 12.5px; table-layout: fixed; }
   .age-table th, .age-table td { padding: 7px 10px; text-align: center; white-space: nowrap; border-bottom: 1px solid var(--border); }
   .age-table th:first-child, .age-table td:first-child { text-align: center; font-weight: 600; color: var(--ink-secondary); position: sticky; left: 0; background: var(--surface); }
+
+  /* Master File + Task Manager - added 6 Oct 2026, see
+     fetchMasterFile_()/renderMasterFileTable_()/fetchTasks_()/
+     renderTaskManager_() below for the live wiring. */
+  .master-file-table { border-collapse: collapse; min-width: 980px; font-size: 12.5px; table-layout: fixed; }
+  .master-file-table th, .master-file-table td { padding: 7px 10px; text-align: center; white-space: nowrap; border-bottom: 1px solid var(--border); }
+  .master-file-table th:first-child, .master-file-table td:first-child { text-align: left; font-weight: 600; color: var(--ink-secondary); white-space: normal; }
+  .master-file-table th { font-size: 11px; color: var(--ink-muted); font-weight: 600; white-space: normal; }
+  .master-file-table td.mf-num { font-variant-numeric: tabular-nums; }
+  .master-file-table td.mf-good { color: var(--good); font-weight: 700; }
+  .master-file-table td.mf-warn { color: var(--warn); font-weight: 700; }
+  .master-file-table td.mf-money { color: var(--money); }
+  .master-file-filters { display: flex; gap: 10px; flex-wrap: wrap; padding: 10px 18px 4px; align-items: center; }
+  .master-file-filters select { font-size: 12.5px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); }
+  .master-file-filters label { font-size: 11px; color: var(--ink-muted); margin-right: 3px; }
+  .mf-remarks-cell { white-space:normal !important; text-align:left !important; max-width:220px; }
+  .mf-remark-text { font-size:11px; color:var(--ink-secondary); line-height:1.3; }
+  .mf-remark-btn { border:none; background:transparent; color:var(--accent); cursor:pointer; font-size:11.5px; margin-top:2px; }
+  .mf-remark-add { background:var(--accent-soft); color:var(--accent); border-radius:5px; padding:3px 8px; }
+  .mf-editable { position: relative; }
+  .mf-edit-input { width: 80px; padding: 3px 5px; border-radius: 5px; border: 1px solid var(--border); font-size: 12px; text-align: right; }
+  .mf-beat-input, .mf-area-input { text-align: left; background: var(--surface); color: var(--ink); }
+  .mf-area-input { width: 110px; }
+
+  .task-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin: 10px 4px; background: var(--surface); }
+  .task-card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .task-name { font-weight:700; font-size:13.5px; color: var(--ink); }
+  .task-type-badge { font-size:10.5px; font-weight:600; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+  .task-type-payment { background: var(--money-soft); color: var(--money); }
+  .task-type-sales { background: var(--good-soft); color: var(--good); }
+  .task-type-stock { background: var(--warn-soft); color: var(--warn); }
+  .task-type-general { background: var(--surface-alt, #f0ece2); color: var(--ink-muted); }
+  .task-pills { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; align-items: center; }
+  .task-pill { font-size:10.5px; font-weight:600; padding:4px 10px; border-radius:999px; }
+  .task-pill-type { background: var(--surface-alt, #f0ece2); color: var(--ink-muted); }
+  .task-status-select { font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; border:1px solid var(--border); background: var(--warn-soft); color: var(--warn); }
+  .task-meta { font-size:11px; color: var(--ink-muted); margin-top:8px; }
+  .task-card-foot { display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap: wrap; }
+  .task-icon-btn { border:1px solid var(--border); background: var(--surface); border-radius:8px; padding:4px 10px; font-size:11.5px; cursor:pointer; }
+  .task-visible-tag { font-size:10px; color: var(--ink-muted); }
+  .task-comments { margin-top: 8px; }
+  .task-comment-row { font-size: 11px; color: var(--ink-secondary); padding: 3px 0; border-top: 1px dashed var(--border); }
+  .task-comment-input { flex: 1 1 140px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); font-size: 12px; }
+
   /* Long dealer/item names (e.g. "SRI MEENAKSHI AUTO STORES,APT (OIL)")
      were pushing the numeric columns off-screen on mobile, hiding the
      figures the owner actually needs while scrolling - added 25 Sep 2026.
@@ -1993,6 +2037,84 @@
     <div class="dsr-row-body">
       <div id="petronasSummaryWrap"></div>
       <p style="font-size:11px;color:var(--ink-muted);margin:8px 4px 0;">Jan–Aug 2026: static snapshot, confirmed by the owner 1 Oct 2026. Sep 2026 onward: live, synced automatically from Tally.</p>
+    </div>
+  </details>
+</div>
+<div id="captureMasterFile">
+  <p class="section-label" id="masterFileLabel">Master File (dealer-wise Sales &amp; Collection)</p>
+  <details class="dsr-row" id="masterFileDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Master File</span>
+        <span class="card-territory" id="masterFileTerritory">This month · fill/edit each dealer's target below</span></span>
+      <span class="dsr-row-headright">
+        <button type="button" class="share-icon-btn small" id="exportMasterFileXlsxBtn" title="Export as Excel — same columns as your Master File upload" style="margin-left:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        </button>
+      </span>
+    </summary>
+    <div class="dsr-row-body">
+      <div class="master-file-filters">
+        <span><label>DSR</label><select id="mfDsrFilter"><option value="">All</option></select></span>
+        <span><label>Beat Day</label><select id="mfBeatFilter"><option value="">All</option><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Not set</option></select></span>
+        <span><label>Area</label><select id="mfAreaFilter"><option value="">All</option></select></span>
+      </div>
+      <div class="age-table-scroll">
+        <table class="master-file-table" id="mfCurrentTable">
+          <thead>
+            <tr>
+              <th>Dealer</th>
+              <th>DSR</th>
+              <th>Beat Day</th>
+              <th>Area</th>
+              <th>Overall Outstanding<br><span style="font-weight:400;font-size:9.5px;">(as of month start)</span></th>
+              <th>Collectable<br><span style="font-weight:400;font-size:9.5px;">(45+ days)</span></th>
+              <th>Sales Target (Ltr)</th>
+              <th>Sales Actual (Ltr)</th>
+              <th>Sales Balance</th>
+              <th>Collection Plan (₹)</th>
+              <th>Collection Actual (₹)</th>
+              <th>Collection Balance</th>
+              <th>Remarks</th>
+            </tr>
+          </thead>
+          <tbody id="mfCurrentTableBody"><tr><td colspan="12" style="text-align:center;color:var(--ink-muted);">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <p style="font-size:11px;color:var(--ink-muted);margin:8px 18px 0;" id="mfFooterNote"></p>
+    </div>
+  </details>
+</div>
+
+<div id="captureTaskManager">
+  <p class="section-label" id="taskManagerLabel">Task Manager</p>
+  <details class="dsr-row" id="taskManagerDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Task Manager</span>
+        <span class="card-territory" id="taskManagerTerritory">Visible here, in the Area Manager login and in each DSR's own app</span></span>
+      <span class="dsr-row-headright">
+        <button type="button" class="task-icon-btn" id="taskManagerAddBtn" title="New task" style="margin-left:6px;">+ New</button>
+      </span>
+    </summary>
+    <div class="dsr-row-body">
+      <div id="taskCreateForm" hidden style="padding:10px 18px;border-bottom:1px solid var(--border);">
+        <div class="master-file-filters" style="padding:4px 0;">
+          <span style="flex:1 1 220px;"><label>Task Name</label><input type="text" id="tcName" placeholder="e.g. Petronas Dindigul Area (Arun)" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
+          <span><label>Type</label><select id="tcType"><option>Sales</option><option>Stock</option><option>Payment</option><option>General</option><option>Others</option></select></span>
+          <span><label>Due Date</label><input type="date" id="tcDueDate" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
+        </div>
+        <div class="master-file-filters" style="padding:4px 0;">
+          <span><label>Assigned To (DSR)</label><select id="tcAssignedTo"></select></span>
+          <span><label>Area</label><select id="tcArea"></select></span>
+          <span style="flex:1 1 180px;"><label>Also visible to</label><input type="text" id="tcAlsoVisible" placeholder="comma-separated names" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
+        </div>
+        <button type="button" class="share-icon-btn small" id="tcSaveBtn" style="font-size:12px;padding:6px 14px;width:auto;border-radius:6px;margin-top:6px;">Create task</button>
+      </div>
+      <div class="master-file-filters" style="padding-bottom:0;">
+        <span><label>Show</label><select id="tmFilter"><option value="all">All tasks</option><option value="open">Open / In Progress / On Hold</option><option value="done">Completed</option></select></span>
+      </div>
+      <div id="taskManagerList"><p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">Loading…</p></div>
     </div>
   </details>
 </div>
@@ -7519,6 +7641,315 @@
     }).then(function (r) { return r.json(); });
   }
 
+  // ===================================================================
+  // Master File + Task Manager - added 6 Oct 2026. Live-wired to the new
+  // ?type=masterFile / ?type=tasks endpoints and the dealerTargetSet/
+  // dealerRemarkAdd/taskCreate/taskUpdateStatus/taskAddComment actions on
+  // Code.gs (see the big comment block above handleDealerTargetsGet_()
+  // there for the full feature). This first build covers the CURRENT
+  // month only - a past-month history view and "Review by DSR" (every
+  // month Jan 2026-present side by side, for one DSR's own dealers) use
+  // the ?type=masterFileReview endpoint, already live on the backend,
+  // but aren't wired into this screen yet; same for the month picker.
+  // visibleDsrs_() (declared above) gives this filtering for free, the
+  // same way every other section on this dashboard already scopes a
+  // restricted Area Manager's own view.
+  function mfEscapeHtml_(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function mfMoney_(n) {
+    if (n === null || n === undefined || n === "") return "—";
+    return "₹" + Math.round(Number(n)).toLocaleString("en-IN");
+  }
+  function mfNum_(n) {
+    if (n === null || n === undefined || n === "") return "—";
+    return Number(n).toLocaleString("en-IN");
+  }
+
+  var MASTER_FILE_DATA_ = [];
+  function currentMonthKeyISO_dashboard_() {
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  }
+
+  function fetchMasterFile_() {
+    var bodyEl = document.getElementById("mfCurrentTableBody");
+    if (!bodyEl || typeof ORDERS_API_URL !== "string") return;
+    var month = currentMonthKeyISO_dashboard_();
+    fetch(ORDERS_API_URL + "?type=masterFile&month=" + encodeURIComponent(month) + "&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) { bodyEl.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--ink-muted);">Could not load the Master File.</td></tr>'; return; }
+        MASTER_FILE_DATA_ = data.dealers || [];
+        populateMasterFileFilterOptions_();
+        renderMasterFileTable_();
+        var footEl = document.getElementById("mfFooterNote");
+        if (footEl) {
+          footEl.textContent = "Showing " + MASTER_FILE_DATA_.length + " dealers for " + month + ". Target/Plan (pencil icon): editable here or by each DSR in their own app. " +
+            (data.outstandingIsSnapshot ? ("Overall Outstanding is the frozen balance as of " + data.outstandingAsOfMonthKey + "'s month-end.") : "Overall Outstanding: live balance (no month-start freeze found yet for this month).");
+        }
+      })
+      .catch(function () { bodyEl.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--ink-muted);">Could not reach the server.</td></tr>'; });
+  }
+
+  function populateMasterFileFilterOptions_() {
+    var dsrSel = document.getElementById("mfDsrFilter");
+    var areaSel = document.getElementById("mfAreaFilter");
+    if (!dsrSel || !areaSel) return;
+    var dsrs = {}, areas = {};
+    MASTER_FILE_DATA_.forEach(function (d) { if (d.dsrName) dsrs[d.dsrName] = true; if (d.area) areas[d.area] = true; });
+    var dsrVal = dsrSel.value, areaVal = areaSel.value;
+    dsrSel.innerHTML = '<option value="">All</option>' + Object.keys(dsrs).sort().map(function (n) { return '<option>' + mfEscapeHtml_(n) + '</option>'; }).join("");
+    areaSel.innerHTML = '<option value="">All</option>' + Object.keys(areas).sort().map(function (n) { return '<option>' + mfEscapeHtml_(n) + '</option>'; }).join("");
+    dsrSel.value = dsrVal; areaSel.value = areaVal;
+  }
+
+  function renderMasterFileTable_() {
+    var bodyEl = document.getElementById("mfCurrentTableBody");
+    if (!bodyEl) return;
+    var dsrFilter = (document.getElementById("mfDsrFilter") || {}).value || "";
+    var beatFilter = (document.getElementById("mfBeatFilter") || {}).value || "";
+    var areaFilter = (document.getElementById("mfAreaFilter") || {}).value || "";
+    var allowedNames = (typeof visibleDsrs_ === "function") ? visibleDsrs_().map(function (d) { return d.name; }) : null;
+
+    var rows = MASTER_FILE_DATA_.filter(function (d) {
+      if (allowedNames && allowedNames.indexOf(d.dsrName) === -1) return false;
+      if (dsrFilter && d.dsrName !== dsrFilter) return false;
+      if (areaFilter && d.area !== areaFilter) return false;
+      if (beatFilter === "Not set" && d.beatDay) return false;
+      if (beatFilter && beatFilter !== "Not set" && d.beatDay !== beatFilter) return false;
+      return true;
+    });
+
+    if (!rows.length) { bodyEl.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--ink-muted);">No dealers match this filter.</td></tr>'; return; }
+
+    var html = "";
+    for (var i = 0; i < rows.length; i++) {
+      var d = rows[i];
+      var salesBalance = (d.salesLtr !== null && d.salesTargetLtr !== null) ? (d.salesLtr - d.salesTargetLtr) : null;
+      var collBalance = (d.collectionRs !== null && d.collectionPlanRs !== null) ? (d.collectionRs - d.collectionPlanRs) : null;
+      var remarkHtml = d.remark
+        ? ('<div class="mf-remark-text">“' + mfEscapeHtml_(d.remark) + '” — ' + mfEscapeHtml_(d.remarkBy || "") + '</div><button type="button" class="mf-remark-btn" data-dealer="' + mfEscapeHtml_(d.dealer) + '" title="Add another remark">+ Add</button>')
+        : ('<button type="button" class="mf-remark-btn mf-remark-add" data-dealer="' + mfEscapeHtml_(d.dealer) + '" title="Add remark">+ Add</button>');
+      var beatOptions = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map(function (b) {
+        return '<option value="' + b + '"' + (b === (d.beatDay || "") ? " selected" : "") + '>' + (b || "Not set") + '</option>';
+      }).join("");
+      html += '<tr data-dealer="' + mfEscapeHtml_(d.dealer) + '">' +
+        '<td>' + mfEscapeHtml_(d.dealer) + '</td>' +
+        '<td>' + mfEscapeHtml_(d.dsrName) + '</td>' +
+        '<td class="mf-editable"><select class="mf-edit-input mf-beat-input">' + beatOptions + '</select></td>' +
+        '<td class="mf-editable"><input type="text" class="mf-edit-input mf-area-input" value="' + mfEscapeHtml_(d.area || "") + '" placeholder="Not set"></td>' +
+        '<td class="mf-num mf-money">' + mfMoney_(d.overallOutstandingRs) + '</td>' +
+        '<td class="mf-num' + (d.collectableRs ? ' mf-warn' : '') + '">' + mfMoney_(d.collectableRs) + '</td>' +
+        '<td class="mf-num mf-editable"><input type="number" class="mf-edit-input mf-target-input" value="' + (d.salesTargetLtr === null ? "" : d.salesTargetLtr) + '" placeholder="0"></td>' +
+        '<td class="mf-num">' + mfNum_(d.salesLtr) + '</td>' +
+        '<td class="mf-num' + (salesBalance !== null && salesBalance < 0 ? ' mf-warn' : (salesBalance !== null ? ' mf-good' : '')) + '">' + (salesBalance === null ? '—' : (salesBalance >= 0 ? '+' : '') + mfNum_(salesBalance)) + '</td>' +
+        '<td class="mf-num mf-editable"><input type="number" class="mf-edit-input mf-plan-input" value="' + (d.collectionPlanRs === null ? "" : d.collectionPlanRs) + '" placeholder="0"></td>' +
+        '<td class="mf-num mf-money">' + mfMoney_(d.collectionRs) + '</td>' +
+        '<td class="mf-num' + (collBalance !== null && collBalance < 0 ? ' mf-warn' : (collBalance !== null ? ' mf-good' : '')) + '">' + (collBalance === null ? '—' : (collBalance >= 0 ? '+' : '') + mfMoney_(collBalance)) + '</td>' +
+        '<td class="mf-remarks-cell">' + remarkHtml + '</td>' +
+        '</tr>';
+    }
+    bodyEl.innerHTML = html;
+  }
+
+  function saveMasterFileTarget_(rowEl) {
+    var dealer = rowEl.getAttribute("data-dealer");
+    var ltrEl = rowEl.querySelector(".mf-target-input");
+    var planEl = rowEl.querySelector(".mf-plan-input");
+    dashboardApiPost_("dealerTargetSet", {
+      month: currentMonthKeyISO_dashboard_(), dealer: dealer,
+      salesTargetLtr: ltrEl && ltrEl.value !== "" ? Number(ltrEl.value) : null,
+      collectionPlanRs: planEl && planEl.value !== "" ? Number(planEl.value) : null,
+      editedBy: CURRENT_USER_NAME || ""
+    }).then(function (res) { if (res && res.ok) fetchMasterFile_(); }).catch(function () { /* best-effort */ });
+  }
+
+  // Beat Day / Area - added 6 Oct 2026, mainly for a dealer that just
+  // arrived via the backend's new roster auto-add (see
+  // autoAddMissingDealerMeta_() in Code.gs) and has no Beat Day/Area yet.
+  // Lighter-weight than re-importing the whole Master File Excel for one
+  // dealer; does NOT touch DSR Name (that still only comes from Tally's
+  // own roster or the Excel import).
+  function saveMasterFileMeta_(rowEl) {
+    var dealer = rowEl.getAttribute("data-dealer");
+    var beatEl = rowEl.querySelector(".mf-beat-input");
+    var areaEl = rowEl.querySelector(".mf-area-input");
+    dashboardApiPost_("dealerMetaSet", {
+      dealer: dealer,
+      beatDay: beatEl ? beatEl.value : undefined,
+      area: areaEl ? areaEl.value : undefined
+    }).then(function (res) { if (res && res.ok) fetchMasterFile_(); }).catch(function () { /* best-effort */ });
+  }
+
+  ["mfDsrFilter", "mfBeatFilter", "mfAreaFilter"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("change", renderMasterFileTable_);
+  });
+  var mfTableBodyEl = document.getElementById("mfCurrentTableBody");
+  if (mfTableBodyEl) {
+    mfTableBodyEl.addEventListener("change", function (e) {
+      if (e.target.classList.contains("mf-target-input") || e.target.classList.contains("mf-plan-input")) {
+        saveMasterFileTarget_(e.target.closest("tr"));
+      }
+      if (e.target.classList.contains("mf-beat-input") || e.target.classList.contains("mf-area-input")) {
+        saveMasterFileMeta_(e.target.closest("tr"));
+      }
+    });
+    mfTableBodyEl.addEventListener("click", function (e) {
+      var btn = e.target.closest(".mf-remark-btn");
+      if (!btn) return;
+      var dealer = btn.getAttribute("data-dealer");
+      var remark = window.prompt("Remark for " + dealer + " (shown in their DSR's app):", "");
+      if (!remark) return;
+      dashboardApiPost_("dealerRemarkAdd", { dealer: dealer, remark: remark, by: CURRENT_USER_NAME || "" })
+        .then(function (res) { if (res && res.ok) fetchMasterFile_(); }).catch(function () { /* best-effort */ });
+    });
+  }
+  var exportMfBtnEl = document.getElementById("exportMasterFileXlsxBtn");
+  if (exportMfBtnEl) {
+    exportMfBtnEl.addEventListener("click", function () {
+      if (typeof ORDERS_API_URL !== "string") return;
+      exportMfBtnEl.disabled = true;
+      var origTitle = exportMfBtnEl.title;
+      exportMfBtnEl.title = "Preparing export…";
+      fetch(ORDERS_API_URL + "?type=masterFileExport&month=" + encodeURIComponent(currentMonthKeyISO_dashboard_()) + "&_ts=" + Date.now(), { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          exportMfBtnEl.disabled = false;
+          exportMfBtnEl.title = origTitle;
+          if (res && res.ok && res.downloadUrl) window.open(res.downloadUrl, "_blank");
+          else window.alert("Export failed: " + ((res && res.error) || "unknown error"));
+        })
+        .catch(function () { exportMfBtnEl.disabled = false; exportMfBtnEl.title = origTitle; window.alert("Could not reach the server."); });
+    });
+  }
+
+  // ----- Task Manager -----
+  var TASKS_DATA_ = [];
+  var TASK_TYPE_CLASS_DASH_ = { "Sales": "task-type-sales", "Stock": "task-type-stock", "Payment": "task-type-payment", "General": "task-type-general", "Others": "task-type-general" };
+
+  function fetchTasks_() {
+    var listEl = document.getElementById("taskManagerList");
+    if (!listEl || typeof ORDERS_API_URL !== "string") return;
+    var allowedAreasStr = CURRENT_ALLOWED_AREAS ? CURRENT_ALLOWED_AREAS.join(",") : "";
+    fetch(ORDERS_API_URL + "?type=tasks&viewerName=" + encodeURIComponent(CURRENT_USER_NAME || "") + "&viewerRole=" + encodeURIComponent(CURRENT_USER_ROLE || "") + "&allowedAreas=" + encodeURIComponent(allowedAreasStr) + "&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) { listEl.innerHTML = '<p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">Could not load tasks.</p>'; return; }
+        TASKS_DATA_ = data.tasks || [];
+        renderTaskManager_();
+      })
+      .catch(function () { listEl.innerHTML = '<p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">Could not reach the server.</p>'; });
+  }
+
+  function renderTaskManager_() {
+    var listEl = document.getElementById("taskManagerList");
+    if (!listEl) return;
+    var filterVal = (document.getElementById("tmFilter") || {}).value || "all";
+    var tasks = TASKS_DATA_.filter(function (t) {
+      if (filterVal === "open") return t.status !== "Completed";
+      if (filterVal === "done") return t.status === "Completed";
+      return true;
+    });
+    if (!tasks.length) { listEl.innerHTML = '<p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">No tasks.</p>'; return; }
+    var canCreate = (CURRENT_USER_ROLE === "Owner" || CURRENT_USER_ROLE === "Manager");
+    var statuses = ["Open", "In Progress", "On Hold", "Completed"];
+    var html = "";
+    for (var i = 0; i < tasks.length; i++) {
+      var t = tasks[i];
+      var typeClass = TASK_TYPE_CLASS_DASH_[t.type] || "task-type-general";
+      var optionsHtml = statuses.map(function (s) { return '<option' + (s === t.status ? " selected" : "") + '>' + s + '</option>'; }).join("");
+      var commentsHtml = (t.comments || []).map(function (c) {
+        return '<div class="task-comment-row"><b>' + mfEscapeHtml_(c.author) + ':</b> ' + mfEscapeHtml_(c.text) + '</div>';
+      }).join("");
+      html += '<div class="task-card" data-task-id="' + mfEscapeHtml_(t.id) + '">' +
+        '<div class="task-card-head"><span class="task-name">' + mfEscapeHtml_(t.name) + '</span>' +
+        '<span class="task-type-badge ' + typeClass + '">' + mfEscapeHtml_(t.type) + '</span></div>' +
+        '<div class="task-pills"><select class="task-status-select">' + optionsHtml + '</select>' +
+        '<span class="task-pill task-pill-type">' + mfEscapeHtml_(t.assignedTo || "Unassigned") + '</span></div>' +
+        '<div class="task-meta">Due ' + mfEscapeHtml_(t.dueDate || "—") + ' &middot; Created by ' + mfEscapeHtml_(t.createdBy || "") + '</div>' +
+        '<div class="task-comments">' + commentsHtml + '</div>' +
+        '<div class="task-card-foot"><input type="text" class="task-comment-input" placeholder="Add a comment…">' +
+        '<button type="button" class="task-icon-btn task-comment-send" title="Add comment">Comment</button>' +
+        (t.alsoVisibleTo && t.alsoVisibleTo.length ? ('<span class="task-visible-tag">Also visible: ' + mfEscapeHtml_(t.alsoVisibleTo.join(", ")) + '</span>') : '') +
+        '</div></div>';
+    }
+    listEl.innerHTML = html;
+    void canCreate; // reserved for a future "assign-only" DSR view distinction
+  }
+
+  var tmFilterEl = document.getElementById("tmFilter");
+  if (tmFilterEl) tmFilterEl.addEventListener("change", renderTaskManager_);
+  var taskManagerListEl = document.getElementById("taskManagerList");
+  if (taskManagerListEl) {
+    taskManagerListEl.addEventListener("change", function (e) {
+      if (!e.target.classList.contains("task-status-select")) return;
+      var cardEl = e.target.closest(".task-card");
+      dashboardApiPost_("taskUpdateStatus", { id: cardEl.getAttribute("data-task-id"), status: e.target.value }).then(function (res) {
+        if (res && res.ok) fetchTasks_();
+      }).catch(function () { /* best-effort */ });
+    });
+    taskManagerListEl.addEventListener("click", function (e) {
+      var btn = e.target.closest(".task-comment-send");
+      if (!btn) return;
+      var cardEl = btn.closest(".task-card");
+      var inputEl = cardEl.querySelector(".task-comment-input");
+      var text = inputEl && inputEl.value.trim();
+      if (!text) return;
+      dashboardApiPost_("taskAddComment", { taskId: cardEl.getAttribute("data-task-id"), author: CURRENT_USER_NAME || "", text: text })
+        .then(function (res) { if (res && res.ok) fetchTasks_(); }).catch(function () { /* best-effort */ });
+    });
+  }
+
+  var taskManagerAddBtnEl = document.getElementById("taskManagerAddBtn");
+  var taskCreateFormEl = document.getElementById("taskCreateForm");
+  if (taskManagerAddBtnEl && taskCreateFormEl) {
+    taskManagerAddBtnEl.addEventListener("click", function () {
+      taskCreateFormEl.hidden = !taskCreateFormEl.hidden;
+      if (!taskCreateFormEl.hidden) {
+        var assignedSel = document.getElementById("tcAssignedTo");
+        var areaSel = document.getElementById("tcArea");
+        if (assignedSel && !assignedSel.options.length && typeof DSRS !== "undefined") {
+          assignedSel.innerHTML = DSRS.map(function (d) { return '<option>' + mfEscapeHtml_(d.name) + '</option>'; }).join("");
+        }
+        if (areaSel && !areaSel.options.length) {
+          var areas = {};
+          MASTER_FILE_DATA_.forEach(function (d) { if (d.area) areas[d.area] = true; });
+          areaSel.innerHTML = Object.keys(areas).sort().map(function (n) { return '<option>' + mfEscapeHtml_(n) + '</option>'; }).join("");
+        }
+      }
+    });
+  }
+  var tcSaveBtnEl = document.getElementById("tcSaveBtn");
+  if (tcSaveBtnEl) {
+    tcSaveBtnEl.addEventListener("click", function () {
+      var name = (document.getElementById("tcName") || {}).value || "";
+      if (!name.trim()) { window.alert("Enter a task name."); return; }
+      dashboardApiPost_("taskCreate", {
+        name: name.trim(),
+        type: (document.getElementById("tcType") || {}).value || "General",
+        status: "Open",
+        dueDate: (document.getElementById("tcDueDate") || {}).value || "",
+        createdBy: CURRENT_USER_NAME || "",
+        assignedTo: (document.getElementById("tcAssignedTo") || {}).value || "",
+        area: (document.getElementById("tcArea") || {}).value || "",
+        alsoVisibleTo: (document.getElementById("tcAlsoVisible") || {}).value || ""
+      }).then(function (res) {
+        if (res && res.ok) {
+          taskCreateFormEl.hidden = true;
+          document.getElementById("tcName").value = "";
+          document.getElementById("tcAlsoVisible").value = "";
+          fetchTasks_();
+        } else {
+          window.alert("Could not create task: " + ((res && res.error) || "unknown error"));
+        }
+      }).catch(function () { window.alert("Could not reach the server."); });
+    });
+  }
+
   function loginHeartbeatPing_() {
     if (document.visibilityState !== 'visible' || !CURRENT_SESSION_ID) return;
     dashboardApiPost_('heartbeat', {
@@ -7907,6 +8338,10 @@
     var sectionVisBlock = document.getElementById('sectionVisBlock');
     if (sectionVisBlock) sectionVisBlock.hidden = (role !== 'Owner');
     if (role === 'Owner') { loadAdminUsersList_(); loadSectionVisibility_(); }
+    // Master File + Task Manager - added 6 Oct 2026, see the big comment
+    // block above fetchMasterFile_() for the full feature.
+    fetchMasterFile_();
+    fetchTasks_();
     // "Run Full Archive", added 30 Sep 2026 - Owner only, same gating as
     // the password-reset admin block just above (see the long HTML
     // comment above #archiveBlock for why this exists).
