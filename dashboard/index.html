@@ -2094,6 +2094,11 @@
       <span class="dsr-row-headtext"><span class="card-name">Task Manager</span>
         <span class="card-territory" id="taskManagerTerritory">Visible here, in the Area Manager login and in each DSR's own app</span></span>
       <span class="dsr-row-headright">
+        <!-- Open-task count, added 6 Oct 2026 ("near the new button show
+             the number of open task in heading") - filled in by
+             renderTaskManager_() from the same already-fetched
+             TASKS_DATA_, no extra request. -->
+        <span id="taskManagerOpenCount" class="card-territory" style="margin-right:4px;"></span>
         <button type="button" class="task-icon-btn" id="taskManagerAddBtn" title="New task" style="margin-left:6px;">+ New</button>
       </span>
     </summary>
@@ -2103,16 +2108,30 @@
           <span style="flex:1 1 220px;"><label>Task Name</label><input type="text" id="tcName" placeholder="e.g. Petronas Dindigul Area (Arun)" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
           <span><label>Type</label><select id="tcType"><option>Sales</option><option>Stock</option><option>Payment</option><option>General</option><option>Others</option></select></span>
           <span><label>Due Date</label><input type="date" id="tcDueDate" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
+          <!-- Reminder Time - added 6 Oct 2026, same 3 fixed slots as the
+               DSR app (see TASK_REMINDER_SLOTS_ further down). -->
+          <span><label>Reminder</label><select id="tcReminderTime">
+            <option value="">No reminder</option>
+            <option value="11:00 AM">11:00 AM</option>
+            <option value="3:00 PM">3:00 PM</option>
+            <option value="4:30 PM">4:30 PM</option>
+          </select></span>
         </div>
         <div class="master-file-filters" style="padding:4px 0;">
           <span><label>Assigned To (DSR)</label><select id="tcAssignedTo"></select></span>
           <span><label>Area</label><select id="tcArea"></select></span>
           <span style="flex:1 1 180px;"><label>Also visible to</label><input type="text" id="tcAlsoVisible" placeholder="comma-separated names" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
         </div>
+        <div class="master-file-filters" style="padding:4px 0;">
+          <span style="flex:1 1 100%;"><label>Remarks</label><input type="text" id="tcRemarks" placeholder="Optional" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
+        </div>
         <button type="button" class="share-icon-btn small" id="tcSaveBtn" style="font-size:12px;padding:6px 14px;width:auto;border-radius:6px;margin-top:6px;">Create task</button>
       </div>
       <div class="master-file-filters" style="padding-bottom:0;">
-        <span><label>Show</label><select id="tmFilter"><option value="all">All tasks</option><option value="open">Open / In Progress / On Hold</option><option value="done">Completed</option></select></span>
+        <!-- Defaults to "open" (6 Oct 2026, "always show open task
+             only") - still switchable here if the owner wants to check
+             something completed. -->
+        <span><label>Show</label><select id="tmFilter"><option value="all">All tasks</option><option value="open" selected>Open / In Progress / On Hold</option><option value="done">Completed</option></select></span>
       </div>
       <div id="taskManagerList"><p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">Loading…</p></div>
     </div>
@@ -7764,10 +7783,19 @@
         '<td class="mf-editable"><input type="text" class="mf-edit-input mf-area-input" value="' + mfEscapeHtml_(d.area || "") + '" placeholder="Not set"></td>' +
         '<td class="mf-num mf-money">' + mfMoney_(d.overallOutstandingRs) + '</td>' +
         '<td class="mf-num' + (d.collectableRs ? ' mf-warn' : '') + '">' + mfMoney_(d.collectableRs) + '</td>' +
-        '<td class="mf-num mf-editable"><input type="number" class="mf-edit-input mf-target-input" value="' + (d.salesTargetLtr === null ? "" : d.salesTargetLtr) + '" placeholder="0"></td>' +
+        '<td class="mf-num mf-editable"><span style="display:flex;align-items:center;gap:3px;justify-content:flex-end;">' +
+        '<input type="number" class="mf-edit-input mf-target-input" value="' + (d.salesTargetLtr === null ? "" : d.salesTargetLtr) + '" placeholder="0" style="width:62px;">' +
+        // Explicit Save button, added 6 Oct 2026 ("how the target put on
+        // dsr app will save there is no option in both app and
+        // dashboard") - same reasoning as the DSR app's own version:
+        // tapping away already auto-saved via the "change" event, this
+        // just makes it visible/unambiguous that there IS a way to save.
+        '<button type="button" class="mf-save-btn" title="Save">✓</button></span></td>' +
         '<td class="mf-num">' + mfNum_(d.salesLtr) + '</td>' +
         '<td class="mf-num' + (salesBalance !== null && salesBalance < 0 ? ' mf-warn' : (salesBalance !== null ? ' mf-good' : '')) + '">' + (salesBalance === null ? '—' : (salesBalance >= 0 ? '+' : '') + mfNum_(salesBalance)) + '</td>' +
-        '<td class="mf-num mf-editable"><input type="number" class="mf-edit-input mf-plan-input" value="' + (d.collectionPlanRs === null ? "" : d.collectionPlanRs) + '" placeholder="0"></td>' +
+        '<td class="mf-num mf-editable"><span style="display:flex;align-items:center;gap:3px;justify-content:flex-end;">' +
+        '<input type="number" class="mf-edit-input mf-plan-input" value="' + (d.collectionPlanRs === null ? "" : d.collectionPlanRs) + '" placeholder="0" style="width:62px;">' +
+        '<button type="button" class="mf-save-btn" title="Save">✓</button></span></td>' +
         '<td class="mf-num mf-money">' + mfMoney_(d.collectionRs) + '</td>' +
         '<td class="mf-num' + (collBalance !== null && collBalance < 0 ? ' mf-warn' : (collBalance !== null ? ' mf-good' : '')) + '">' + (collBalance === null ? '—' : (collBalance >= 0 ? '+' : '') + mfMoney_(collBalance)) + '</td>' +
         '<td class="mf-remarks-cell">' + remarkHtml + '</td>' +
@@ -7785,7 +7813,24 @@
       salesTargetLtr: ltrEl && ltrEl.value !== "" ? Number(ltrEl.value) : null,
       collectionPlanRs: planEl && planEl.value !== "" ? Number(planEl.value) : null,
       editedBy: CURRENT_USER_NAME || ""
-    }).then(function (res) { if (res && res.ok) fetchMasterFile_(); }).catch(function () { /* best-effort */ });
+    }).then(function (res) {
+      if (res && res.ok) {
+        // Brief "Saved" flash on every ✓ button in this row BEFORE the
+        // re-fetch replaces the row's HTML - same reasoning as the DSR
+        // app's own flash.
+        var saveBtns = rowEl.querySelectorAll(".mf-save-btn");
+        for (var b = 0; b < saveBtns.length; b++) {
+          (function (btn) {
+            var orig = btn.textContent;
+            btn.textContent = "✓ Saved";
+            setTimeout(function () { btn.textContent = orig; }, 1200);
+          })(saveBtns[b]);
+        }
+        fetchMasterFile_();
+      } else {
+        window.alert("Could not save - please try again.");
+      }
+    }).catch(function () { window.alert("Could not reach the server - please try again."); });
   }
 
   // Beat Day / Area / DSR - added 6 Oct 2026, mainly for a dealer that
@@ -7835,6 +7880,8 @@
       }
     });
     mfTableBodyEl.addEventListener("click", function (e) {
+      var saveBtn = e.target.closest(".mf-save-btn");
+      if (saveBtn) { saveMasterFileTarget_(saveBtn.closest("tr")); return; }
       var btn = e.target.closest(".mf-remark-btn");
       if (!btn) return;
       var dealer = btn.getAttribute("data-dealer");
@@ -7877,6 +7924,7 @@
         if (!data || !data.ok) { listEl.innerHTML = '<p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">Could not load tasks.</p>'; return; }
         TASKS_DATA_ = data.tasks || [];
         renderTaskManager_();
+        if (typeof checkTaskRemindersDash_ === "function") checkTaskRemindersDash_(TASKS_DATA_);
       })
       .catch(function () { listEl.innerHTML = '<p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">Could not reach the server.</p>'; });
   }
@@ -7884,12 +7932,20 @@
   function renderTaskManager_() {
     var listEl = document.getElementById("taskManagerList");
     if (!listEl) return;
-    var filterVal = (document.getElementById("tmFilter") || {}).value || "all";
+    var filterVal = (document.getElementById("tmFilter") || {}).value || "open";
     var tasks = TASKS_DATA_.filter(function (t) {
       if (filterVal === "open") return t.status !== "Completed";
       if (filterVal === "done") return t.status === "Completed";
       return true;
     });
+    // Open-task count near "+ New" - added 6 Oct 2026, independent of
+    // whatever filterVal the Show dropdown is currently set to (always
+    // the true open count, not "however many rows are showing now").
+    var openCountEl = document.getElementById("taskManagerOpenCount");
+    if (openCountEl) {
+      var openCount = TASKS_DATA_.filter(function (t) { return t.status !== "Completed"; }).length;
+      openCountEl.textContent = openCount ? (openCount + " open") : "";
+    }
     if (!tasks.length) { listEl.innerHTML = '<p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">No tasks.</p>'; return; }
     var canCreate = (CURRENT_USER_ROLE === "Owner" || CURRENT_USER_ROLE === "Manager");
     var statuses = ["Open", "In Progress", "On Hold", "Completed"];
@@ -7901,12 +7957,20 @@
       var commentsHtml = (t.comments || []).map(function (c) {
         return '<div class="task-comment-row"><b>' + mfEscapeHtml_(c.author) + ':</b> ' + mfEscapeHtml_(c.text) + '</div>';
       }).join("");
+      // Delete - added 6 Oct 2026, only shown to the task's own creator
+      // (checked again server-side in handleTaskDelete_).
+      var deleteBtnHtml = (t.createdBy && t.createdBy === CURRENT_USER_NAME)
+        ? '<button type="button" class="task-icon-btn task-delete-btn" title="Delete this task">Delete</button>'
+        : '';
+      var remarksHtml = t.remarks ? ('<div class="task-meta">Remarks: ' + mfEscapeHtml_(t.remarks) + '</div>') : '';
+      var reminderHtml = t.reminderTime ? (' &middot; Reminder ' + mfEscapeHtml_(t.reminderTime)) : '';
       html += '<div class="task-card" data-task-id="' + mfEscapeHtml_(t.id) + '">' +
         '<div class="task-card-head"><span class="task-name">' + mfEscapeHtml_(t.name) + '</span>' +
         '<span class="task-type-badge ' + typeClass + '">' + mfEscapeHtml_(t.type) + '</span></div>' +
         '<div class="task-pills"><select class="task-status-select">' + optionsHtml + '</select>' +
-        '<span class="task-pill task-pill-type">' + mfEscapeHtml_(t.assignedTo || "Unassigned") + '</span></div>' +
-        '<div class="task-meta">Due ' + mfEscapeHtml_(t.dueDate || "—") + ' &middot; Created by ' + mfEscapeHtml_(t.createdBy || "") + '</div>' +
+        '<span class="task-pill task-pill-type">' + mfEscapeHtml_(t.assignedTo || "Unassigned") + '</span>' + deleteBtnHtml + '</div>' +
+        '<div class="task-meta">Due ' + mfEscapeHtml_(t.dueDate || "—") + ' &middot; Created by ' + mfEscapeHtml_(t.createdBy || "") + reminderHtml + '</div>' +
+        remarksHtml +
         '<div class="task-comments">' + commentsHtml + '</div>' +
         '<div class="task-card-foot"><input type="text" class="task-comment-input" placeholder="Add a comment…">' +
         '<button type="button" class="task-icon-btn task-comment-send" title="Add comment">Comment</button>' +
@@ -7929,6 +7993,17 @@
       }).catch(function () { /* best-effort */ });
     });
     taskManagerListEl.addEventListener("click", function (e) {
+      var deleteBtn = e.target.closest(".task-delete-btn");
+      if (deleteBtn) {
+        var delCardEl = deleteBtn.closest(".task-card");
+        var delTaskId = delCardEl.getAttribute("data-task-id");
+        if (!window.confirm("Delete this task? This can't be undone.")) return;
+        dashboardApiPost_("taskDelete", { id: delTaskId, requestedBy: CURRENT_USER_NAME || "" }).then(function (res) {
+          if (res && res.ok) fetchTasks_();
+          else window.alert("Could not delete: " + ((res && res.error) || "unknown error"));
+        }).catch(function () { window.alert("Could not reach the server."); });
+        return;
+      }
       var btn = e.target.closest(".task-comment-send");
       if (!btn) return;
       var cardEl = btn.closest(".task-card");
@@ -7972,18 +8047,75 @@
         createdBy: CURRENT_USER_NAME || "",
         assignedTo: (document.getElementById("tcAssignedTo") || {}).value || "",
         area: (document.getElementById("tcArea") || {}).value || "",
-        alsoVisibleTo: (document.getElementById("tcAlsoVisible") || {}).value || ""
+        alsoVisibleTo: (document.getElementById("tcAlsoVisible") || {}).value || "",
+        remarks: (document.getElementById("tcRemarks") || {}).value || "",
+        reminderTime: (document.getElementById("tcReminderTime") || {}).value || ""
       }).then(function (res) {
         if (res && res.ok) {
           taskCreateFormEl.hidden = true;
           document.getElementById("tcName").value = "";
           document.getElementById("tcAlsoVisible").value = "";
+          document.getElementById("tcRemarks").value = "";
+          document.getElementById("tcReminderTime").value = "";
           fetchTasks_();
         } else {
           window.alert("Could not create task: " + ((res && res.error) || "unknown error"));
         }
       }).catch(function () { window.alert("Could not reach the server."); });
     });
+  }
+
+  // ----- Task reminders (on-screen, this device only) - added 6 Oct
+  // 2026, same mechanism as the DSR app's own version (see its matching
+  // comment block for the full "why" - no push notifications, this is
+  // a plain static page). Checked once a minute against TASKS_DATA_
+  // (re-fetched on the same cadence - see the setInterval call near
+  // afterLogin_ below), for a task due TODAY, not Completed, viewer-
+  // visible (TASKS_DATA_ already only contains tasks this viewer can
+  // see, per taskRowVisible_ server-side). -----
+  var TASK_REMINDER_SLOTS_DASH_ = { "11:00 AM": 11 * 60, "3:00 PM": 15 * 60, "4:30 PM": 16 * 60 + 30 };
+  var TASK_REMINDER_WINDOW_MIN_DASH_ = 15;
+  function taskReminderTodayKeyDash_() {
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function taskReminderSeenKeyDash_() { return "taskReminderSeen_" + (CURRENT_USER_NAME || "dashboard"); }
+  function taskReminderAlreadyShownDash_(taskId, slot) {
+    try {
+      var seen = JSON.parse(localStorage.getItem(taskReminderSeenKeyDash_()) || "{}");
+      return seen[taskReminderTodayKeyDash_() + "|" + taskId + "|" + slot] === true;
+    } catch (e) { return false; }
+  }
+  function taskReminderMarkShownDash_(taskId, slot) {
+    try {
+      var seen = JSON.parse(localStorage.getItem(taskReminderSeenKeyDash_()) || "{}");
+      seen[taskReminderTodayKeyDash_() + "|" + taskId + "|" + slot] = true;
+      localStorage.setItem(taskReminderSeenKeyDash_(), JSON.stringify(seen));
+    } catch (e) { /* ignore - private browsing / storage disabled */ }
+  }
+  function showTaskReminderToastDash_(task) {
+    var toast = document.createElement("div");
+    toast.textContent = "Reminder (" + task.reminderTime + "): " + task.name;
+    toast.style.cssText = "position:fixed;left:12px;right:12px;bottom:18px;z-index:9999;background:#2563eb;color:#fff;padding:12px 14px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.25);font-size:13px;line-height:1.4;max-width:420px;margin:0 auto;";
+    document.body.appendChild(toast);
+    setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 9000);
+  }
+  function checkTaskRemindersDash_(tasks) {
+    if (!tasks || !tasks.length) return;
+    var now = new Date();
+    var nowMinutes = now.getHours() * 60 + now.getMinutes();
+    var todayIso = taskReminderTodayKeyDash_();
+    for (var i = 0; i < tasks.length; i++) {
+      var t = tasks[i];
+      if (!t.reminderTime || t.status === "Completed") continue;
+      if ((t.dueDate || "") !== todayIso) continue;
+      var slotMinutes = TASK_REMINDER_SLOTS_DASH_[t.reminderTime];
+      if (slotMinutes === undefined) continue;
+      if (nowMinutes < slotMinutes || nowMinutes > slotMinutes + TASK_REMINDER_WINDOW_MIN_DASH_) continue;
+      if (taskReminderAlreadyShownDash_(t.id, t.reminderTime)) continue;
+      taskReminderMarkShownDash_(t.id, t.reminderTime);
+      showTaskReminderToastDash_(t);
+    }
   }
 
   function loginHeartbeatPing_() {
@@ -8378,6 +8510,10 @@
     // block above fetchMasterFile_() for the full feature.
     fetchMasterFile_();
     fetchTasks_();
+    // Re-fetch every 60s so a reminder can fire even if nobody re-opens
+    // the Task Manager panel themselves (see checkTaskRemindersDash_
+    // above) - same cadence as the DSR app's own version of this.
+    setInterval(fetchTasks_, 60000);
     // "Run Full Archive", added 30 Sep 2026 - Owner only, same gating as
     // the password-reset admin block just above (see the long HTML
     // comment above #archiveBlock for why this exists).
