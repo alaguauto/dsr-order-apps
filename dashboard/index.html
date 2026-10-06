@@ -7713,9 +7713,19 @@
     var beatFilter = (document.getElementById("mfBeatFilter") || {}).value || "";
     var areaFilter = (document.getElementById("mfAreaFilter") || {}).value || "";
     var allowedNames = (typeof visibleDsrs_ === "function") ? visibleDsrs_().map(function (d) { return d.name; }) : null;
+    // Only a RESTRICTED Area Manager's allowedNames list should hide a
+    // dealer whose DSR doesn't match - for an unrestricted Owner/Manager,
+    // visibleDsrs_() already returns every known DSR, which used to also
+    // hide a dealer with a blank or unmatched DSR Name (e.g. "Vacant
+    // Karaikudi", or one not yet assigned at all) from EVERYONE, Owner
+    // included - exactly the dealers the new DSR dropdown below exists to
+    // fix. Fixed 6 Oct 2026: an unrestricted viewer now sees every dealer
+    // regardless of DSR match; a restricted Area Manager still only sees
+    // their own allowed DSRs' dealers, same as before.
+    var restrictedMf = !!CURRENT_ALLOWED_AREAS;
 
     var rows = MASTER_FILE_DATA_.filter(function (d) {
-      if (allowedNames && allowedNames.indexOf(d.dsrName) === -1) return false;
+      if (restrictedMf && allowedNames && allowedNames.indexOf(d.dsrName) === -1) return false;
       if (dsrFilter && d.dsrName !== dsrFilter) return false;
       if (areaFilter && d.area !== areaFilter) return false;
       if (beatFilter === "Not set" && d.beatDay) return false;
@@ -7736,9 +7746,20 @@
       var beatOptions = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map(function (b) {
         return '<option value="' + b + '"' + (b === (d.beatDay || "") ? " selected" : "") + '>' + (b || "Not set") + '</option>';
       }).join("");
+      var dsrKnownNames = DSRS.map(function (x) { return x.name; });
+      var dsrOptionList = [""].concat(dsrKnownNames);
+      // Current value might be blank, "Vacant Karaikudi", or any other
+      // name not in DSRS yet (an unmatched SALES REP from the Excel, or a
+      // dealer with no DSR assigned at all) - keep it as an extra option
+      // so the dropdown always shows the dealer's real current value
+      // instead of silently falling back to "Not set".
+      if (d.dsrName && dsrKnownNames.indexOf(d.dsrName) === -1) dsrOptionList.push(d.dsrName);
+      var dsrOptions = dsrOptionList.map(function (n) {
+        return '<option value="' + mfEscapeHtml_(n) + '"' + (n === (d.dsrName || "") ? " selected" : "") + '>' + (n || "Not set") + '</option>';
+      }).join("");
       html += '<tr data-dealer="' + mfEscapeHtml_(d.dealer) + '">' +
         '<td>' + mfEscapeHtml_(d.dealer) + '</td>' +
-        '<td>' + mfEscapeHtml_(d.dsrName) + '</td>' +
+        '<td class="mf-editable"><select class="mf-edit-input mf-dsr-input">' + dsrOptions + '</select></td>' +
         '<td class="mf-editable"><select class="mf-edit-input mf-beat-input">' + beatOptions + '</select></td>' +
         '<td class="mf-editable"><input type="text" class="mf-edit-input mf-area-input" value="' + mfEscapeHtml_(d.area || "") + '" placeholder="Not set"></td>' +
         '<td class="mf-num mf-money">' + mfMoney_(d.overallOutstandingRs) + '</td>' +
@@ -7767,18 +7788,30 @@
     }).then(function (res) { if (res && res.ok) fetchMasterFile_(); }).catch(function () { /* best-effort */ });
   }
 
-  // Beat Day / Area - added 6 Oct 2026, mainly for a dealer that just
-  // arrived via the backend's new roster auto-add (see
-  // autoAddMissingDealerMeta_() in Code.gs) and has no Beat Day/Area yet.
-  // Lighter-weight than re-importing the whole Master File Excel for one
-  // dealer; does NOT touch DSR Name (that still only comes from Tally's
-  // own roster or the Excel import).
-  function saveMasterFileMeta_(rowEl) {
+  // Beat Day / Area / DSR - added 6 Oct 2026, mainly for a dealer that
+  // just arrived via the backend's new roster auto-add (see
+  // autoAddMissingDealerMeta_() in Code.gs) and has no Beat Day/Area/DSR
+  // yet. Lighter-weight than re-importing the whole Master File Excel
+  // for one dealer. DSR dropdown added same day, same request as Beat
+  // Day/Area: pick a DSR for a dealer that has none, or move an existing
+  // dealer to a different DSR later - a confirm prompt guards only the
+  // DSR change (not Beat Day/Area) since reassigning a dealer moves it
+  // between apps' Dealer Targets/visibility, not just a label.
+  function saveMasterFileMeta_(rowEl, changedDsr) {
     var dealer = rowEl.getAttribute("data-dealer");
+    var dsrEl = rowEl.querySelector(".mf-dsr-input");
     var beatEl = rowEl.querySelector(".mf-beat-input");
     var areaEl = rowEl.querySelector(".mf-area-input");
+    if (changedDsr && dsrEl) {
+      var newDsr = dsrEl.value || "(not set)";
+      if (!window.confirm('Move "' + dealer + '" to ' + newDsr + '? This changes which DSR app sees this dealer\'s targets.')) {
+        fetchMasterFile_(); // revert the dropdown to the saved value
+        return;
+      }
+    }
     dashboardApiPost_("dealerMetaSet", {
       dealer: dealer,
+      dsrName: dsrEl ? dsrEl.value : undefined,
       beatDay: beatEl ? beatEl.value : undefined,
       area: areaEl ? areaEl.value : undefined
     }).then(function (res) { if (res && res.ok) fetchMasterFile_(); }).catch(function () { /* best-effort */ });
@@ -7795,7 +7828,10 @@
         saveMasterFileTarget_(e.target.closest("tr"));
       }
       if (e.target.classList.contains("mf-beat-input") || e.target.classList.contains("mf-area-input")) {
-        saveMasterFileMeta_(e.target.closest("tr"));
+        saveMasterFileMeta_(e.target.closest("tr"), false);
+      }
+      if (e.target.classList.contains("mf-dsr-input")) {
+        saveMasterFileMeta_(e.target.closest("tr"), true);
       }
     });
     mfTableBodyEl.addEventListener("click", function (e) {
