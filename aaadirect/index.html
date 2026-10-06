@@ -1107,15 +1107,38 @@
 
   <section style="padding-bottom:0;">
     <!-- My Tasks - added 6 Oct 2026, mirroring the owner's own
-         reference task-tracking app. Shows only tasks assigned to or
-         about this DSR's own area. DSR can change status and add a
-         comment; cannot create a new task (that stays Owner/Manager,
-         from the dashboard's Task Manager). Moved above "New dealers"
-         6 Oct 2026 at the owner's request. -->
+         reference task-tracking app. Shows tasks about this DSR's own
+         area - created by Owner/Manager/Area Manager, OR by this DSR
+         themselves (added same day: "dsr has to also create this
+         which shold show to managrs and area managers" - see
+         myTasksAddBtn/tcName/tcSaveBtn below). A DSR-created task is
+         saved with assignedTo=area=DSR_SHORT_NAME ("AAA Direct"), the
+         same identity this app already uses everywhere else, so it:
+         (a) keeps showing in this DSR's own list (assignedTo match),
+         (b) always shows to Owner/Manager (they see every task
+         unconditionally - see taskRowVisible_ in Code.gs), and (c)
+         shows to any Area Manager whose AllowedAreas includes "AAA
+         Direct" (the same DSR-short-name list Vimal's AllowedAreas
+         already uses, e.g. "Prabha,Arun,Chellamani" - NOT the
+         district-name Area dropdown the dashboard's own "+ New" task
+         form uses, which is a different, geography-based field).
+         Moved above "New dealers" 6 Oct 2026 at the owner's request. -->
     <details class="manage" id="myTasksDetails">
-      <summary>My Tasks <span id="myTasksCount" class="num" style="font-weight:500;"></span></summary>
+      <summary>My Tasks <span id="myTasksCount" class="num" style="font-weight:500;"></span>
+        <button type="button" class="task-icon-btn" id="myTasksAddBtn" title="New task" style="float:right;">+ New</button>
+      </summary>
       <div class="manage-body">
-        <p class="hint">Tasks your Owner/Manager or Area Manager created about your area. Update status or add a comment here.</p>
+        <p class="hint">Create a task about your own area, or see what your Owner/Manager/Area Manager created. Update status or add a comment here.</p>
+        <div id="myTaskCreateForm" hidden style="padding:8px 0 14px;border-bottom:1px solid var(--border);margin-bottom:10px;">
+          <input type="text" id="mtName" placeholder="Task name (e.g. Petronas Dindigul Area payment follow-up)" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);margin-bottom:8px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <select id="mtType" style="flex:1 1 120px;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+              <option>Sales</option><option>Stock</option><option>Payment</option><option selected>General</option><option>Others</option>
+            </select>
+            <input type="date" id="mtDueDate" style="flex:1 1 140px;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+          </div>
+          <button type="button" class="task-icon-btn" id="mtSaveBtn" style="margin-top:8px;width:100%;">Create task</button>
+        </div>
         <div id="myTasksList"><div class="task-empty-note">Loading…</div></div>
       </div>
     </details>
@@ -3147,6 +3170,46 @@
   }
   if (myTasksDetailsEl) {
     myTasksDetailsEl.addEventListener("toggle", function () { if (myTasksDetailsEl.open) fetchMyTasks_(); });
+  }
+
+  // "+ New" - DSR-created task, added 6 Oct 2026 (see the big comment
+  // above the myTasksDetails markup for why assignedTo/area are both
+  // set to DSR_SHORT_NAME). Status always starts "Open"; createdBy is
+  // this DSR's own display name, same convention as taskAddComment's
+  // author above.
+  var myTasksAddBtnEl = document.getElementById("myTasksAddBtn");
+  var myTaskCreateFormEl = document.getElementById("myTaskCreateForm");
+  if (myTasksAddBtnEl && myTaskCreateFormEl) {
+    myTasksAddBtnEl.addEventListener("click", function (e) {
+      e.preventDefault();
+      myTaskCreateFormEl.hidden = !myTaskCreateFormEl.hidden;
+    });
+  }
+  var mtSaveBtnEl = document.getElementById("mtSaveBtn");
+  if (mtSaveBtnEl) {
+    mtSaveBtnEl.addEventListener("click", function () {
+      var nameEl = document.getElementById("mtName");
+      var name = (nameEl && nameEl.value || "").trim();
+      if (!name) { alert("Enter a task name."); return; }
+      postToApi("taskCreate", {
+        name: name,
+        type: (document.getElementById("mtType") || {}).value || "General",
+        status: "Open",
+        dueDate: (document.getElementById("mtDueDate") || {}).value || "",
+        createdBy: DSR_SHORT_NAME,
+        assignedTo: DSR_SHORT_NAME,
+        area: DSR_SHORT_NAME
+      }).then(function (res) {
+        if (res && res.ok) {
+          nameEl.value = "";
+          document.getElementById("mtDueDate").value = "";
+          myTaskCreateFormEl.hidden = true;
+          fetchMyTasks_();
+        } else {
+          alert("Could not create task - please try again.");
+        }
+      }).catch(function () { alert("Could not reach the server."); });
+    });
   }
 
   // Offline-resilience queue: a save/update/delete that fails (no signal in the field)
