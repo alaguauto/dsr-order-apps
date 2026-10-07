@@ -1242,7 +1242,7 @@
   <div id="periodReportContent" hidden style="margin:0 0 18px;">
     <div id="periodCombinedWrap" style="margin:0 0 16px;"></div>
     <div class="section-label-row">
-      <p class="section-label">Full Petronas — Sales &amp; Collection</p>
+      <p class="section-label" id="periodAreaSectionLabel">Full Petronas — Sales &amp; Collection</p>
     </div>
     <div id="periodAreaWrap"></div>
     <p style="font-size:12.5px;color:var(--ink-muted);margin-top:16px;">Stock, Day Book, Collection Group Summary, Outstanding/60+ ageing, Needs attention, Dealer review, Ranking, Top selling SKU and Items Covered aren't shown for a Week/Quarter/Year view - only Combined Sales/Collection and the By-DSR breakdown above.</p>
@@ -9623,16 +9623,36 @@
     // green +surplus" convention as buildAreaTableRows_()'s own balCell.
     var balCellLtr = function (v) { return v <= 0 ? '<td class="num done">+' + fmt(Math.abs(v)) + ' Ltr</td>' : '<td class="num">' + fmt(v) + ' Ltr</td>'; };
     var balCellRs = function (v) { return v <= 0 ? '<td class="num done">+' + fmtRs(Math.abs(v)) + '</td>' : '<td class="num">' + fmtRs(v) + '</td>'; };
-    var targetColsFor = function (dsrName, salesVal, collectionVal) {
+    // Split into a Sales-side pair and a Collection-side pair (rather
+    // than one function returning all 4 cells together) because the
+    // table header interleaves them - Sales, Sales Target, Sales
+    // Balance, Collection, Collection Target, Collection Balance - not
+    // grouped as Sales+Collection followed by all 4 target/balance
+    // cells. Fixed 7 Oct 2026: the original single targetColsFor()
+    // returned its 4 cells as one block appended AFTER both the Sales
+    // and Collection actual cells, which put every cell from "Sales
+    // Target" onward one column to the left of its own header -
+    // confirmed from the owner's screenshot (Sales Target showing a Rs
+    // figure, Collection showing a Ltr figure). Every call site below
+    // now inserts the Sales pair right after the Sales actual cell and
+    // the Collection pair right after the Collection actual cell.
+    var salesTargetCols = function (dsrName, salesVal) {
       if (!hasTargets) return '';
       var st = salesTargetByDsr ? (salesTargetByDsr[dsrName] || 0) : 0;
+      return cellLtr(st) + balCellLtr(st - salesVal);
+    };
+    var collectionTargetCols = function (dsrName, collectionVal) {
+      if (!hasTargets) return '';
       var ct = collectionTargetByDsr ? (collectionTargetByDsr[dsrName] || 0) : 0;
-      return cellLtr(st) + balCellLtr(st - salesVal) + cellRs(ct) + balCellRs(ct - collectionVal);
+      return cellRs(ct) + balCellRs(ct - collectionVal);
     };
     // Dealers have no individual weekly target (same as the monthly
     // table's own dealer rows, which dash out Target/Balance too).
-    var dashTargetCols = function () {
-      return hasTargets ? '<td class="num zero">—</td><td class="num zero">—</td><td class="num zero">—</td><td class="num zero">—</td>' : '';
+    var dashSalesTargetCols = function () {
+      return hasTargets ? '<td class="num zero">—</td><td class="num zero">—</td>' : '';
+    };
+    var dashCollectionTargetCols = function () {
+      return hasTargets ? '<td class="num zero">—</td><td class="num zero">—</td>' : '';
     };
     var nameCell = function (label) { return '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + label + '</td>'; };
     var dsrChildRows = function (dsrName, areaKey) {
@@ -9645,7 +9665,7 @@
       }
       return dealers.map(function (m) {
         return '<tr class="area-dsr-child" data-dsr-child="' + dsrName + '"' + areaAttr + ' style="display:none;">' +
-          '<td style="padding-left:26px;">' + m.name + '</td>' + cellLtr(m.salesLtr) + cellRs(m.collectionRs) + dashTargetCols() + '</tr>';
+          '<td style="padding-left:26px;">' + m.name + '</td>' + cellLtr(m.salesLtr) + dashSalesTargetCols() + cellRs(m.collectionRs) + dashCollectionTargetCols() + '</tr>';
       }).join('');
     };
     var rowsHtml = '';
@@ -9658,7 +9678,7 @@
         grand.salesTarget += salesTargetByDsr ? (salesTargetByDsr['AAA Direct'] || 0) : 0;
         grand.collectionTarget += collectionTargetByDsr ? (collectionTargetByDsr['AAA Direct'] || 0) : 0;
       }
-      rowsHtml += '<tr data-dsr-toggle="AAA Direct">' + nameCell('AAA Direct') + cellLtr(aaaTotals.salesLtr) + cellRs(aaaTotals.collectionRs) + targetColsFor('AAA Direct', aaaTotals.salesLtr, aaaTotals.collectionRs) + '</tr>' +
+      rowsHtml += '<tr data-dsr-toggle="AAA Direct">' + nameCell('AAA Direct') + cellLtr(aaaTotals.salesLtr) + salesTargetCols('AAA Direct', aaaTotals.salesLtr) + cellRs(aaaTotals.collectionRs) + collectionTargetCols('AAA Direct', aaaTotals.collectionRs) + '</tr>' +
         dsrChildRows('AAA Direct', null);
     }
     PETRONAS_AREA_GROUPS_.forEach(function (g) {
@@ -9673,18 +9693,24 @@
         var areaSalesTarget = memberTotals.reduce(function (s, m) { return s + (salesTargetByDsr ? (salesTargetByDsr[m.label] || 0) : 0); }, 0);
         var areaCollectionTarget = memberTotals.reduce(function (s, m) { return s + (collectionTargetByDsr ? (collectionTargetByDsr[m.label] || 0) : 0); }, 0);
         grand.salesTarget += areaSalesTarget; grand.collectionTarget += areaCollectionTarget;
-        areaTargetCols = cellLtr(areaSalesTarget) + balCellLtr(areaSalesTarget - areaSalesLtr) + cellRs(areaCollectionTarget) + balCellRs(areaCollectionTarget - areaCollectionRs);
+        areaTargetCols = {
+          sales: cellLtr(areaSalesTarget) + balCellLtr(areaSalesTarget - areaSalesLtr),
+          collection: cellRs(areaCollectionTarget) + balCellRs(areaCollectionTarget - areaCollectionRs)
+        };
       }
-      rowsHtml += '<tr class="area-toggle-row" data-area-toggle="' + g.key + '">' + nameCell(g.label) + cellLtr(areaSalesLtr) + cellRs(areaCollectionRs) + areaTargetCols + '</tr>';
+      rowsHtml += '<tr class="area-toggle-row" data-area-toggle="' + g.key + '">' + nameCell(g.label) + cellLtr(areaSalesLtr) + (areaTargetCols ? areaTargetCols.sales : '') + cellRs(areaCollectionRs) + (areaTargetCols ? areaTargetCols.collection : '') + '</tr>';
       rowsHtml += memberTotals.map(function (m) {
-        return '<tr class="area-child-row" data-area-child="' + g.key + '" data-dsr-toggle="' + m.label + '" style="display:none;">' + nameCell(m.label) + cellLtr(m.totals.salesLtr) + cellRs(m.totals.collectionRs) + targetColsFor(m.label, m.totals.salesLtr, m.totals.collectionRs) + '</tr>' +
+        return '<tr class="area-child-row" data-area-child="' + g.key + '" data-dsr-toggle="' + m.label + '" style="display:none;">' + nameCell(m.label) + cellLtr(m.totals.salesLtr) + salesTargetCols(m.label, m.totals.salesLtr) + cellRs(m.totals.collectionRs) + collectionTargetCols(m.label, m.totals.collectionRs) + '</tr>' +
           dsrChildRows(m.label, g.key);
       }).join('');
     });
-    var totalTargetCols = hasTargets
-      ? (cellLtr(grand.salesTarget) + balCellLtr(grand.salesTarget - grand.salesLtr) + cellRs(grand.collectionTarget) + balCellRs(grand.collectionTarget - grand.collectionRs))
+    var totalSalesTargetCols = hasTargets
+      ? (cellLtr(grand.salesTarget) + balCellLtr(grand.salesTarget - grand.salesLtr))
       : '';
-    rowsHtml += '<tr class="age-table-total"><td>Total</td>' + cellLtr(grand.salesLtr) + cellRs(grand.collectionRs) + totalTargetCols + '</tr>';
+    var totalCollectionTargetCols = hasTargets
+      ? (cellRs(grand.collectionTarget) + balCellRs(grand.collectionTarget - grand.collectionRs))
+      : '';
+    rowsHtml += '<tr class="age-table-total"><td>Total</td>' + cellLtr(grand.salesLtr) + totalSalesTargetCols + cellRs(grand.collectionRs) + totalCollectionTargetCols + '</tr>';
     return rowsHtml;
   }
   // Builds the whole last-month view into #lastMonthReportContent. `ym`
@@ -9907,6 +9933,15 @@
       }
     }
     var areaWrap = document.getElementById('periodAreaWrap');
+    var areaLabelEl = document.getElementById('periodAreaSectionLabel');
+    // Reset the section's own label back to its plain text on every
+    // render (Quarter/Year/past-month, and the initial plain-table pass
+    // for a current-month Week) - only the async upgrade branch below
+    // ever appends "(This Week)" to it, so this undoes that the moment
+    // the picker moves somewhere that scope note doesn't apply, rather
+    // than leaving a stale "(This Week)" stuck on the label after
+    // switching to Quarter/Year or a different week.
+    if (areaLabelEl) areaLabelEl.textContent = 'Full Petronas — Sales & Collection';
     if (areaWrap) {
       var breakdown = periodDealerBreakdown_(res.salesByDealer, res.collectionByDealer, 'salesLtr', 'collectionRs');
       areaWrap.innerHTML = ageTableWrap_('<thead><tr><th>Area</th><th>Sales (Ltr)</th><th>Collection (Rs)</th></tr></thead>', buildAreaRowsFromBreakdown_(breakdown));
@@ -9929,6 +9964,22 @@
           // month while those extra fetches were in flight - same stale-
           // response guard loadPeriodSummary_() itself already uses.
           if (!CURRENT_VIEW_PERIOD || CURRENT_VIEW_PERIOD.key !== periodKeyAtCallTime) return;
+          // "This Week" scope note moved onto the section's own label
+          // (set once here) instead of being repeated on all 6 column
+          // headers - added 7 Oct 2026, replacing that same day's two
+          // earlier attempts ("This Week ..." on every header, then
+          // shortened to "This Wk ..." with wider 'wide'-variant columns)
+          // after the owner reported the table had become too wide to
+          // fit on one screen for a screenshot ("make as last file space
+          // so that i can take screenshot in one page"). Repeating the
+          // scope word on every header was never needed for the reader
+          // to know these are weekly figures - saying it once on the
+          // section title does the same job for a fraction of the width,
+          // so the headers go back to their original short text and the
+          // table goes back to the DEFAULT (narrow, 92px/col) width
+          // instead of 'wide' - both changes together bring the whole
+          // table back down near its original footprint.
+          if (areaLabelEl) areaLabelEl.textContent = 'Full Petronas — Sales & Collection (This Week)';
           areaWrap.innerHTML = ageTableWrap_(
             '<thead><tr><th>Area</th><th>Sales (Ltr)</th><th>Sales Target (Ltr)</th><th>Sales Balance (Ltr)</th><th>Collection (Rs)</th><th>Collection Target (Rs)</th><th>Collection Balance (Rs)</th></tr></thead>',
             buildAreaRowsFromBreakdown_(breakdown, targets.salesTargetByDsr, targets.collectionTargetByDsr)
