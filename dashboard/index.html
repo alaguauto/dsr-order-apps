@@ -7732,6 +7732,17 @@
   // renderLastMonthReport_() later fills the wrap with real rows.
   bindAreaToggle_('lastMonthAreaWrap');
   bindAreaToggle_('lastMonthGroupSummaryWrap');
+  // "Report period" Week/Quarter/Year view's own area wrap, added 2 Oct
+  // 2026 alongside renderPeriodSummary_() - missed when that feature was
+  // first built (every other bindAreaToggle_() wrap above was bound the
+  // same day its own render function was added; this one wasn't), which
+  // is why the Area table's "+" rows never expanded for Week/Quarter/
+  // Year (found and fixed 7 Oct 2026). renderPeriodSummary_() fills
+  // #periodAreaWrap with buildAreaRowsFromBreakdown_()'s identical
+  // data-area-toggle/data-dsr-toggle markup, so the same delegated
+  // handler works here with zero changes - same "safe to bind on an
+  // empty/hidden wrap" reasoning as lastMonthAreaWrap above.
+  bindAreaToggle_('periodAreaWrap');
   // "Share Inactive dealers" (whole-company) removed 22 Sep 2026 along
   // with the standalone Inactive Dealers section itself - inactive-dealer
   // detail is now per-DSR, inside each DSR's own expandable row, and
