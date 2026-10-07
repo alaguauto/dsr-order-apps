@@ -1003,6 +1003,23 @@
 .login-gate-btn:disabled{opacity:0.6;}
 .login-gate-error{color:#c62828;font-size:13px;margin-top:10px;}
 
+  /* Dealer Targets + My Tasks - added 6 Oct 2026, see
+     fetchDealerTargets_()/renderDealerTargets_()/fetchMyTasks_()/
+     renderMyTasks_() below for the live wiring. */
+  .dealer-target-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 4px; border-bottom:1px solid #e8e2d8; flex-wrap:wrap; }
+  .dealer-target-row:last-child { border-bottom:none; }
+  .dealer-target-name { flex:1 1 180px; font-weight:600; font-size:13px; }
+  .dealer-target-fields { display:flex; gap:10px; flex-wrap:wrap; }
+  .dealer-target-fields label { display:flex; flex-direction:column; font-size:10.5px; color:#8a7f6f; gap:3px; }
+  .dealer-target-fields input { width:100px; padding:6px 8px; border-radius:7px; border:1px solid #ddd3c3; font-size:13px; }
+  .dealer-target-status { flex-basis:100%; font-size:10.5px; color:#9a8f7c; }
+  .dealer-target-suggest { flex-basis:100%; font-size:11px; color:#2f6b4f; background:#eaf4ee; border-radius:6px; padding:5px 8px; margin-top:4px; display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+  .dealer-target-suggest-none { color:#8a7f6f; background:#f2efe8; }
+  .dealer-target-use-btn { margin-left:auto; font-size:10.5px; padding:3px 9px; border-radius:6px; border:1px solid #2f6b4f; background:#fff; color:#2f6b4f; cursor:pointer; }
+  .dealer-target-remark { flex-basis:100%; font-size:11px; color:#3a5a8a; background:#eaf0fb; border-radius:6px; padding:5px 8px; margin-top:4px; }
+  .dealer-target-collectable { flex-basis:100%; font-size:11px; color:#b5541c; background:#fdf1e6; border-radius:6px; padding:5px 8px; margin-top:4px; }
+  .dealer-target-collectable b { color:#8a3a0f; }
+
   .task-card { border: 1px solid #e8e2d8; border-radius: 12px; padding: 12px 14px; margin: 4px; background: #fff; }
   .task-card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
   .task-name { font-weight:700; font-size:13px; }
@@ -1072,6 +1089,31 @@
       <div class="manage-body">
         <p class="hint">Live from Tally — updates automatically, nothing to enter here.</p>
         <div class="target-strip" id="collectionStrip"></div>
+      </div>
+    </details>
+  </section>
+
+  <!-- Dealer Targets - Balance To Do, added 7 Oct 2026 (owner: "FOR WHOM
+       TARGET GIVEN THAT DEALER HAS TO BE SHOWN ABOVE IN A TABLE AS TARGET
+       -SALES = BALANCE TO DO IN DSR APP BELOW Collection"). Mockup shown
+       and approved first (per this app's own standing "show me a photo
+       before proceed" convention). Read-only - shows only dealers that
+       already have a Sales Target set this month (see the "Dealer
+       Targets - This Month" edit screen further below, which is where a
+       target actually gets entered); reuses that SAME fetched data
+       (lastDealerTargetsData_/fetchDealerTargets_ - see renderDealer
+       TargetsBalance_() near the bottom of this file), so this never
+       needs its own separate network call. Sales = live Tally month-sold
+       for that dealer when available, this app's own saved orders for
+       the dealer this month otherwise (see Code.gs's handleDealerTargets
+       Get_ - "IF YOU CAN PUT LIVE OTHERWISE APP ORDER IS ENOUGH"). AAA
+       Direct only for now, per the standing new-feature scope rule. -->
+  <section style="padding-bottom:0;">
+    <details class="manage" id="dealerTargetsBalanceDetails" open>
+      <summary>Dealer Targets — Balance To Do <span id="dealerTargetsBalanceCount" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">Only dealers with a Sales Target and/or Collection Plan set this month — Target minus done so far = Balance To Do.</p>
+        <div id="dealerTargetsBalanceList"><div class="task-empty-note">Loading…</div></div>
       </div>
     </details>
   </section>
@@ -1349,6 +1391,23 @@
         <div id="schemeItemsList"></div>
       </div>
     </details>
+
+    <!-- Dealer Targets - added 6 Oct 2026. Each dealer's own Sales
+         Target (Ltr) / Collection Plan (Rs) for the current month,
+         fillable here by this DSR; Owner/Manager can also edit any of
+         these from the dashboard's Master File. Suggested Target,
+         Collectable (45+ days overdue) and any owner Remark are shown
+         inline so the DSR has them in front of them while deciding
+         what to enter - see fetchDealerTargets_()/renderDealerTargets_()
+         below for the live wiring. -->
+    <details class="manage" id="dealerTargetsDetails">
+      <summary>Dealer Targets — This Month <span id="dealerTargetsCount" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">Set each dealer's Sales Target (Ltr) and Collection Plan (₹) for this month. Owner/managers can also edit these from the dashboard.</p>
+        <div id="dealerTargetsList"><div class="task-empty-note">Loading…</div></div>
+      </div>
+    </details>
+
   </section>
 
   <div class="action-bar">
@@ -4724,6 +4783,220 @@
   renderCollection();
   renderCollectionHealth();
   renderDormant();
+  // ===================================================================
+  // Dealer Targets + My Tasks - added 6 Oct 2026. Live-wired to the new
+  // ?type=dealerTargets / ?type=tasks endpoints and the dealerTargetSet/
+  // taskUpdateStatus/taskAddComment actions on Code.gs (see the big
+  // comment block above handleDealerTargetsGet_() there for the full
+  // feature). DSR_SHORT_NAME ("AAA Direct") is used as this app's
+  // identity for both - it's the same short name already used for
+  // "Share last month's report" and matches the dashboard's own DSR
+  // card names, which is also the convention the Master File's
+  // DealerMeta "DSR Name" column is seeded with (the owner's Excel's
+  // own "SALES REP" column). If a DSR app's dealers don't show up here
+  // once real data is imported, the fix is almost certainly just
+  // aligning that one name string in MasterFileRaw's "SALES REP"
+  // column to this DSR_SHORT_NAME value.
+  function currentMonthKeyISO_() {
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  }
+  function escapeHtml_(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function fmtMoney_(n) {
+    if (n === null || n === undefined || n === "") return "";
+    return "₹" + Math.round(Number(n)).toLocaleString("en-IN");
+  }
+  function fmtAgo_(iso) {
+    if (!iso) return "";
+    var then = new Date(iso).getTime();
+    if (isNaN(then)) return "";
+    var days = Math.floor((Date.now() - then) / 86400000);
+    if (days <= 0) return "today";
+    if (days === 1) return "1 day ago";
+    return days + " days ago";
+  }
+
+  var dealerTargetsListEl = document.getElementById("dealerTargetsList");
+  var dealerTargetsCountEl = document.getElementById("dealerTargetsCount");
+  var dealerTargetsDetailsEl = document.getElementById("dealerTargetsDetails");
+  // Dealer Targets - Balance To Do, added 7 Oct 2026 - a read-only view
+  // of the SAME data fetched for the edit screen above, filtered to
+  // dealers that already have a target set. See the HTML comment above
+  // #dealerTargetsBalanceDetails for the full feature note.
+  var dealerTargetsBalanceListEl = document.getElementById("dealerTargetsBalanceList");
+  var dealerTargetsBalanceCountEl = document.getElementById("dealerTargetsBalanceCount");
+  var lastDealerTargetsData_ = [];
+
+  function fetchDealerTargets_() {
+    if (!apiConfigured() || (!dealerTargetsListEl && !dealerTargetsBalanceListEl)) return;
+    var month = currentMonthKeyISO_();
+    fetch(ORDERS_API_URL + "?type=dealerTargets&month=" + encodeURIComponent(month) + "&dsrName=" + encodeURIComponent(DSR_SHORT_NAME) + "&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          if (dealerTargetsListEl) dealerTargetsListEl.innerHTML = '<div class="task-empty-note">Could not load Dealer Targets.</div>';
+          if (dealerTargetsBalanceListEl) dealerTargetsBalanceListEl.innerHTML = '<div class="task-empty-note">Could not load Dealer Targets.</div>';
+          return;
+        }
+        lastDealerTargetsData_ = data.dealers || [];
+        renderDealerTargets_();
+        renderDealerTargetsBalance_();
+      })
+      .catch(function () {
+        if (dealerTargetsListEl) dealerTargetsListEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>';
+        if (dealerTargetsBalanceListEl) dealerTargetsBalanceListEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>';
+      });
+  }
+
+  function renderDealerTargetsBalance_() {
+    if (!dealerTargetsBalanceListEl) return;
+    // Shows a dealer if EITHER a Sales Target OR a Collection Plan is set
+    // this month (not just Sales) - added 7 Oct 2026 (owner: "IS
+    // COLLECTION TARGET-DONE=BALANCE TO DO ALSO INCLUDED?", "YES THATS
+    // ONLY I SAID ALREADY"). Each row below is independent - a dealer
+    // with only one of the two set shows only that one strip.
+    var rows = lastDealerTargetsData_.filter(function (d) {
+      return (d.salesTargetLtr !== null && d.salesTargetLtr !== undefined) ||
+        (d.collectionPlanRs !== null && d.collectionPlanRs !== undefined);
+    });
+    if (dealerTargetsBalanceCountEl) dealerTargetsBalanceCountEl.textContent = rows.length ? String(rows.length) : "";
+    if (!rows.length) { dealerTargetsBalanceListEl.innerHTML = '<div class="task-empty-note">No dealer targets set yet this month.</div>'; return; }
+    dealerTargetsBalanceListEl.className = "target-strip";
+    var html = "";
+    for (var i = 0; i < rows.length; i++) {
+      var d = rows[i];
+      var salesRow = "", collectionRow = "";
+      if (d.salesTargetLtr !== null && d.salesTargetLtr !== undefined) {
+        var sales = (d.salesLtr === null || d.salesLtr === undefined) ? 0 : d.salesLtr;
+        var balanceLtr = d.salesTargetLtr - sales;
+        salesRow = '<div class="target-strip-row">' +
+          '<div class="target-chip">Target <b>' + formatNum(d.salesTargetLtr) + ' Ltr</b></div>' +
+          '<div class="target-chip">Sales <b>' + formatNum(sales) + ' Ltr</b></div>' +
+          (balanceLtr <= 0
+            ? '<div class="target-chip balance-met">Balance To Do <b>Target reached (+' + formatNum(Math.abs(balanceLtr)) + ' Ltr)</b></div>'
+            : '<div class="target-chip">Balance To Do <b>' + formatNum(balanceLtr) + ' Ltr</b></div>') +
+          '</div>';
+      }
+      if (d.collectionPlanRs !== null && d.collectionPlanRs !== undefined) {
+        var collected = (d.collectedRs === null || d.collectedRs === undefined) ? 0 : d.collectedRs;
+        var balanceRs = d.collectionPlanRs - collected;
+        collectionRow = '<div class="target-strip-row" style="margin-top:6px;">' +
+          '<div class="target-chip">Collection Plan <b>' + fmtMoney_(d.collectionPlanRs) + '</b></div>' +
+          '<div class="target-chip">Collected <b>' + fmtMoney_(collected) + '</b></div>' +
+          (balanceRs <= 0
+            ? '<div class="target-chip balance-met">Balance To Do <b>Target reached (+' + fmtMoney_(Math.abs(balanceRs)) + ')</b></div>'
+            : '<div class="target-chip">Balance To Do <b>' + fmtMoney_(balanceRs) + '</b></div>') +
+          '</div>';
+      }
+      html += '<div>' +
+        '<div style="font-weight:600;font-size:13px;margin-bottom:4px;">' + escapeHtml_(d.dealer) + '</div>' +
+        salesRow + collectionRow +
+        '</div>';
+    }
+    dealerTargetsBalanceListEl.innerHTML = html;
+  }
+
+  function renderDealerTargets_() {
+    if (!dealerTargetsListEl) return;
+    var rows = lastDealerTargetsData_;
+    if (dealerTargetsCountEl) dealerTargetsCountEl.textContent = rows.length ? String(rows.length) : "";
+    if (!rows.length) { dealerTargetsListEl.innerHTML = '<div class="task-empty-note">No dealers found for this app yet.</div>'; return; }
+    var html = "";
+    for (var i = 0; i < rows.length; i++) {
+      var d = rows[i];
+      var statusLine = d.editedAt ? ("edited by " + escapeHtml_(d.editedBy || "") + ", " + fmtAgo_(d.editedAt)) : "not set yet";
+      var suggestHtml = "";
+      if (d.suggestedLtr !== null && d.suggestedLtr !== undefined) {
+        var basisNote = d.suggestedBasis === "tally6mo" ? "avg of last 6 months’ Tally sales" : "avg of last 3 months’ orders";
+        suggestHtml = '<div class="dealer-target-suggest">Suggested Target: <b>' + d.suggestedLtr.toLocaleString("en-IN") + ' Ltr</b> &middot; ' + basisNote +
+          '<button type="button" class="dealer-target-use-btn" data-dealer="' + escapeHtml_(d.dealer) + '" data-ltr="' + d.suggestedLtr + '">Use</button></div>';
+      } else {
+        suggestHtml = '<div class="dealer-target-suggest dealer-target-suggest-none">No recent purchase pattern to suggest from yet.</div>';
+      }
+      var collectableHtml = "";
+      if (d.collectableRs !== null && d.collectableRs !== undefined && d.collectableRs > 0) {
+        collectableHtml = '<div class="dealer-target-collectable">Collectable (45+ days overdue): <b>' + fmtMoney_(d.collectableRs) + '</b>' +
+          (d.overallOutstandingRs !== null && d.overallOutstandingRs !== undefined ? (' of ' + fmtMoney_(d.overallOutstandingRs) + ' total outstanding') : '') + '</div>';
+      }
+      var remarkHtml = d.remark ? ('<div class="dealer-target-remark">💬 “' + escapeHtml_(d.remark) + '” — ' + escapeHtml_(d.remarkBy || "") + '</div>') : "";
+      html += '<div class="dealer-target-row" data-dealer="' + escapeHtml_(d.dealer) + '">' +
+        '<div class="dealer-target-name">' + escapeHtml_(d.dealer) + '</div>' +
+        '<div class="dealer-target-fields">' +
+        '<label>Sales Target (Ltr)<input type="number" inputmode="decimal" class="dt-target-ltr" value="' + (d.salesTargetLtr === null ? "" : d.salesTargetLtr) + '" placeholder="0"></label>' +
+        '<label>Collection Plan (₹)<input type="number" inputmode="decimal" class="dt-plan-rs" value="' + (d.collectionPlanRs === null ? "" : d.collectionPlanRs) + '" placeholder="0"></label>' +
+        // Explicit Save button, added 6 Oct 2026 ("how the target put on
+        // dsr app will save there is no option"). Tapping Target/Plan
+        // and moving away already auto-saved before today (the "change"
+        // event), but with nothing to tap, it wasn't obvious that was
+        // happening - this button makes it unambiguous, and the "Saved"
+        // flash below confirms it, without removing the existing
+        // auto-save-on-blur behavior (both now do the same save).
+        '<button type="button" class="dealer-target-save-btn" style="align-self:flex-end;">Save</button>' +
+        '<span class="dealer-target-saved-flash" style="display:none;color:#1a7d3a;font-size:11.5px;align-self:flex-end;">Saved ✓</span>' +
+        '</div>' +
+        suggestHtml +
+        '<div class="dealer-target-status">' + statusLine + '</div>' +
+        collectableHtml + remarkHtml +
+        '</div>';
+    }
+    dealerTargetsListEl.innerHTML = html;
+  }
+
+  function saveDealerTarget_(rowEl) {
+    var dealer = rowEl.getAttribute("data-dealer");
+    var ltrEl = rowEl.querySelector(".dt-target-ltr");
+    var planEl = rowEl.querySelector(".dt-plan-rs");
+    var flashEl = rowEl.querySelector(".dealer-target-saved-flash");
+    var salesTargetLtr = ltrEl && ltrEl.value !== "" ? Number(ltrEl.value) : null;
+    var collectionPlanRs = planEl && planEl.value !== "" ? Number(planEl.value) : null;
+    postToApi("dealerTargetSet", {
+      month: currentMonthKeyISO_(), dealer: dealer, dsrName: DSR_SHORT_NAME,
+      salesTargetLtr: salesTargetLtr, collectionPlanRs: collectionPlanRs, editedBy: DSR_SHORT_NAME
+    }).then(function (res) {
+      if (res && res.ok) {
+        // Flash "Saved" BEFORE the re-fetch (which replaces this row's
+        // HTML entirely once it lands) so the confirmation is actually
+        // seen, however briefly, rather than being instantly overwritten.
+        if (flashEl) { flashEl.style.display = ""; setTimeout(function () { if (flashEl) flashEl.style.display = "none"; }, 1500); }
+        fetchDealerTargets_();
+      } else {
+        alert("Could not save - please try again.");
+      }
+    }).catch(function () { alert("Could not reach the server - please try again."); });
+  }
+
+  if (dealerTargetsListEl) {
+    dealerTargetsListEl.addEventListener("change", function (e) {
+      if (e.target.classList.contains("dt-target-ltr") || e.target.classList.contains("dt-plan-rs")) {
+        saveDealerTarget_(e.target.closest(".dealer-target-row"));
+      }
+    });
+    dealerTargetsListEl.addEventListener("click", function (e) {
+      var useBtn = e.target.closest(".dealer-target-use-btn");
+      if (useBtn) {
+        var useRowEl = useBtn.closest(".dealer-target-row");
+        var useLtrEl = useRowEl.querySelector(".dt-target-ltr");
+        if (useLtrEl) { useLtrEl.value = useBtn.getAttribute("data-ltr"); saveDealerTarget_(useRowEl); }
+        return;
+      }
+      var saveBtn = e.target.closest(".dealer-target-save-btn");
+      if (saveBtn) { saveDealerTarget_(saveBtn.closest(".dealer-target-row")); return; }
+    });
+  }
+  if (dealerTargetsDetailsEl) {
+    dealerTargetsDetailsEl.addEventListener("toggle", function () { if (dealerTargetsDetailsEl.open) fetchDealerTargets_(); });
+  }
+
+  // Dealer Targets - Balance To Do (added 7 Oct 2026) needs its data
+  // fetched on load too, not just when the separate "Dealer Targets -
+  // This Month" edit panel further below is opened (that panel's own
+  // dealerTargetsDetailsEl "toggle" listener still also calls this, so
+  // opening it just re-fetches fresh data same as before).
+  fetchDealerTargets_();
   // Login gate - added 26 Sep 2026. initOrders() now only runs after a
   // successful password login (checked server-side against the Users
   // sheet) instead of unconditionally on page load. A "still here" ping
