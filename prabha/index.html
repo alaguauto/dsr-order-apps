@@ -4936,74 +4936,121 @@
     if (!rows.length) { dealerTargetsListEl.innerHTML = '<div class="task-empty-note">No dealers found for this app yet.</div>'; return; }
     var html = "";
     for (var i = 0; i < rows.length; i++) {
-      var d = rows[i];
-      var statusLine = d.editedAt ? ("edited by " + escapeHtml_(d.editedBy || "") + ", " + fmtAgo_(d.editedAt)) : "not set yet";
-      var suggestHtml = "";
-      if (d.suggestedLtr !== null && d.suggestedLtr !== undefined) {
-        var basisNote = d.suggestedBasis === "tally6mo" ? "avg of last 6 months’ Tally sales" : "avg of last 3 months’ orders";
-        suggestHtml = '<div class="dealer-target-suggest">Suggested Target: <b>' + d.suggestedLtr.toLocaleString("en-IN") + ' Ltr</b> &middot; ' + basisNote +
-          '<button type="button" class="dealer-target-use-btn" data-dealer="' + escapeHtml_(d.dealer) + '" data-ltr="' + d.suggestedLtr + '">Use</button></div>';
-      } else {
-        suggestHtml = '<div class="dealer-target-suggest dealer-target-suggest-none">No recent purchase pattern to suggest from yet.</div>';
-      }
-      var collectableHtml = "";
-      if (d.collectableRs !== null && d.collectableRs !== undefined && d.collectableRs > 0) {
-        collectableHtml = '<div class="dealer-target-collectable">Collectable (45+ days overdue): <b>' + fmtMoney_(d.collectableRs) + '</b>' +
-          (d.overallOutstandingRs !== null && d.overallOutstandingRs !== undefined ? (' of ' + fmtMoney_(d.overallOutstandingRs) + ' total outstanding') : '') + '</div>';
-      }
-      var remarkHtml = d.remark ? ('<div class="dealer-target-remark">💬 “' + escapeHtml_(d.remark) + '” — ' + escapeHtml_(d.remarkBy || "") + '</div>') : "";
-      html += '<div class="dealer-target-row" data-dealer="' + escapeHtml_(d.dealer) + '">' +
-        '<div class="dealer-target-name">' + escapeHtml_(d.dealer) + '</div>' +
-        '<div class="dealer-target-fields">' +
-        '<label>Sales Target (Ltr)<input type="number" inputmode="decimal" class="dt-target-ltr" value="' + (d.salesTargetLtr === null ? "" : d.salesTargetLtr) + '" placeholder="0"></label>' +
-        '<label>Collection Plan (₹)<input type="number" inputmode="decimal" class="dt-plan-rs" value="' + (d.collectionPlanRs === null ? "" : d.collectionPlanRs) + '" placeholder="0"></label>' +
-        // Explicit Save button, added 6 Oct 2026 ("how the target put on
-        // dsr app will save there is no option"). Tapping Target/Plan
-        // and moving away already auto-saved before today (the "change"
-        // event), but with nothing to tap, it wasn't obvious that was
-        // happening - this button makes it unambiguous, and the "Saved"
-        // flash below confirms it, without removing the existing
-        // auto-save-on-blur behavior (both now do the same save).
-        '<button type="button" class="dealer-target-save-btn" style="align-self:flex-end;">Save</button>' +
-        '<span class="dealer-target-saved-flash" style="display:none;color:#1a7d3a;font-size:11.5px;align-self:flex-end;">Saved ✓</span>' +
-        '</div>' +
-        suggestHtml +
-        '<div class="dealer-target-status">' + statusLine + '</div>' +
-        collectableHtml + remarkHtml +
-        '</div>';
+      html += dealerTargetRowHtml_(rows[i]);
     }
     dealerTargetsListEl.innerHTML = html;
   }
 
+  // Builds one dealer-target-row's HTML from a dealer data object. Pulled
+  // out of renderDealerTargets_ (8 Oct 2026) so saveDealerTarget_ can
+  // refresh a SINGLE row in place after a save instead of re-fetching from
+  // the server and replacing the whole list's innerHTML - that full-list
+  // replace on every save was the main cause of the "buffering a lot,
+  // flickering, don't know if it saved" report: each save re-rendered
+  // every row (including the one just saved, wiping out its own "Saved"
+  // flash almost immediately), and the old auto-save-on-blur listener
+  // below meant a single tap on Save could trigger it TWICE back to back
+  // (blur fires the auto-save, then the click fires the button's own
+  // save), doubling the flicker. See saveDealerTarget_ for the rest of
+  // the fix.
+  function dealerTargetRowHtml_(d) {
+    var statusLine = d.editedAt ? ("edited by " + escapeHtml_(d.editedBy || "") + ", " + fmtAgo_(d.editedAt)) : "not set yet";
+    var suggestHtml = "";
+    if (d.suggestedLtr !== null && d.suggestedLtr !== undefined) {
+      var basisNote = d.suggestedBasis === "tally6mo" ? "avg of last 6 months’ Tally sales" : "avg of last 3 months’ orders";
+      suggestHtml = '<div class="dealer-target-suggest">Suggested Target: <b>' + d.suggestedLtr.toLocaleString("en-IN") + ' Ltr</b> &middot; ' + basisNote +
+        '<button type="button" class="dealer-target-use-btn" data-dealer="' + escapeHtml_(d.dealer) + '" data-ltr="' + d.suggestedLtr + '">Use</button></div>';
+    } else {
+      suggestHtml = '<div class="dealer-target-suggest dealer-target-suggest-none">No recent purchase pattern to suggest from yet.</div>';
+    }
+    var collectableHtml = "";
+    if (d.collectableRs !== null && d.collectableRs !== undefined && d.collectableRs > 0) {
+      collectableHtml = '<div class="dealer-target-collectable">Collectable (45+ days overdue): <b>' + fmtMoney_(d.collectableRs) + '</b>' +
+        (d.overallOutstandingRs !== null && d.overallOutstandingRs !== undefined ? (' of ' + fmtMoney_(d.overallOutstandingRs) + ' total outstanding') : '') + '</div>';
+    }
+    var remarkHtml = d.remark ? ('<div class="dealer-target-remark">💬 “' + escapeHtml_(d.remark) + '” — ' + escapeHtml_(d.remarkBy || "") + '</div>') : "";
+    return '<div class="dealer-target-row" data-dealer="' + escapeHtml_(d.dealer) + '">' +
+      '<div class="dealer-target-name">' + escapeHtml_(d.dealer) + '</div>' +
+      '<div class="dealer-target-fields">' +
+      '<label>Sales Target (Ltr)<input type="number" inputmode="decimal" class="dt-target-ltr" value="' + (d.salesTargetLtr === null ? "" : d.salesTargetLtr) + '" placeholder="0"></label>' +
+      '<label>Collection Plan (₹)<input type="number" inputmode="decimal" class="dt-plan-rs" value="' + (d.collectionPlanRs === null ? "" : d.collectionPlanRs) + '" placeholder="0"></label>' +
+      // Explicit Save button, added 6 Oct 2026, is now the ONLY way a
+      // Target/Plan edit gets saved (the old auto-save-on-"change"/blur
+      // listener was removed 8 Oct 2026 - see the note above
+      // dealerTargetRowHtml_). Tap the numbers in, tap Save, watch the
+      // button say "Saving…" then the "Saved ✓" flash - one tap, one
+      // save, one unambiguous confirmation.
+      '<button type="button" class="dealer-target-save-btn" style="align-self:flex-end;">Save</button>' +
+      '<span class="dealer-target-saved-flash" style="display:none;color:#1a7d3a;font-size:11.5px;align-self:flex-end;">Saved ✓</span>' +
+      '</div>' +
+      suggestHtml +
+      '<div class="dealer-target-status">' + statusLine + '</div>' +
+      collectableHtml + remarkHtml +
+      '</div>';
+  }
+
   function saveDealerTarget_(rowEl) {
+    // In-flight guard - an accidental second click (or the "Use" button
+    // fired right after a manual Save) on a row already saving is simply
+    // ignored rather than firing a second overlapping POST. Added 8 Oct
+    // 2026 alongside removing the auto-save-on-blur listener, together
+    // these are the fix for "buffering a lot...flickering...don't know if
+    // it was saved" - from here on exactly one save happens per click, and
+    // it updates only this row (see below), never the whole list.
+    if (rowEl.getAttribute("data-saving") === "1") return;
+    rowEl.setAttribute("data-saving", "1");
     var dealer = rowEl.getAttribute("data-dealer");
     var ltrEl = rowEl.querySelector(".dt-target-ltr");
     var planEl = rowEl.querySelector(".dt-plan-rs");
+    var saveBtnEl = rowEl.querySelector(".dealer-target-save-btn");
     var flashEl = rowEl.querySelector(".dealer-target-saved-flash");
     var salesTargetLtr = ltrEl && ltrEl.value !== "" ? Number(ltrEl.value) : null;
     var collectionPlanRs = planEl && planEl.value !== "" ? Number(planEl.value) : null;
+    if (flashEl) flashEl.style.display = "none";
+    if (saveBtnEl) { saveBtnEl.disabled = true; saveBtnEl.textContent = "Saving…"; }
     postToApi("dealerTargetSet", {
       month: currentMonthKeyISO_(), dealer: dealer, dsrName: DSR_SHORT_NAME,
       salesTargetLtr: salesTargetLtr, collectionPlanRs: collectionPlanRs, editedBy: DSR_SHORT_NAME
     }).then(function (res) {
+      rowEl.removeAttribute("data-saving");
+      if (saveBtnEl) { saveBtnEl.disabled = false; saveBtnEl.textContent = "Save"; }
       if (res && res.ok) {
-        // Flash "Saved" BEFORE the re-fetch (which replaces this row's
-        // HTML entirely once it lands) so the confirmation is actually
-        // seen, however briefly, rather than being instantly overwritten.
-        if (flashEl) { flashEl.style.display = ""; setTimeout(function () { if (flashEl) flashEl.style.display = "none"; }, 1500); }
-        fetchDealerTargets_();
+        // Update just this dealer's remembered data + status line in
+        // place - no re-fetch, no full-list re-render, so the rest of the
+        // list (and whatever else the DSR is doing on screen) is left
+        // completely undisturbed, and the "Saved" flash stays visible for
+        // its full 2s instead of being wiped out by an incoming re-render.
+        var nowIso = new Date().toISOString();
+        for (var i = 0; i < lastDealerTargetsData_.length; i++) {
+          if (lastDealerTargetsData_[i].dealer === dealer) {
+            lastDealerTargetsData_[i].salesTargetLtr = salesTargetLtr;
+            lastDealerTargetsData_[i].collectionPlanRs = collectionPlanRs;
+            lastDealerTargetsData_[i].editedBy = DSR_SHORT_NAME;
+            lastDealerTargetsData_[i].editedAt = nowIso;
+            break;
+          }
+        }
+        var statusEl = rowEl.querySelector(".dealer-target-status");
+        if (statusEl) statusEl.textContent = "edited by " + DSR_SHORT_NAME + ", " + fmtAgo_(nowIso);
+        if (flashEl) { flashEl.style.display = ""; setTimeout(function () { if (flashEl) flashEl.style.display = "none"; }, 2000); }
+        renderDealerTargetsBalance_();
       } else {
         alert("Could not save - please try again.");
       }
-    }).catch(function () { alert("Could not reach the server - please try again."); });
+    }).catch(function () {
+      rowEl.removeAttribute("data-saving");
+      if (saveBtnEl) { saveBtnEl.disabled = false; saveBtnEl.textContent = "Save"; }
+      alert("Could not reach the server - please try again.");
+    });
   }
 
   if (dealerTargetsListEl) {
-    dealerTargetsListEl.addEventListener("change", function (e) {
-      if (e.target.classList.contains("dt-target-ltr") || e.target.classList.contains("dt-plan-rs")) {
-        saveDealerTarget_(e.target.closest(".dealer-target-row"));
-      }
-    });
+    // Explicit Save (or "Use") click is now the ONLY save trigger - the
+    // old auto-save-on-"change" listener (which fired on blur, i.e. the
+    // instant a DSR tapped away from the field) was removed 8 Oct 2026.
+    // That listener firing a split second before a manual Save-button
+    // click (blur-then-click on the same tap) was what produced two
+    // back-to-back saves and two full list re-renders per edit.
     dealerTargetsListEl.addEventListener("click", function (e) {
       var useBtn = e.target.closest(".dealer-target-use-btn");
       if (useBtn) {

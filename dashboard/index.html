@@ -8054,9 +8054,13 @@
         '<input type="number" class="mf-edit-input mf-target-input" value="' + (d.salesTargetLtr === null ? "" : d.salesTargetLtr) + '" placeholder="0" style="width:62px;">' +
         // Explicit Save button, added 6 Oct 2026 ("how the target put on
         // dsr app will save there is no option in both app and
-        // dashboard") - same reasoning as the DSR app's own version:
-        // tapping away already auto-saved via the "change" event, this
-        // just makes it visible/unambiguous that there IS a way to save.
+        // dashboard"). This ✓ click is now the ONLY way a Target/Plan
+        // edit saves - the old auto-save-on-"change"/blur listener was
+        // removed 8 Oct 2026 alongside the matching DSR-app fix, because
+        // tapping away and then clicking ✓ fired the save TWICE back to
+        // back (once on blur, once on click), each followed by a full
+        // table re-render - that double save+re-render was the "buffering
+        // a lot...flickering...don't know if it was saved" report.
         '<button type="button" class="mf-save-btn" title="Save">✓</button></span></td>' +
         '<td class="mf-num">' + mfNum_(d.salesLtr) + '</td>' +
         '<td class="mf-num' + (salesBalance !== null && salesBalance < 0 ? ' mf-warn' : (salesBalance !== null ? ' mf-good' : '')) + '">' + (salesBalance === null ? '—' : (salesBalance >= 0 ? '+' : '') + mfNum_(salesBalance)) + '</td>' +
@@ -8072,32 +8076,56 @@
   }
 
   function saveMasterFileTarget_(rowEl) {
+    // In-flight guard - ignore a second trigger (double-click, or "Use"-
+    // style rapid re-click) while this row's save is still in flight,
+    // instead of firing an overlapping second POST. Added 8 Oct 2026
+    // alongside removing the auto-save-on-blur listener - together these
+    // make exactly one save happen per click, updating only this row (see
+    // below) rather than the whole table.
+    if (rowEl.getAttribute("data-saving") === "1") return;
+    rowEl.setAttribute("data-saving", "1");
     var dealer = rowEl.getAttribute("data-dealer");
     var ltrEl = rowEl.querySelector(".mf-target-input");
     var planEl = rowEl.querySelector(".mf-plan-input");
+    var salesTargetLtr = ltrEl && ltrEl.value !== "" ? Number(ltrEl.value) : null;
+    var collectionPlanRs = planEl && planEl.value !== "" ? Number(planEl.value) : null;
+    var saveBtns = rowEl.querySelectorAll(".mf-save-btn");
+    for (var s = 0; s < saveBtns.length; s++) { saveBtns[s].disabled = true; }
     dashboardApiPost_("dealerTargetSet", {
       month: currentMonthKeyISO_dashboard_(), dealer: dealer,
-      salesTargetLtr: ltrEl && ltrEl.value !== "" ? Number(ltrEl.value) : null,
-      collectionPlanRs: planEl && planEl.value !== "" ? Number(planEl.value) : null,
+      salesTargetLtr: salesTargetLtr, collectionPlanRs: collectionPlanRs,
       editedBy: CURRENT_USER_NAME || ""
     }).then(function (res) {
+      rowEl.removeAttribute("data-saving");
+      for (var b = 0; b < saveBtns.length; b++) { saveBtns[b].disabled = false; }
       if (res && res.ok) {
-        // Brief "Saved" flash on every ✓ button in this row BEFORE the
-        // re-fetch replaces the row's HTML - same reasoning as the DSR
-        // app's own flash.
-        var saveBtns = rowEl.querySelectorAll(".mf-save-btn");
-        for (var b = 0; b < saveBtns.length; b++) {
+        // Update just this dealer's remembered values in place - no
+        // re-fetch, no full-table re-render, so the rest of the table
+        // (including anything else being edited) is left undisturbed and
+        // the "Saved" flash is actually seen rather than instantly wiped
+        // out by an incoming re-render.
+        for (var i = 0; i < MASTER_FILE_DATA_.length; i++) {
+          if (MASTER_FILE_DATA_[i].dealer === dealer) {
+            MASTER_FILE_DATA_[i].salesTargetLtr = salesTargetLtr;
+            MASTER_FILE_DATA_[i].collectionPlanRs = collectionPlanRs;
+            break;
+          }
+        }
+        for (var b2 = 0; b2 < saveBtns.length; b2++) {
           (function (btn) {
             var orig = btn.textContent;
             btn.textContent = "✓ Saved";
             setTimeout(function () { btn.textContent = orig; }, 1200);
-          })(saveBtns[b]);
+          })(saveBtns[b2]);
         }
-        fetchMasterFile_();
       } else {
         window.alert("Could not save - please try again.");
       }
-    }).catch(function () { window.alert("Could not reach the server - please try again."); });
+    }).catch(function () {
+      rowEl.removeAttribute("data-saving");
+      for (var b3 = 0; b3 < saveBtns.length; b3++) { saveBtns[b3].disabled = false; }
+      window.alert("Could not reach the server - please try again.");
+    });
   }
 
   // Beat Day / Area / DSR - added 6 Oct 2026, mainly for a dealer that
@@ -8136,9 +8164,10 @@
   var mfTableBodyEl = document.getElementById("mfCurrentTableBody");
   if (mfTableBodyEl) {
     mfTableBodyEl.addEventListener("change", function (e) {
-      if (e.target.classList.contains("mf-target-input") || e.target.classList.contains("mf-plan-input")) {
-        saveMasterFileTarget_(e.target.closest("tr"));
-      }
+      // mf-target-input/mf-plan-input auto-save-on-change listener removed
+      // 8 Oct 2026 - the explicit ✓ Save button (below, in the "click"
+      // listener) is now the only trigger for those two fields; see
+      // saveMasterFileTarget_'s comment for why.
       if (e.target.classList.contains("mf-beat-input") || e.target.classList.contains("mf-area-input")) {
         saveMasterFileMeta_(e.target.closest("tr"), false);
       }
