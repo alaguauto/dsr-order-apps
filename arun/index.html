@@ -1038,6 +1038,14 @@
   .task-comment-input { flex:1; padding:6px 10px; border-radius:8px; border:1px solid #ddd3c3; font-size:12px; }
   .task-icon-btn { border:1px solid #ddd3c3; background:#fff; border-radius:8px; padding:5px 10px; font-size:11.5px; cursor:pointer; }
   .task-empty-note { font-size:12px; color:#9a8f7c; padding:10px 4px; }
+  /* Overdue/dealer/due-line - 8 Oct 2026, matching the dashboard's own
+     redesigned task card (same owner reference: BizApp's "Over Due"
+     label) so both surfaces read the same way. */
+  .task-overdue-badge { font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:999px; background:#fdeaea; color:#b23b3b; white-space:nowrap; }
+  .task-dealer-line { font-size:12px; color:#6b5f4d; margin-top:6px; }
+  .task-dealer-line b { color:#2b2419; }
+  .task-due-line { font-size:11.5px; color:#9a8f7c; margin-top:8px; }
+  .task-due-line.overdue { color:#b23b3b; font-weight:600; }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a4a44">
@@ -1161,7 +1169,7 @@
             <select id="mtType" style="flex:1 1 120px;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
               <option>Sales</option><option>Stock</option><option>Payment</option><option selected>General</option><option>Others</option>
             </select>
-            <input type="date" id="mtDueDate" style="flex:1 1 140px;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+            <span style="flex:1 1 140px;"><label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Due Date *</label><input type="date" id="mtDueDate" required style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);"></span>
             <!-- Reminder Time - exactly these 3 fixed slots, no free time
                  entry. Blank = no reminder. See
                  TASK_REMINDER_SLOTS_/checkTaskReminders_ further down for
@@ -1172,6 +1180,27 @@
               <option value="3:00 PM">Remind 3:00 PM</option>
               <option value="4:30 PM">Remind 4:30 PM</option>
             </select>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+            <!-- Assigned To - 8 Oct 2026 ("for me also dsr or manager can
+                 assign task"): this DSR can keep a task for themselves
+                 (default) or assign it straight to the Owner ("Alagu").
+                 Either way createdBy stays this DSR's own name - see
+                 mtSaveBtnEl's click handler below for how assignedTo/area
+                 are derived from this choice. -->
+            <span style="flex:1 1 140px;"><label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Assign to</label><select id="mtAssignedTo" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+              <option value="" selected>Myself</option>
+              <option value="Alagu">Alagu (Owner)</option>
+            </select></span>
+            <!-- Dealer - added 8 Oct 2026 ("remove area name in dashboard
+                 task, show dealer name as per selected dsr name" - this
+                 app's own equivalent: there's no Area picker here to begin
+                 with, but a Dealer picker was missing entirely). Sourced
+                 from the same in-memory `dealers` array this app already
+                 builds for everything else (DEFAULT_DEALERS + live
+                 Tally roster) - purely a display field, same as the
+                 dashboard's tcDealer. -->
+            <span style="flex:1 1 180px;"><label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Dealer</label><select id="mtDealer" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);"><option value="">Not set</option></select></span>
           </div>
           <textarea id="mtRemarks" placeholder="Remarks (optional)" rows="2" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);margin-top:8px;resize:vertical;"></textarea>
           <button type="button" class="task-icon-btn" id="mtSaveBtn" style="margin-top:8px;width:100%;">Create task</button>
@@ -5098,32 +5127,69 @@
   // list (and from myTasksCount) by default; the "show completed too"
   // link flips myTasksShowCompleted_ and re-renders from the same
   // already-fetched MY_TASKS_RAW_, no extra network call.
+  function myTasksTodayIso_() {
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  // Status options restricted - 8 Oct 2026 ("Only the complete in
+  // prograss option should be set my me or manager not area manager or
+  // dsr"): this app is always viewed by a DSR, so only Open/On Hold are
+  // ever pickable here - handleTaskUpdateStatus_ enforces the same
+  // restriction server-side regardless of what this file sends.
+  var MY_TASKS_STATUSES_ = ["Open", "On Hold"];
   function renderMyTasks_() {
     var tasks = myTasksShowCompleted_ ? MY_TASKS_RAW_ : MY_TASKS_RAW_.filter(function (t) { return t.status !== "Completed"; });
     if (myTasksCountEl) myTasksCountEl.textContent = tasks.length ? String(tasks.length) : "";
     if (!tasks.length) { myTasksListEl.innerHTML = '<div class="task-empty-note">No tasks right now.</div>'; return; }
+    var todayIso = myTasksTodayIso_();
     var html = "";
     for (var i = 0; i < tasks.length; i++) {
       var t = tasks[i];
       var typeClass = TASK_TYPE_CLASS_[t.type] || "task-type-general";
-      var statuses = ["Open", "In Progress", "On Hold", "Completed"];
-      var optionsHtml = statuses.map(function (s) { return '<option' + (s === t.status ? " selected" : "") + '>' + s + '</option>'; }).join("");
-      // Delete button - only for the task's own creator (checked again
-      // server-side in handleTaskDelete_ - this is just so the button
-      // isn't even shown to someone it would reject anyway).
+      // Current status always included as an option even if it's one
+      // this DSR can no longer pick (e.g. a Manager already marked it
+      // "Completed") - same safety net as the dashboard's own
+      // renderTaskManager_(), so the select never silently shows the
+      // wrong value.
+      var statusOptionsForThis = MY_TASKS_STATUSES_.indexOf(t.status) === -1 ? MY_TASKS_STATUSES_.concat([t.status]) : MY_TASKS_STATUSES_;
+      var optionsHtml = statusOptionsForThis.map(function (s) { return '<option' + (s === t.status ? " selected" : "") + '>' + s + '</option>'; }).join("");
+      // Delete button - added 6 Oct 2026, only for the task's own
+      // creator (checked again server-side in handleTaskDelete_ - this
+      // is just so the button isn't even shown to someone it would
+      // reject anyway). No Owner-bypass here - this app is only ever
+      // opened by this one DSR, who is never the Owner.
       var deleteBtnHtml = (t.createdBy && t.createdBy === DSR_SHORT_NAME)
         ? '<button type="button" class="task-icon-btn task-delete-btn" title="Delete this task" style="margin-left:6px;">Delete</button>'
         : '';
-      var remarksHtml = t.remarks ? ('<div class="task-meta">Remarks: ' + escapeHtml(t.remarks) + '</div>') : '';
-      var reminderHtml = t.reminderTime ? (' &middot; Reminder ' + escapeHtml(t.reminderTime)) : '';
+      var remarksHtml = t.remarks ? ('<div class="task-meta">Remarks: ' + escapeHtml_(t.remarks) + '</div>') : '';
+      var reminderHtml = t.reminderTime ? (' &middot; Reminder ' + escapeHtml_(t.reminderTime)) : '';
+      // Overdue - 8 Oct 2026 ("Show if the due date crossed as
+      // overdue"), same rule as the dashboard's own card.
+      var isOverdue = !!(t.dueDate && t.status !== "Completed" && t.dueDate < todayIso);
+      var overdueBadgeHtml = isOverdue ? '<span class="task-overdue-badge">Overdue</span>' : '';
+      // Clear card layout - 8 Oct 2026 ("Show clear message in dashboard
+      // and app what is the matter who created due date comment
+      // remarks"), mirroring the dashboard's own redesigned card: matter
+      // + type on top, dealer/assignee next, then status + overdue +
+      // delete, then a clean due date line (no time-of-day), then who
+      // created it.
+      var dealerLineHtml = t.dealerName
+        ? ('<div class="task-dealer-line">Dealer: <b>' + escapeHtml_(t.dealerName) + '</b> &middot; ' + escapeHtml_(t.assignedTo || "Unassigned") + '</div>')
+        : ('<div class="task-dealer-line">' + escapeHtml_(t.assignedTo || "Unassigned") + '</div>');
+      // Comments were being fetched fine but never actually rendered here -
+      // only a count badge ("💬 N") was shown, never the text itself. Fixed
+      // 6 Oct 2026 to render the same per-comment list the dashboard's
+      // renderTaskManager_() already shows.
       var commentsHtml = (t.comments || []).map(function (c) {
-        return '<div class="task-comment-row"><b>' + escapeHtml(c.author) + ':</b> ' + escapeHtml(c.text) + '</div>';
+        return '<div class="task-comment-row"><b>' + escapeHtml_(c.author) + ':</b> ' + escapeHtml_(c.text) + '</div>';
       }).join("");
-      html += '<div class="task-card" data-task-id="' + escapeHtml(t.id) + '">' +
-        '<div class="task-card-head"><span class="task-name">' + escapeHtml(t.name) + '</span>' +
-        '<span class="task-type-badge ' + typeClass + '">' + escapeHtml(t.type) + '</span></div>' +
-        '<div class="task-pills"><select class="task-status-select">' + optionsHtml + '</select>' + deleteBtnHtml + '</div>' +
-        '<div class="task-meta">Due ' + escapeHtml(t.dueDate || "—") + ' &middot; Created by ' + escapeHtml(t.createdBy || "") + reminderHtml + '</div>' +
+      html += '<div class="task-card" data-task-id="' + escapeHtml_(t.id) + '">' +
+        '<div class="task-card-head"><span class="task-name">' + escapeHtml_(t.name) + '</span>' +
+        '<span class="task-type-badge ' + typeClass + '">' + escapeHtml_(t.type) + '</span></div>' +
+        dealerLineHtml +
+        '<div class="task-pills"><select class="task-status-select">' + optionsHtml + '</select>' + overdueBadgeHtml + deleteBtnHtml + '</div>' +
+        '<div class="task-due-line' + (isOverdue ? ' overdue' : '') + '">Due ' + escapeHtml_(t.dueDate || "—") + reminderHtml + '</div>' +
+        '<div class="task-meta">Created by ' + escapeHtml_(t.createdBy || "") + '</div>' +
         remarksHtml +
         '<div class="task-comments">' + commentsHtml + '</div>' +
         '<div class="task-card-foot"><input type="text" class="task-comment-input" placeholder="Add a comment…">' +
@@ -5146,8 +5212,9 @@
     myTasksListEl.addEventListener("change", function (e) {
       if (!e.target.classList.contains("task-status-select")) return;
       var cardEl = e.target.closest(".task-card");
-      postToApi("taskUpdateStatus", { id: cardEl.getAttribute("data-task-id"), status: e.target.value }).then(function (res) {
-        if (res && res.ok) fetchMyTasks_();
+      postToApi("taskUpdateStatus", { id: cardEl.getAttribute("data-task-id"), status: e.target.value, requestedByRole: "DSR" }).then(function (res) {
+        if (res && res.ok) fetchMyTasks_(); // re-fetch so a newly-Completed task drops out of the open-only view right away
+        else { alert("Could not update status: " + ((res && res.error) || "unknown error")); fetchMyTasks_(); }
       }).catch(function () { /* best-effort */ });
     });
     myTasksListEl.addEventListener("click", function (e) {
@@ -5156,7 +5223,7 @@
         var delCardEl = deleteBtn.closest(".task-card");
         var delTaskId = delCardEl.getAttribute("data-task-id");
         if (!window.confirm("Delete this task? This can't be undone.")) return;
-        postToApi("taskDelete", { id: delTaskId, requestedBy: DSR_SHORT_NAME }).then(function (res) {
+        postToApi("taskDelete", { id: delTaskId, requestedBy: DSR_SHORT_NAME, requestedByRole: "DSR" }).then(function (res) {
           if (res && res.ok) fetchMyTasks_();
           else alert("Could not delete: " + ((res && res.error) || "unknown error"));
         }).catch(function () { alert("Could not reach the server."); });
@@ -5180,12 +5247,39 @@
   // "+ New" - DSR-created task. Status always starts "Open"; createdBy
   // is this DSR's own display name, same convention as taskAddComment's
   // author above.
+  // Dealer options for mtDealer - 8 Oct 2026, sourced from the same
+  // in-memory `dealers` array ({id, name}, built from DEFAULT_DEALERS +
+  // live Tally roster - see loadDealers()/the dealerRoster-merge block
+  // above) this app already uses everywhere else for dealer pickers.
+  // Unlike the dashboard's Dealer dropdown (which must filter
+  // MASTER_FILE_DATA_ by whichever DSR is selected), this app only ever
+  // has ONE DSR's own dealers to offer, so no filtering is needed - just
+  // list them all, sorted.
+  function populateMtDealerOptions_() {
+    var dealerSel = document.getElementById("mtDealer");
+    if (!dealerSel) return;
+    var names = dealers.map(function (d) { return d.name; }).slice().sort();
+    dealerSel.innerHTML = '<option value="">Not set</option>' + names.map(function (n) {
+      return '<option>' + escapeHtml_(n) + '</option>';
+    }).join("");
+  }
   var myTasksAddBtnEl = document.getElementById("myTasksAddBtn");
   var myTaskCreateFormEl = document.getElementById("myTaskCreateForm");
   if (myTasksAddBtnEl && myTaskCreateFormEl) {
     myTasksAddBtnEl.addEventListener("click", function (e) {
       e.preventDefault();
       myTaskCreateFormEl.hidden = !myTaskCreateFormEl.hidden;
+      if (!myTaskCreateFormEl.hidden) {
+        populateMtDealerOptions_();
+        // Due Date defaults to today - 8 Oct 2026 ("set as calender date
+        // as default"), only when still empty (don't clobber a value
+        // already typed if the DSR reopens the form mid-edit).
+        var dueDateEl = document.getElementById("mtDueDate");
+        if (dueDateEl && !dueDateEl.value) {
+          var today = new Date();
+          dueDateEl.value = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+        }
+      }
     });
   }
   var mtSaveBtnEl = document.getElementById("mtSaveBtn");
@@ -5194,14 +5288,31 @@
       var nameEl = document.getElementById("mtName");
       var name = (nameEl && nameEl.value || "").trim();
       if (!name) { alert("Enter a task name."); return; }
+      var dueDateVal = (document.getElementById("mtDueDate") || {}).value || "";
+      // Due Date required - 8 Oct 2026 ("do not accept any task" without
+      // one) - client-side check; handleTaskCreate_ also refuses a blank
+      // dueDate server-side as a backstop.
+      if (!dueDateVal) { alert("Pick a due date before creating the task."); return; }
+      // Assign to - 8 Oct 2026 ("for me also dsr or manager can assign
+      // task"): blank/default keeps the task with this DSR (assignedTo=
+      // area=DSR_SHORT_NAME, as before); picking "Alagu" hands it to the
+      // Owner instead - assignedTo becomes "Alagu" (no area, same as the
+      // dashboard's own Owner-assignee case) and this DSR is added to
+      // alsoVisibleTo so they don't lose track of a task they themselves
+      // created, even though it's no longer assigned to their own name
+      // (taskRowVisible_ would otherwise drop it from their own list).
+      var assignedToPick = (document.getElementById("mtAssignedTo") || {}).value || "";
+      var isAssignedToOwner = assignedToPick === "Alagu";
       postToApi("taskCreate", {
         name: name,
         type: (document.getElementById("mtType") || {}).value || "General",
         status: "Open",
-        dueDate: (document.getElementById("mtDueDate") || {}).value || "",
+        dueDate: dueDateVal,
         createdBy: DSR_SHORT_NAME,
-        assignedTo: DSR_SHORT_NAME,
-        area: DSR_SHORT_NAME,
+        assignedTo: isAssignedToOwner ? "Alagu" : DSR_SHORT_NAME,
+        area: isAssignedToOwner ? "" : DSR_SHORT_NAME,
+        dealerName: (document.getElementById("mtDealer") || {}).value || "",
+        alsoVisibleTo: isAssignedToOwner ? DSR_SHORT_NAME : "",
         remarks: (document.getElementById("mtRemarks") || {}).value || "",
         reminderTime: (document.getElementById("mtReminderTime") || {}).value || ""
       }).then(function (res) {
@@ -5210,10 +5321,12 @@
           document.getElementById("mtDueDate").value = "";
           document.getElementById("mtRemarks").value = "";
           document.getElementById("mtReminderTime").value = "";
+          document.getElementById("mtAssignedTo").value = "";
+          document.getElementById("mtDealer").value = "";
           myTaskCreateFormEl.hidden = true;
           fetchMyTasks_();
         } else {
-          alert("Could not create task - please try again.");
+          alert("Could not create task: " + ((res && res.error) || "please try again."));
         }
       }).catch(function () { alert("Could not reach the server."); });
     });
