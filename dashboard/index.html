@@ -2163,7 +2163,20 @@
                or manager can assign task" (a Manager/Area Manager's own
                "+ New" form can now assign a task straight to the owner,
                not only to a DSR). -->
-          <span><label>Assigned To</label><select id="tcAssignedTo"></select></span>
+          <!-- Fixed widths added 9 Oct 2026 ("after selecting dsr name
+               the dealer name space also reduced and not set is
+               coming"): neither of these two <select>s (nor their
+               wrapping <span>s) had ever had an explicit width, so each
+               one's closed-state box sized itself to its CURRENTLY
+               SELECTED option's own text width (a browser default, not a
+               bug in the data) - genuinely narrow whenever "Select
+               name"/"Not set" (short text) was the current selection,
+               and visibly resizing every time the selection changed,
+               however long the real dealer names populated into the
+               list are. A fixed flex-basis + width:100% on the <select>
+               itself keeps both boxes a stable, readable size regardless
+               of which option is currently showing. -->
+          <span style="flex:1 1 160px;"><label>Assigned To</label><select id="tcAssignedTo" style="width:100%;"></select></span>
           <!-- Dealer - replaces the old geography "Area" dropdown, 8 Oct
                2026 ("remove area name in dashboard task, show dealer name
                as per selected dsr name"). Options are filtered live to
@@ -2175,7 +2188,7 @@
                the task's own Area-Manager-visibility field is set
                automatically from the selected DSR, not from this picker
                - see tcSaveBtnEl's click handler below. -->
-          <span><label>Dealer</label><select id="tcDealer"><option value="">Not set</option></select></span>
+          <span style="flex:1 1 220px;"><label>Dealer</label><select id="tcDealer" style="width:100%;"><option value="">Not set</option></select></span>
           <span style="flex:1 1 180px;"><label>Also visible to</label><input type="text" id="tcAlsoVisible" placeholder="comma-separated names" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
         </div>
         <div class="master-file-filters" style="padding:4px 0;">
