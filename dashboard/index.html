@@ -8390,23 +8390,50 @@
   // 2026, replaces the old geography Area dropdown. "Alagu" (Owner) has
   // no dealers of their own, so the Dealer list is simply empty (just
   // "Not set") whenever Owner is the one assigned.
+  //
+  // Two bugs fixed 9 Oct 2026 (owner: "before selecting dsr name some of
+  // the dealer name showing who r they from wr u tooked them and after
+  // selecting dsr name no dealer name showing"):
+  //
+  // 1. Before any DSR was picked (the "Select name" placeholder, value
+  //    ""), shortName/longName both stayed "" and the filter below was
+  //    `d.dsrName === longName` - so any dealer in MASTER_FILE_DATA_
+  //    whose own DSR Name cell is genuinely blank (a dealer never
+  //    assigned to a DSR in the DealerMeta sheet - these do exist)
+  //    matched `"" === ""` and leaked into the list, looking like
+  //    unexplained dealer names nobody had picked a DSR for yet. Fixed:
+  //    an empty/placeholder Assigned-To now short-circuits straight to
+  //    "Not set" only, with no filter run against MASTER_FILE_DATA_ at
+  //    all.
+  // 2. Once a real DSR WAS picked, the match was a strict `===` against
+  //    DealerMeta's free-text "DSR Name" column - a cell a person can
+  //    (and, per the owner's report, apparently did) type with different
+  //    spacing/casing than this page's own hardcoded DSRS[].dsrName
+  //    long-name strings, which silently fails `===` and returns zero
+  //    dealers even though the dealer rows are really there. Fixed: both
+  //    sides are trimmed and lower-cased before comparing, so a stray
+  //    leading/trailing space or case difference no longer breaks the
+  //    match.
   function populateTcDealerOptions_() {
     var assignedSel = document.getElementById("tcAssignedTo");
     var dealerSel = document.getElementById("tcDealer");
     if (!assignedSel || !dealerSel) return;
+    var shortName = assignedSel.value;
+    if (!shortName) { dealerSel.innerHTML = '<option value="">Not set</option>'; return; }
     // MASTER_FILE_DATA_ rows key their .dsrName field by each DSR's LONG
     // Petronas-area name (e.g. "PETRONAS THENI AREA (PRABHA)"), not the
     // short name tcAssignedTo's options use ("Prabha") - same mapping
     // DSRS.forEach(...dsrNameByDisplay[d.name] = d.dsrName...) already
     // uses elsewhere on this page. Without this lookup the short name
     // would never match and the Dealer list would always come back empty.
-    var shortName = assignedSel.value;
     var longName = shortName;
     for (var i = 0; i < DSRS.length; i++) {
       if (DSRS[i].name === shortName) { longName = DSRS[i].dsrName; break; }
     }
-    var names = MASTER_FILE_DATA_.filter(function (d) { return d.dsrName === longName && d.dealer; })
-      .map(function (d) { return d.dealer; }).sort();
+    var longNameNorm = String(longName).trim().toLowerCase();
+    var names = MASTER_FILE_DATA_.filter(function (d) {
+      return String(d.dsrName || "").trim().toLowerCase() === longNameNorm && d.dealer;
+    }).map(function (d) { return d.dealer; }).sort();
     dealerSel.innerHTML = '<option value="">Not set</option>' + names.map(function (n) {
       return '<option>' + mfEscapeHtml_(n) + '</option>';
     }).join("");
