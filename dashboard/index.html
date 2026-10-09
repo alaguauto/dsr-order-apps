@@ -7971,6 +7971,18 @@
         MASTER_FILE_DATA_ = data.dealers || [];
         populateMasterFileFilterOptions_();
         renderMasterFileTable_();
+        // Task Manager's "Dealer" dropdown reads MASTER_FILE_DATA_ too
+        // (populateTcDealerOptions_, keyed by the currently-selected
+        // Assigned To DSR) - fixed 9 Oct 2026 ("in dashboard taskmanager
+        // if selected dsr name then their dealers name are not
+        // showing"): this fetch is async and can still be in flight when
+        // the Task Manager "+New" form is opened or a DSR is picked right
+        // after login, so populateTcDealerOptions_() used to be called
+        // once against a still-empty MASTER_FILE_DATA_ ([]) and never
+        // again afterward - the Dealer list stayed permanently blank for
+        // the rest of the session even once the real data arrived.
+        // Re-running it here, every time this data refreshes, fixes that.
+        populateTcDealerOptions_();
         var footEl = document.getElementById("mfFooterNote");
         if (footEl) {
           footEl.textContent = "Showing " + MASTER_FILE_DATA_.length + " dealers for " + month + ". Target/Plan (pencil icon): editable here or by each DSR in their own app. " +
@@ -8398,7 +8410,15 @@
         if (assignedSel && !assignedSel.options.length && typeof DSRS !== "undefined") {
           var assignOptions = DSRS.map(function (d) { return d.name; });
           assignOptions.push("Alagu");
-          assignedSel.innerHTML = assignOptions.map(function (n) { return '<option>' + mfEscapeHtml_(n) + '</option>'; }).join("");
+          // Placeholder default - 9 Oct 2026 ("in dashboard assign to be
+          // not default to prabha , make as select name as default"): the
+          // very first DSRS entry (Prabha) used to end up pre-selected
+          // simply because it was the first <option> in the list - not a
+          // deliberate default, just how <select> works. A blank
+          // "Select name" option up front means nobody is pre-selected
+          // until the owner/manager actually picks one.
+          assignedSel.innerHTML = '<option value="" selected>Select name</option>' +
+            assignOptions.map(function (n) { return '<option>' + mfEscapeHtml_(n) + '</option>'; }).join("");
           populateTcDealerOptions_();
         }
         // Due Date defaults to today - 8 Oct 2026 ("set as calender date
