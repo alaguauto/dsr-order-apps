@@ -529,8 +529,8 @@
   .mf-remark-add { background:var(--accent-soft); color:var(--accent); border-radius:5px; padding:3px 8px; }
   .mf-editable { position: relative; }
   .mf-edit-input { width: 80px; padding: 3px 5px; border-radius: 5px; border: 1px solid var(--border); font-size: 12px; text-align: right; }
-  .mf-beat-input, .mf-area-input { text-align: left; background: var(--surface); color: var(--ink); }
-  .mf-area-input { width: 110px; }
+  .mf-beat-input, .mf-district-input { text-align: left; background: var(--surface); color: var(--ink); }
+  .mf-district-input { width: 110px; }
 
   .task-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin: 10px 4px; background: var(--surface); }
   .task-card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
@@ -2093,7 +2093,7 @@
       <div class="master-file-filters">
         <span><label>DSR</label><select id="mfDsrFilter"><option value="">All</option></select></span>
         <span><label>Beat Day</label><select id="mfBeatFilter"><option value="">All</option><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Not set</option></select></span>
-        <span><label>Area</label><select id="mfAreaFilter"><option value="">All</option></select></span>
+        <span><label>DT</label><select id="mfDistrictFilter"><option value="">All</option></select></span>
       </div>
       <div class="age-table-scroll">
         <table class="master-file-table" id="mfCurrentTable">
@@ -2102,7 +2102,7 @@
               <th>Dealer</th>
               <th>DSR</th>
               <th>Beat Day</th>
-              <th>Area</th>
+              <th>DT</th>
               <th>Overall Outstanding<br><span style="font-weight:400;font-size:9.5px;">(as of month start)</span></th>
               <th>Collectable<br><span style="font-weight:400;font-size:9.5px;">(45+ days)</span></th>
               <th>Sales Target (Ltr)</th>
@@ -7982,14 +7982,18 @@
 
   function populateMasterFileFilterOptions_() {
     var dsrSel = document.getElementById("mfDsrFilter");
-    var areaSel = document.getElementById("mfAreaFilter");
-    if (!dsrSel || !areaSel) return;
-    var dsrs = {}, areas = {};
-    MASTER_FILE_DATA_.forEach(function (d) { if (d.dsrName) dsrs[d.dsrName] = true; if (d.area) areas[d.area] = true; });
-    var dsrVal = dsrSel.value, areaVal = areaSel.value;
+    // Renamed from the old Area filter (areaSel/mfAreaFilter) 8 Oct 2026
+    // alongside the table itself switching its editable geography column
+    // from Area to DT (District) - see renderMasterFileTable_'s row
+    // builder and saveMasterFileMeta_ below.
+    var districtSel = document.getElementById("mfDistrictFilter");
+    if (!dsrSel || !districtSel) return;
+    var dsrs = {}, districts = {};
+    MASTER_FILE_DATA_.forEach(function (d) { if (d.dsrName) dsrs[d.dsrName] = true; if (d.district) districts[d.district] = true; });
+    var dsrVal = dsrSel.value, districtVal = districtSel.value;
     dsrSel.innerHTML = '<option value="">All</option>' + Object.keys(dsrs).sort().map(function (n) { return '<option>' + mfEscapeHtml_(n) + '</option>'; }).join("");
-    areaSel.innerHTML = '<option value="">All</option>' + Object.keys(areas).sort().map(function (n) { return '<option>' + mfEscapeHtml_(n) + '</option>'; }).join("");
-    dsrSel.value = dsrVal; areaSel.value = areaVal;
+    districtSel.innerHTML = '<option value="">All</option>' + Object.keys(districts).sort().map(function (n) { return '<option>' + mfEscapeHtml_(n) + '</option>'; }).join("");
+    dsrSel.value = dsrVal; districtSel.value = districtVal;
   }
 
   function renderMasterFileTable_() {
@@ -7997,7 +8001,7 @@
     if (!bodyEl) return;
     var dsrFilter = (document.getElementById("mfDsrFilter") || {}).value || "";
     var beatFilter = (document.getElementById("mfBeatFilter") || {}).value || "";
-    var areaFilter = (document.getElementById("mfAreaFilter") || {}).value || "";
+    var districtFilter = (document.getElementById("mfDistrictFilter") || {}).value || "";
     var allowedNames = (typeof visibleDsrs_ === "function") ? visibleDsrs_().map(function (d) { return d.name; }) : null;
     // Only a RESTRICTED Area Manager's allowedNames list should hide a
     // dealer whose DSR doesn't match - for an unrestricted Owner/Manager,
@@ -8013,7 +8017,7 @@
     var rows = MASTER_FILE_DATA_.filter(function (d) {
       if (restrictedMf && allowedNames && allowedNames.indexOf(d.dsrName) === -1) return false;
       if (dsrFilter && d.dsrName !== dsrFilter) return false;
-      if (areaFilter && d.area !== areaFilter) return false;
+      if (districtFilter && d.district !== districtFilter) return false;
       if (beatFilter === "Not set" && d.beatDay) return false;
       if (beatFilter && beatFilter !== "Not set" && d.beatDay !== beatFilter) return false;
       return true;
@@ -8047,7 +8051,15 @@
         '<td>' + mfEscapeHtml_(d.dealer) + '</td>' +
         '<td class="mf-editable"><select class="mf-edit-input mf-dsr-input">' + dsrOptions + '</select></td>' +
         '<td class="mf-editable"><select class="mf-edit-input mf-beat-input">' + beatOptions + '</select></td>' +
-        '<td class="mf-editable"><input type="text" class="mf-edit-input mf-area-input" value="' + mfEscapeHtml_(d.area || "") + '" placeholder="Not set"></td>' +
+        // Area -> DT (District), 8 Oct 2026, per the owner's request -
+        // Area is still stored (still comes from the Excel import, see
+        // DEALER_META_HEADERS in Code.gs) but is no longer what this table
+        // edits; District is more complete/consistent across the real
+        // Master File Excel. Still a free-text field (not a <select>)
+        // since District values in the real data aren't perfectly
+        // standardized (casing/spelling variants) - same reasoning Area
+        // was free text for.
+        '<td class="mf-editable"><input type="text" class="mf-edit-input mf-district-input" value="' + mfEscapeHtml_(d.district || "") + '" placeholder="Not set"></td>' +
         '<td class="mf-num mf-money">' + mfMoney_(d.overallOutstandingRs) + '</td>' +
         '<td class="mf-num' + (d.collectableRs ? ' mf-warn' : '') + '">' + mfMoney_(d.collectableRs) + '</td>' +
         '<td class="mf-num mf-editable"><span style="display:flex;align-items:center;gap:3px;justify-content:flex-end;">' +
@@ -8141,7 +8153,10 @@
     var dealer = rowEl.getAttribute("data-dealer");
     var dsrEl = rowEl.querySelector(".mf-dsr-input");
     var beatEl = rowEl.querySelector(".mf-beat-input");
-    var areaEl = rowEl.querySelector(".mf-area-input");
+    // Renamed from the old mf-area-input (areaEl) 8 Oct 2026, alongside the
+    // table switching its editable geography column from Area to DT
+    // (District) - see the row-builder comment in renderMasterFileTable_.
+    var districtEl = rowEl.querySelector(".mf-district-input");
     if (changedDsr && dsrEl) {
       var newDsr = dsrEl.value || "(not set)";
       if (!window.confirm('Move "' + dealer + '" to ' + newDsr + '? This changes which DSR app sees this dealer\'s targets.')) {
@@ -8153,11 +8168,11 @@
       dealer: dealer,
       dsrName: dsrEl ? dsrEl.value : undefined,
       beatDay: beatEl ? beatEl.value : undefined,
-      area: areaEl ? areaEl.value : undefined
+      district: districtEl ? districtEl.value : undefined
     }).then(function (res) { if (res && res.ok) fetchMasterFile_(); }).catch(function () { /* best-effort */ });
   }
 
-  ["mfDsrFilter", "mfBeatFilter", "mfAreaFilter"].forEach(function (id) {
+  ["mfDsrFilter", "mfBeatFilter", "mfDistrictFilter"].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener("change", renderMasterFileTable_);
   });
@@ -8168,7 +8183,7 @@
       // 8 Oct 2026 - the explicit ✓ Save button (below, in the "click"
       // listener) is now the only trigger for those two fields; see
       // saveMasterFileTarget_'s comment for why.
-      if (e.target.classList.contains("mf-beat-input") || e.target.classList.contains("mf-area-input")) {
+      if (e.target.classList.contains("mf-beat-input") || e.target.classList.contains("mf-district-input")) {
         saveMasterFileMeta_(e.target.closest("tr"), false);
       }
       if (e.target.classList.contains("mf-dsr-input")) {
