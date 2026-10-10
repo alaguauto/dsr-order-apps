@@ -8066,13 +8066,39 @@
     var html = "";
     for (var i = 0; i < rows.length; i++) {
       var d = rows[i];
-      var salesBalance = (d.salesLtr !== null && d.salesTargetLtr !== null) ? (d.salesLtr - d.salesTargetLtr) : null;
-      var collBalance = (d.collectionRs !== null && d.collectionPlanRs !== null) ? (d.collectionRs - d.collectionPlanRs) : null;
+      // Balance formula fixed 10 Oct 2026 - owner: "collection and sales
+      // balance are coming in negative". It used to be Actual - Target
+      // (negative = short of target), the opposite of every OTHER
+      // Target/Balance convention already used throughout this dashboard
+      // (each DSR's own card, the Area tables, the Week view - all
+      // Target - Achieved, so a dealer who's sold/collected nothing shows
+      // a plain positive "still needed" number, not a confusing negative
+      // one). Flipped to match: now Target - Actual, so a shortfall is a
+      // positive, red number (how much is still needed) and hitting/
+      // beating target shows "+X over" in green - same semantics as the
+      // per-DSR card's own cBalance/cDone just above in this file.
+      var salesBalance = (d.salesLtr !== null && d.salesTargetLtr !== null) ? (d.salesTargetLtr - d.salesLtr) : null;
+      var collBalance = (d.collectionRs !== null && d.collectionPlanRs !== null) ? (d.collectionPlanRs - d.collectionRs) : null;
       var remarkHtml = d.remark
         ? ('<div class="mf-remark-text">“' + mfEscapeHtml_(d.remark) + '” — ' + mfEscapeHtml_(d.remarkBy || "") + '</div><button type="button" class="mf-remark-btn" data-dealer="' + mfEscapeHtml_(d.dealer) + '" title="Add another remark">+ Add</button>')
         : ('<button type="button" class="mf-remark-btn mf-remark-add" data-dealer="' + mfEscapeHtml_(d.dealer) + '" title="Add remark">+ Add</button>');
-      var beatOptions = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map(function (b) {
-        return '<option value="' + b + '"' + (b === (d.beatDay || "") ? " selected" : "") + '>' + (b || "Not set") + '</option>';
+      // Hardened 10 Oct 2026, same bug class/fix pattern as the DSR
+      // dropdown just below: a dealer's real d.beatDay that doesn't
+      // EXACTLY match one of these 6 fixed Title-Case options (e.g. the
+      // Excel's own ALL-CAPS "MONDAY" before Code.gs's normalizeBeatDay_
+      // fix, 10 Oct 2026) used to make this <select> silently show its
+      // first/blank option ("Not set") even though the real value was
+      // sitting correctly in DealerMeta the whole time - that was the
+      // actual root cause behind every dealer showing "Not set" despite
+      // 589 of 678 dealers having a real Beat Day. Code.gs now normalizes
+      // this on import, but keeping this defensive fallback too means a
+      // genuinely unrecognized future value is shown as an extra option
+      // (never silently hidden) instead of this exact bug being able to
+      // recur invisibly again.
+      var beatDayOptionList_ = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      if (d.beatDay && beatDayOptionList_.indexOf(d.beatDay) === -1) beatDayOptionList_.push(d.beatDay);
+      var beatOptions = beatDayOptionList_.map(function (b) {
+        return '<option value="' + mfEscapeHtml_(b) + '"' + (b === (d.beatDay || "") ? " selected" : "") + '>' + mfEscapeHtml_(b || "Not set") + '</option>';
       }).join("");
       var dsrKnownNames = DSRS.map(function (x) { return x.name; });
       var dsrOptionList = [""].concat(dsrKnownNames);
@@ -8113,12 +8139,16 @@
         // a lot...flickering...don't know if it was saved" report.
         '<button type="button" class="mf-save-btn" title="Save">✓</button></span></td>' +
         '<td class="mf-num">' + mfNum_(d.salesLtr) + '</td>' +
-        '<td class="mf-num' + (salesBalance !== null && salesBalance < 0 ? ' mf-warn' : (salesBalance !== null ? ' mf-good' : '')) + '">' + (salesBalance === null ? '—' : (salesBalance >= 0 ? '+' : '') + mfNum_(salesBalance)) + '</td>' +
+        // Target - Actual convention (see the salesBalance comment above):
+        // >0 still short (red, plain number = how much remains), <=0
+        // target met/beaten (green, "+X" = how much over).
+        '<td class="mf-num' + (salesBalance !== null && salesBalance > 0 ? ' mf-warn' : (salesBalance !== null ? ' mf-good' : '')) + '">' + (salesBalance === null ? '—' : (salesBalance <= 0 ? '+' + mfNum_(Math.abs(salesBalance)) : mfNum_(salesBalance))) + '</td>' +
         '<td class="mf-num mf-editable"><span style="display:flex;align-items:center;gap:3px;justify-content:flex-end;">' +
         '<input type="number" class="mf-edit-input mf-plan-input" value="' + (d.collectionPlanRs === null ? "" : d.collectionPlanRs) + '" placeholder="0" style="width:62px;">' +
         '<button type="button" class="mf-save-btn" title="Save">✓</button></span></td>' +
         '<td class="mf-num mf-money">' + mfMoney_(d.collectionRs) + '</td>' +
-        '<td class="mf-num' + (collBalance !== null && collBalance < 0 ? ' mf-warn' : (collBalance !== null ? ' mf-good' : '')) + '">' + (collBalance === null ? '—' : (collBalance >= 0 ? '+' : '') + mfMoney_(collBalance)) + '</td>' +
+        // Same Target - Actual convention as Sales Balance above.
+        '<td class="mf-num' + (collBalance !== null && collBalance > 0 ? ' mf-warn' : (collBalance !== null ? ' mf-good' : '')) + '">' + (collBalance === null ? '—' : (collBalance <= 0 ? '+' + mfMoney_(Math.abs(collBalance)) : mfMoney_(collBalance))) + '</td>' +
         '<td class="mf-remarks-cell">' + remarkHtml + '</td>' +
         '</tr>';
     }
