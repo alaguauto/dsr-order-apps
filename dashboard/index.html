@@ -1248,9 +1248,13 @@
        DSR -> dealer tap-to-expand table, per the owner's own scope
        ("Combined that selected date — Sales and Combined — Collection,
        show of By DSR — tap a name to expand all cards... if no remove
-       all other cards"). Populated by renderPeriodSummary_(), shown
-       instead of #reportContent/#lastMonthReportContent/#noDataBanner
-       only while CURRENT_VIEW_PERIOD is set. -->
+       all other cards"). #periodCombinedWrap is populated by
+       renderPeriodCombined_() (trend-map based, always available -
+       never needs a Daily/Monthly Freeze snapshot) and #periodAreaWrap
+       by renderPeriodAreaBreakdown_()/renderPeriodAreaNoData_() (DOES
+       need one - split apart 10 Oct 2026, see those functions' own
+       comments), shown instead of #reportContent/#lastMonthReportContent/
+       #noDataBanner only while CURRENT_VIEW_PERIOD is set. -->
   <div id="periodReportContent" hidden style="margin:0 0 18px;">
     <div id="periodCombinedWrap" style="margin:0 0 16px;"></div>
     <div class="section-label-row">
@@ -7808,12 +7812,15 @@
   bindAreaToggle_('lastMonthAreaWrap');
   bindAreaToggle_('lastMonthGroupSummaryWrap');
   // "Report period" Week/Quarter/Year view's own area wrap, added 2 Oct
-  // 2026 alongside renderPeriodSummary_() - missed when that feature was
-  // first built (every other bindAreaToggle_() wrap above was bound the
-  // same day its own render function was added; this one wasn't), which
-  // is why the Area table's "+" rows never expanded for Week/Quarter/
-  // Year (found and fixed 7 Oct 2026). renderPeriodSummary_() fills
-  // #periodAreaWrap with buildAreaRowsFromBreakdown_()'s identical
+  // 2026 alongside what was then one renderPeriodSummary_() function
+  // (split 10 Oct 2026 into renderPeriodCombined_()/
+  // renderPeriodAreaBreakdown_(), see their own comments) - missed when
+  // that feature was first built (every other bindAreaToggle_() wrap
+  // above was bound the same day its own render function was added;
+  // this one wasn't), which is why the Area table's "+" rows never
+  // expanded for Week/Quarter/Year (found and fixed 7 Oct 2026).
+  // renderPeriodAreaBreakdown_() fills #periodAreaWrap with
+  // buildAreaRowsFromBreakdown_()'s identical
   // data-area-toggle/data-dsr-toggle markup, so the same delegated
   // handler works here with zero changes - same "safe to bind on an
   // empty/hidden wrap" reasoning as lastMonthAreaWrap above.
@@ -10205,35 +10212,57 @@
       combinedRange: [todayKey, todayKey]
     };
   }
-  // Fills #periodCombinedWrap/#periodAreaWrap from a successful
-  // handleWeekSummaryGet_/handlePeriodSummaryGet_ response - the
-  // Week/Quarter/Year twin of renderLastMonthReport_() above, minus the
-  // Day Book/Collection Group Summary pieces that don't apply here (see
-  // the long comment above this section and #periodReportContent's own
-  // HTML comment).
-  function renderPeriodSummary_(period, res) {
+  // Fills #periodCombinedWrap from the always-available Sales/Collection
+  // trend maps (salesTrendMap/salesRsTrendMap/collectionTrendMap - see
+  // their own comment above and Code.gs's long comment above
+  // handleWeekSummaryGet_: these keep one row per calendar day since 20
+  // Sep 2026, no 90-day window and no dependency on Daily/Monthly Freeze
+  // at all). Split out of what used to be one renderPeriodSummary_()
+  // function (10 Oct 2026 - owner: "by changing week in report period
+  // data is not showing for any week"). Root cause: Daily Freeze had
+  // only actually captured 3 Oct/9 Oct/10 Oct so far (confirmed directly
+  // from the owner's own "AAA Daily Freeze" Drive folder listing - the
+  // 7:45 PM scheduled run evidently hasn't been firing reliably), so
+  // EVERY week touching early October needs a boundary day
+  // (handleWeekSummaryGet_'s end/start day) that was never frozen - but
+  // the Combined Sales/Collection figure never actually needed that
+  // snapshot, only the By-DSR/dealer breakdown below does. Previously
+  // both were rendered together inside one function that only ran on a
+  // successful backend response, so a missing boundary day blanked the
+  // WHOLE period view, including the combined totals that were always
+  // computable. Now called unconditionally for any real (not
+  // future/nonexistent) period, independent of whether the breakdown
+  // fetch below succeeds.
+  function renderPeriodCombined_(period) {
     var combinedWrap = document.getElementById('periodCombinedWrap');
-    if (combinedWrap) {
-      // Same CURRENT_ALLOWED_AREAS scoping as renderLastMonthReport_()'s
-      // own combinedWrap - these are company-wide totals with no
-      // per-DSR split, hidden entirely for a restricted Area Manager
-      // rather than shown company-wide (the By-DSR table below is
-      // already correctly scoped to their own visible DSRs).
-      if (CURRENT_ALLOWED_AREAS) {
-        combinedWrap.innerHTML = '';
-      } else if (salesTrendMap === null || collectionTrendMap === null || salesRsTrendMap === null) {
-        combinedWrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Loading ' + period.label + '…</p>';
-      } else {
-        var salesLtr = sumMapInRange_(salesTrendMap, period.combinedRange[0], period.combinedRange[1]);
-        var salesRs = sumMapInRange_(salesRsTrendMap, period.combinedRange[0], period.combinedRange[1]);
-        var collRs = sumMapInRange_(collectionTrendMap, period.combinedRange[0], period.combinedRange[1]);
-        combinedWrap.innerHTML =
-          '<div style="display:flex;gap:14px;flex-wrap:wrap;">' +
-          '<div class="stat"><p class="stat-label">Sales — ' + period.label + '</p><div class="stat-value">' + fmt(salesLtr) + ' Ltr</div><p class="stat-sub">' + fmtRs(salesRs) + '</p></div>' +
-          '<div class="stat"><p class="stat-label">Collection — ' + period.label + '</p><div class="stat-value">' + fmtRs(collRs) + '</div></div>' +
-          '</div>';
-      }
+    if (!combinedWrap) return;
+    // Same CURRENT_ALLOWED_AREAS scoping as renderLastMonthReport_()'s
+    // own combinedWrap - these are company-wide totals with no
+    // per-DSR split, hidden entirely for a restricted Area Manager
+    // rather than shown company-wide (the By-DSR table below is
+    // already correctly scoped to their own visible DSRs).
+    if (CURRENT_ALLOWED_AREAS) {
+      combinedWrap.innerHTML = '';
+    } else if (salesTrendMap === null || collectionTrendMap === null || salesRsTrendMap === null) {
+      combinedWrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Loading ' + period.label + '…</p>';
+    } else {
+      var salesLtr = sumMapInRange_(salesTrendMap, period.combinedRange[0], period.combinedRange[1]);
+      var salesRs = sumMapInRange_(salesRsTrendMap, period.combinedRange[0], period.combinedRange[1]);
+      var collRs = sumMapInRange_(collectionTrendMap, period.combinedRange[0], period.combinedRange[1]);
+      combinedWrap.innerHTML =
+        '<div style="display:flex;gap:14px;flex-wrap:wrap;">' +
+        '<div class="stat"><p class="stat-label">Sales — ' + period.label + '</p><div class="stat-value">' + fmt(salesLtr) + ' Ltr</div><p class="stat-sub">' + fmtRs(salesRs) + '</p></div>' +
+        '<div class="stat"><p class="stat-label">Collection — ' + period.label + '</p><div class="stat-value">' + fmtRs(collRs) + '</div></div>' +
+        '</div>';
     }
+  }
+  // Fills #periodAreaWrap's By-DSR/dealer breakdown table from a
+  // successful handleWeekSummaryGet_/handlePeriodSummaryGet_ response -
+  // the part of the old renderPeriodSummary_() that genuinely DOES need
+  // a Daily/Monthly Freeze snapshot (see renderPeriodCombined_()'s
+  // comment just above for why it was split out 10 Oct 2026). Unchanged
+  // logic from before that split.
+  function renderPeriodAreaBreakdown_(period, res) {
     var areaWrap = document.getElementById('periodAreaWrap');
     var areaLabelEl = document.getElementById('periodAreaSectionLabel');
     // Reset the section's own label back to its plain text on every
@@ -10244,51 +10273,66 @@
     // than leaving a stale "(This Week)" stuck on the label after
     // switching to Quarter/Year or a different week.
     if (areaLabelEl) areaLabelEl.textContent = 'Full Petronas — Sales & Collection';
-    if (areaWrap) {
-      var breakdown = periodDealerBreakdown_(res.salesByDealer, res.collectionByDealer, 'salesLtr', 'collectionRs');
-      areaWrap.innerHTML = ageTableWrap_('<thead><tr><th>Area</th><th>Sales (Ltr)</th><th>Collection (Rs)</th></tr></thead>', buildAreaRowsFromBreakdown_(breakdown));
-      // Target/Balance columns, added 7 Oct 2026 ("make the target also
-      // split in to the week counting, if the before week is pening then
-      // it to add with the next and in same Full Petronas Sales &
-      // Collection targen anmd balance to do, this need only for current
-      // month's week"). Quarter/Year and a week from a PAST month keep
-      // the plain 3-column table rendered just above, untouched; only a
-      // Week period whose own month is the CURRENT, still-open month
-      // gets upgraded to the 7-column Target/Balance table, in a second
-      // pass once computeWeekRolloverTargets_() resolves (it may need
-      // extra network calls for earlier weeks of the same month, so the
-      // table shows Sales/Collection immediately above rather than
-      // sitting blank while that resolves).
-      if (period.kind === 'week' && period.monthKey === currentMonthKeyISO_dashboard_()) {
-        var periodKeyAtCallTime = period.key;
-        computeWeekRolloverTargets_(period.monthKey, period.week).then(function (targets) {
-          // The picker may have moved to a different week/quarter/year/
-          // month while those extra fetches were in flight - same stale-
-          // response guard loadPeriodSummary_() itself already uses.
-          if (!CURRENT_VIEW_PERIOD || CURRENT_VIEW_PERIOD.key !== periodKeyAtCallTime) return;
-          // "This Week" scope note moved onto the section's own label
-          // (set once here) instead of being repeated on all 6 column
-          // headers - added 7 Oct 2026, replacing that same day's two
-          // earlier attempts ("This Week ..." on every header, then
-          // shortened to "This Wk ..." with wider 'wide'-variant columns)
-          // after the owner reported the table had become too wide to
-          // fit on one screen for a screenshot ("make as last file space
-          // so that i can take screenshot in one page"). Repeating the
-          // scope word on every header was never needed for the reader
-          // to know these are weekly figures - saying it once on the
-          // section title does the same job for a fraction of the width,
-          // so the headers go back to their original short text and the
-          // table goes back to the DEFAULT (narrow, 92px/col) width
-          // instead of 'wide' - both changes together bring the whole
-          // table back down near its original footprint.
-          if (areaLabelEl) areaLabelEl.textContent = 'Full Petronas — Sales & Collection (This Week)';
-          areaWrap.innerHTML = ageTableWrap_(
-            '<thead><tr><th>Area</th><th>Sales (Ltr)</th><th>Sales Target (Ltr)</th><th>Sales Balance (Ltr)</th><th>Collection (Rs)</th><th>Collection Target (Rs)</th><th>Collection Balance (Rs)</th></tr></thead>',
-            buildAreaRowsFromBreakdown_(breakdown, targets.salesTargetByDsr, targets.collectionTargetByDsr)
-          );
-        });
-      }
+    if (!areaWrap) return;
+    var breakdown = periodDealerBreakdown_(res.salesByDealer, res.collectionByDealer, 'salesLtr', 'collectionRs');
+    areaWrap.innerHTML = ageTableWrap_('<thead><tr><th>Area</th><th>Sales (Ltr)</th><th>Collection (Rs)</th></tr></thead>', buildAreaRowsFromBreakdown_(breakdown));
+    // Target/Balance columns, added 7 Oct 2026 ("make the target also
+    // split in to the week counting, if the before week is pening then
+    // it to add with the next and in same Full Petronas Sales &
+    // Collection targen anmd balance to do, this need only for current
+    // month's week"). Quarter/Year and a week from a PAST month keep
+    // the plain 3-column table rendered just above, untouched; only a
+    // Week period whose own month is the CURRENT, still-open month
+    // gets upgraded to the 7-column Target/Balance table, in a second
+    // pass once computeWeekRolloverTargets_() resolves (it may need
+    // extra network calls for earlier weeks of the same month, so the
+    // table shows Sales/Collection immediately above rather than
+    // sitting blank while that resolves).
+    if (period.kind === 'week' && period.monthKey === currentMonthKeyISO_dashboard_()) {
+      var periodKeyAtCallTime = period.key;
+      computeWeekRolloverTargets_(period.monthKey, period.week).then(function (targets) {
+        // The picker may have moved to a different week/quarter/year/
+        // month while those extra fetches were in flight - same stale-
+        // response guard loadPeriodSummary_() itself already uses.
+        if (!CURRENT_VIEW_PERIOD || CURRENT_VIEW_PERIOD.key !== periodKeyAtCallTime) return;
+        // "This Week" scope note moved onto the section's own label
+        // (set once here) instead of being repeated on all 6 column
+        // headers - added 7 Oct 2026, replacing that same day's two
+        // earlier attempts ("This Week ..." on every header, then
+        // shortened to "This Wk ..." with wider 'wide'-variant columns)
+        // after the owner reported the table had become too wide to
+        // fit on one screen for a screenshot ("make as last file space
+        // so that i can take screenshot in one page"). Repeating the
+        // scope word on every header was never needed for the reader
+        // to know these are weekly figures - saying it once on the
+        // section title does the same job for a fraction of the width,
+        // so the headers go back to their original short text and the
+        // table goes back to the DEFAULT (narrow, 92px/col) width
+        // instead of 'wide' - both changes together bring the whole
+        // table back down near its original footprint.
+        if (areaLabelEl) areaLabelEl.textContent = 'Full Petronas — Sales & Collection (This Week)';
+        areaWrap.innerHTML = ageTableWrap_(
+          '<thead><tr><th>Area</th><th>Sales (Ltr)</th><th>Sales Target (Ltr)</th><th>Sales Balance (Ltr)</th><th>Collection (Rs)</th><th>Collection Target (Rs)</th><th>Collection Balance (Rs)</th></tr></thead>',
+          buildAreaRowsFromBreakdown_(breakdown, targets.salesTargetByDsr, targets.collectionTargetByDsr)
+        );
+      });
     }
+  }
+  // Scoped "no data" message for just the By-DSR/dealer breakdown table
+  // (10 Oct 2026) - used when a Week/Quarter/Year/Today period is real
+  // (not future, not nonexistent) and its Combined Sales/Collection
+  // figure rendered fine via renderPeriodCombined_() above, but the
+  // breakdown itself can't be computed because a Daily/Monthly Freeze
+  // boundary day it needs was never frozen. Replaces hiding the ENTIRE
+  // period view (including the perfectly good combined totals) over a
+  // gap that only actually affects this one table - see
+  // periodNoDataMessage_() for the exact wording per reason.
+  function renderPeriodAreaNoData_(period, result) {
+    var areaWrap = document.getElementById('periodAreaWrap');
+    var areaLabelEl = document.getElementById('periodAreaSectionLabel');
+    if (areaLabelEl) areaLabelEl.textContent = 'Full Petronas — Sales & Collection';
+    if (!areaWrap) return;
+    areaWrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);padding:8px 2px;">' + mfEscapeHtml_(periodNoDataMessage_(period, result)) + '</p>';
   }
   // GET ?type=weekSummary / ?type=periodSummary, per `period.kind` - the
   // Week/Quarter/Year twin of loadFrozenMonth_() above, including the
@@ -10310,7 +10354,7 @@
       if (!res || !res.ok || !res.found) {
         return { found: false, reason: res && res.reason, dateKey: res && res.dateKey, missingMonth: res && res.missingMonth };
       }
-      renderPeriodSummary_(period, res);
+      renderPeriodAreaBreakdown_(period, res);
       return { found: true, partial: res.partial };
     });
   }
@@ -10419,13 +10463,34 @@
       if (result && result.found) {
         if (banner) banner.hidden = true;
         if (periodContent) periodContent.hidden = false;
+        renderPeriodCombined_(period);
         return;
       }
-      if (periodContent) periodContent.hidden = true;
-      if (banner) {
-        banner.hidden = false;
-        banner.textContent = periodNoDataMessage_(period, result);
+      // 10 Oct 2026 fix ("by changing week in report period data is not
+      // showing for any week") - "no_such_week"/"future" mean the period
+      // itself isn't real (nothing to show at all, full banner as
+      // before); every OTHER not-found reason (end_not_frozen/
+      // start_not_frozen/month_not_frozen/yesterday_not_frozen) means the
+      // period IS real and its Combined Sales/Collection figure is still
+      // perfectly computable from the trend maps - only the By-DSR
+      // breakdown actually needs the missing Daily/Monthly Freeze
+      // snapshot, so only that table shows "no data", not the whole
+      // period view. See renderPeriodCombined_()/renderPeriodAreaNoData_()
+      // for the split.
+      var reason = result && result.reason;
+      var periodDoesNotExist = (reason === 'no_such_week' || reason === 'future');
+      if (periodDoesNotExist) {
+        if (periodContent) periodContent.hidden = true;
+        if (banner) {
+          banner.hidden = false;
+          banner.textContent = periodNoDataMessage_(period, result);
+        }
+        return;
       }
+      if (banner) banner.hidden = true;
+      if (periodContent) periodContent.hidden = false;
+      renderPeriodCombined_(period);
+      renderPeriodAreaNoData_(period, result);
     });
   }
 
