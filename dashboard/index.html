@@ -2141,7 +2141,10 @@
     <div class="dsr-row-body">
       <div id="taskCreateForm" hidden style="padding:10px 18px;border-bottom:1px solid var(--border);">
         <div class="master-file-filters" style="padding:4px 0;">
-          <span style="flex:1 1 220px;"><label>Task Name</label><input type="text" id="tcName" placeholder="Enter your Task Here" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
+          <!-- Task Name widened 9 Oct 2026 ("task name space big"), as
+               part of removing the unreliable Dealer dropdown below - see
+               that removal's comment for why. -->
+          <span style="flex:3 1 420px;"><label>Task Name</label><input type="text" id="tcName" placeholder="Enter your Task Here" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
           <span><label>Type</label><select id="tcType"><option>Sales</option><option>Stock</option><option>Payment</option><option>General</option><option>Others</option></select></span>
           <!-- Due Date - required (8 Oct 2026, "do not accept any task"
                without one); defaults to today the moment the form opens
@@ -2177,17 +2180,33 @@
                itself keeps both boxes a stable, readable size regardless
                of which option is currently showing. -->
           <span style="flex:1 1 160px;"><label>Assigned To</label><select id="tcAssignedTo" style="width:100%;"></select></span>
-          <!-- Dealer - replaces the old geography "Area" dropdown, 8 Oct
-               2026 ("remove area name in dashboard task, show dealer name
-               as per selected dsr name"). Options are filtered live to
-               whichever DSR is picked above (see tcAssignedTo's change
-               handler below), sourced from the same MASTER_FILE_DATA_
-               this dashboard already fetches for Master File (fetched for
-               every role regardless of whether that panel itself is
-               shown - see fetchMasterFile_()). Purely a display field;
-               the task's own Area-Manager-visibility field is set
-               automatically from the selected DSR, not from this picker
-               - see tcSaveBtnEl's click handler below. -->
+          <!-- Dealer dropdown - REMOVED 9 Oct 2026, RE-ADDED 10 Oct 2026
+               with a different data source (owner: "if we set the dealer
+               name it will easy to dsr to folly it otherwise name has to
+               be written by us" - worth having if it can be made
+               reliable). History: it replaced the old geography "Area"
+               dropdown on 8 Oct 2026, meant to filter live to whichever
+               DSR was picked above - but it was originally sourced from
+               MASTER_FILE_DATA_'s `dsrName` field, which is the
+               DealerMeta Google Sheet's hand-typed "DSR Name" column,
+               and kept coming back empty/wrong even after two rounds of
+               fixes that same day (the async-fetch race, then a
+               trim/lowercase normalization pass), so it was removed
+               rather than keep chasing a free-text matching issue.
+               Re-added using `knownDealerDsrMap_()` instead (see that
+               function's own comment, ~line 3533) - a {dealerName:
+               dsrDisplayName} map this dashboard already builds from
+               `dealerRoster`, which comes straight from Tally's own
+               ledger groupings (?type=live's response), not hand-typed
+               sheet text, and is already relied on elsewhere (Needs
+               Attention, Top 5 Customers, dealer lookup) with no
+               reported matching bugs. Same DSR-filtering behavior as
+               before (see populateTcDealerOptions_() below), just a more
+               trustworthy source underneath. The task's own Area-
+               Manager-visibility field is unaffected either way - it was
+               always set automatically from the selected DSR (see
+               tcSaveBtnEl's click handler below), never from this
+               picker. -->
           <span style="flex:1 1 220px;"><label>Dealer</label><select id="tcDealer" style="width:100%;"><option value="">Not set</option></select></span>
           <span style="flex:1 1 180px;"><label>Also visible to</label><input type="text" id="tcAlsoVisible" placeholder="comma-separated names" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
         </div>
@@ -7984,18 +8003,12 @@
         MASTER_FILE_DATA_ = data.dealers || [];
         populateMasterFileFilterOptions_();
         renderMasterFileTable_();
-        // Task Manager's "Dealer" dropdown reads MASTER_FILE_DATA_ too
-        // (populateTcDealerOptions_, keyed by the currently-selected
-        // Assigned To DSR) - fixed 9 Oct 2026 ("in dashboard taskmanager
-        // if selected dsr name then their dealers name are not
-        // showing"): this fetch is async and can still be in flight when
-        // the Task Manager "+New" form is opened or a DSR is picked right
-        // after login, so populateTcDealerOptions_() used to be called
-        // once against a still-empty MASTER_FILE_DATA_ ([]) and never
-        // again afterward - the Dealer list stayed permanently blank for
-        // the rest of the session even once the real data arrived.
-        // Re-running it here, every time this data refreshes, fixes that.
-        populateTcDealerOptions_();
+        // Task Manager's "Dealer" dropdown used to re-populate from THIS
+        // fetch (MASTER_FILE_DATA_) - removed 9 Oct 2026 (see the Dealer
+        // field's markup comment above) and re-added 10 Oct 2026 sourced
+        // from `dealerRoster` instead (refreshed in
+        // applyLivePayloadToState_() below, not here - this fetch no
+        // longer has anything to do with the Dealer dropdown).
         var footEl = document.getElementById("mfFooterNote");
         if (footEl) {
           footEl.textContent = "Showing " + MASTER_FILE_DATA_.length + " dealers for " + month + ". Target/Plan (pencil icon): editable here or by each DSR in their own app. " +
@@ -8386,54 +8399,33 @@
     });
   }
 
-  // Dealer options for the currently-selected Assigned-To DSR - 8 Oct
-  // 2026, replaces the old geography Area dropdown. "Alagu" (Owner) has
-  // no dealers of their own, so the Dealer list is simply empty (just
-  // "Not set") whenever Owner is the one assigned.
-  //
-  // Two bugs fixed 9 Oct 2026 (owner: "before selecting dsr name some of
-  // the dealer name showing who r they from wr u tooked them and after
-  // selecting dsr name no dealer name showing"):
-  //
-  // 1. Before any DSR was picked (the "Select name" placeholder, value
-  //    ""), shortName/longName both stayed "" and the filter below was
-  //    `d.dsrName === longName` - so any dealer in MASTER_FILE_DATA_
-  //    whose own DSR Name cell is genuinely blank (a dealer never
-  //    assigned to a DSR in the DealerMeta sheet - these do exist)
-  //    matched `"" === ""` and leaked into the list, looking like
-  //    unexplained dealer names nobody had picked a DSR for yet. Fixed:
-  //    an empty/placeholder Assigned-To now short-circuits straight to
-  //    "Not set" only, with no filter run against MASTER_FILE_DATA_ at
-  //    all.
-  // 2. Once a real DSR WAS picked, the match was a strict `===` against
-  //    DealerMeta's free-text "DSR Name" column - a cell a person can
-  //    (and, per the owner's report, apparently did) type with different
-  //    spacing/casing than this page's own hardcoded DSRS[].dsrName
-  //    long-name strings, which silently fails `===` and returns zero
-  //    dealers even though the dealer rows are really there. Fixed: both
-  //    sides are trimmed and lower-cased before comparing, so a stray
-  //    leading/trailing space or case difference no longer breaks the
-  //    match.
+  // Dealer options for the currently-selected Assigned-To DSR - removed
+  // 9 Oct 2026, re-added 10 Oct 2026 (see the Dealer field's markup
+  // comment above for the full history). This version is sourced from
+  // `knownDealerDsrMap_()` (built from `dealerRoster`, Tally's own ledger
+  // groupings) instead of the old MASTER_FILE_DATA_/DealerMeta-sheet
+  // text match, which should make it reliable this time. "Alagu" (Owner)
+  // has no dealers of their own, so the Dealer list is simply empty
+  // (just "Not set") whenever Owner is the one assigned - same as
+  // before.
   function populateTcDealerOptions_() {
     var assignedSel = document.getElementById("tcAssignedTo");
     var dealerSel = document.getElementById("tcDealer");
     if (!assignedSel || !dealerSel) return;
     var shortName = assignedSel.value;
+    // No DSR picked yet (the "Select name" placeholder) - just show "Not
+    // set", same defensive short-circuit as the old version (never run a
+    // filter against an empty/placeholder selection).
     if (!shortName) { dealerSel.innerHTML = '<option value="">Not set</option>'; return; }
-    // MASTER_FILE_DATA_ rows key their .dsrName field by each DSR's LONG
-    // Petronas-area name (e.g. "PETRONAS THENI AREA (PRABHA)"), not the
-    // short name tcAssignedTo's options use ("Prabha") - same mapping
-    // DSRS.forEach(...dsrNameByDisplay[d.name] = d.dsrName...) already
-    // uses elsewhere on this page. Without this lookup the short name
-    // would never match and the Dealer list would always come back empty.
-    var longName = shortName;
-    for (var i = 0; i < DSRS.length; i++) {
-      if (DSRS[i].name === shortName) { longName = DSRS[i].dsrName; break; }
-    }
-    var longNameNorm = String(longName).trim().toLowerCase();
-    var names = MASTER_FILE_DATA_.filter(function (d) {
-      return String(d.dsrName || "").trim().toLowerCase() === longNameNorm && d.dealer;
-    }).map(function (d) { return d.dealer; }).sort();
+    // {dealerName: dsrDisplayName}, already-proven-reliable mapping this
+    // dashboard builds elsewhere from dealerRoster (see that function's
+    // own comment, ~line 3533) - already folds Saravanan's dealers into
+    // Chellamani's, already scoped to visibleDsrs_() for a restricted
+    // Area Manager, so this picks all of that up for free.
+    var map = knownDealerDsrMap_();
+    var names = Object.keys(map).filter(function (dealerName) {
+      return map[dealerName] === shortName;
+    }).sort();
     dealerSel.innerHTML = '<option value="">Not set</option>' + names.map(function (n) {
       return '<option>' + mfEscapeHtml_(n) + '</option>';
     }).join("");
@@ -8502,6 +8494,9 @@
         // no DSR area of its own; Owner/Manager see every task regardless
         // of Area anyway (taskRowVisible_), so an empty Area here is fine.
         area: (assignedToVal === "Alagu") ? "" : assignedToVal,
+        // Dealer dropdown removed 9 Oct 2026, re-added 10 Oct 2026 with a
+        // more reliable data source (see markup comment above) - back to
+        // reading #tcDealer's value directly, same as the original.
         dealerName: (document.getElementById("tcDealer") || {}).value || "",
         alsoVisibleTo: (document.getElementById("tcAlsoVisible") || {}).value || "",
         remarks: (document.getElementById("tcRemarks") || {}).value || "",
@@ -9340,7 +9335,16 @@
     // claude/dsr-app-registry.md).
     if (res && res.ok && res.outstanding) outstandingMap = res.outstanding;
     if (res && res.ok && res.creditLimit) creditLimitMap = res.creditLimit;
-    if (res && res.ok && res.dealerRoster) dealerRoster = res.dealerRoster;
+    if (res && res.ok && res.dealerRoster) {
+      dealerRoster = res.dealerRoster;
+      // Task Manager's "Dealer" dropdown (re-added 10 Oct 2026) reads
+      // dealerRoster too, via knownDealerDsrMap_() - refresh it here,
+      // every time this refreshes, same reasoning as the original
+      // MASTER_FILE_DATA_ race fix: this call can resolve after the
+      // "+New" form is already open with a DSR picked, so the dropdown
+      // must not just be populated once at form-open time.
+      if (typeof populateTcDealerOptions_ === "function") populateTcDealerOptions_();
+    }
     if (res && res.ok && res.newDealers) newDealers = res.newDealers;
 
     // Added 18 Sep 2026 - actually-billed Sales, from Tally's own
