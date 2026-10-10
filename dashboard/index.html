@@ -523,10 +523,11 @@
   .master-file-filters { display: flex; gap: 10px; flex-wrap: wrap; padding: 10px 18px 4px; align-items: center; }
   .master-file-filters select { font-size: 12.5px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); }
   .master-file-filters label { font-size: 11px; color: var(--ink-muted); margin-right: 3px; }
-  .mf-remarks-cell { white-space:normal !important; text-align:left !important; max-width:220px; }
-  .mf-remark-text { font-size:11px; color:var(--ink-secondary); line-height:1.3; }
-  .mf-remark-btn { border:none; background:transparent; color:var(--accent); cursor:pointer; font-size:11.5px; margin-top:2px; }
-  .mf-remark-add { background:var(--accent-soft); color:var(--accent); border-radius:5px; padding:3px 8px; }
+  /* Remarks -> Task button, 10 Oct 2026 - see the Master File <th>/row
+     comments near renderMasterFileTable_ for why. .mf-remarks-cell/
+     .mf-remark-* replaced with .mf-task-cell/.mf-task-btn. */
+  .mf-task-cell { white-space:normal !important; text-align:left !important; max-width:220px; }
+  .mf-task-btn { background:var(--accent-soft); color:var(--accent); border:none; border-radius:5px; padding:3px 8px; cursor:pointer; font-size:11.5px; }
   .mf-editable { position: relative; }
   .mf-edit-input { width: 80px; padding: 3px 5px; border-radius: 5px; border: 1px solid var(--border); font-size: 12px; text-align: right; }
   .mf-beat-input, .mf-district-input { text-align: left; background: var(--surface); color: var(--ink); }
@@ -2111,7 +2112,18 @@
               <th>Collection Plan (₹)</th>
               <th>Collection Actual (₹)</th>
               <th>Collection Balance</th>
-              <th>Remarks</th>
+              <!-- Remarks -> Task, 10 Oct 2026 - owner: "if i add remarks
+                   there that will be visible for me only, can u change
+                   that task create new button there instead of that".
+                   Dealer Remarks was Master-File-only (Owner-only screen)
+                   and, despite its own "shown in their DSR's app" prompt
+                   text, was never actually wired into any DSR app - so a
+                   remark really was only ever visible back here. A Task
+                   IS already visible across the dashboard, the Area
+                   Manager login, and the assigned DSR's own app
+                   (taskRowVisible_), so this swap genuinely solves the
+                   visibility complaint rather than just renaming it. -->
+              <th>Task</th>
             </tr>
           </thead>
           <tbody id="mfCurrentTableBody"><tr><td colspan="12" style="text-align:center;color:var(--ink-muted);">Loading…</td></tr></tbody>
@@ -8079,9 +8091,19 @@
       // per-DSR card's own cBalance/cDone just above in this file.
       var salesBalance = (d.salesLtr !== null && d.salesTargetLtr !== null) ? (d.salesTargetLtr - d.salesLtr) : null;
       var collBalance = (d.collectionRs !== null && d.collectionPlanRs !== null) ? (d.collectionPlanRs - d.collectionRs) : null;
-      var remarkHtml = d.remark
-        ? ('<div class="mf-remark-text">“' + mfEscapeHtml_(d.remark) + '” — ' + mfEscapeHtml_(d.remarkBy || "") + '</div><button type="button" class="mf-remark-btn" data-dealer="' + mfEscapeHtml_(d.dealer) + '" title="Add another remark">+ Add</button>')
-        : ('<button type="button" class="mf-remark-btn mf-remark-add" data-dealer="' + mfEscapeHtml_(d.dealer) + '" title="Add remark">+ Add</button>');
+      // Remarks -> Task button, 10 Oct 2026 - owner: "if i add remarks
+      // there that will be visible for me only, can u change that task
+      // create new button there instead of that". Dealer Remarks was
+      // Master-File-only (an Owner-only screen) and, despite its own
+      // "shown in their DSR's app" prompt text, was never actually wired
+      // into any DSR app - so a remark really was only ever visible back
+      // here. A Task IS already visible across the dashboard, the Area
+      // Manager login, and the assigned DSR's own app (taskRowVisible_),
+      // so this swap genuinely solves the visibility complaint rather
+      // than just renaming it. Opens the existing Task Manager create
+      // form via openTaskFormForMasterFileRow_ (see its own comment,
+      // further down this file), pre-filled with this row's dealer/DSR.
+      var taskBtnHtml = '<button type="button" class="mf-task-btn" data-dealer="' + mfEscapeHtml_(d.dealer) + '" data-dsr="' + mfEscapeHtml_(d.dsrName || "") + '" title="Create a task for this dealer">+ New Task</button>';
       // Hardened 10 Oct 2026, same bug class/fix pattern as the DSR
       // dropdown just below: a dealer's real d.beatDay that doesn't
       // EXACTLY match one of these 6 fixed Title-Case options (e.g. the
@@ -8149,7 +8171,7 @@
         '<td class="mf-num mf-money">' + mfMoney_(d.collectionRs) + '</td>' +
         // Same Target - Actual convention as Sales Balance above.
         '<td class="mf-num' + (collBalance !== null && collBalance > 0 ? ' mf-warn' : (collBalance !== null ? ' mf-good' : '')) + '">' + (collBalance === null ? '—' : (collBalance <= 0 ? '+' + mfMoney_(Math.abs(collBalance)) : mfMoney_(collBalance))) + '</td>' +
-        '<td class="mf-remarks-cell">' + remarkHtml + '</td>' +
+        '<td class="mf-task-cell">' + taskBtnHtml + '</td>' +
         '</tr>';
     }
     bodyEl.innerHTML = html;
@@ -8261,13 +8283,9 @@
     mfTableBodyEl.addEventListener("click", function (e) {
       var saveBtn = e.target.closest(".mf-save-btn");
       if (saveBtn) { saveMasterFileTarget_(saveBtn.closest("tr")); return; }
-      var btn = e.target.closest(".mf-remark-btn");
-      if (!btn) return;
-      var dealer = btn.getAttribute("data-dealer");
-      var remark = window.prompt("Remark for " + dealer + " (shown in their DSR's app):", "");
-      if (!remark) return;
-      dashboardApiPost_("dealerRemarkAdd", { dealer: dealer, remark: remark, by: CURRENT_USER_NAME || "" })
-        .then(function (res) { if (res && res.ok) fetchMasterFile_(); }).catch(function () { /* best-effort */ });
+      var taskBtn = e.target.closest(".mf-task-btn");
+      if (!taskBtn) return;
+      openTaskFormForMasterFileRow_(taskBtn.getAttribute("data-dealer"), taskBtn.getAttribute("data-dsr"));
     });
   }
   var exportMfBtnEl = document.getElementById("exportMasterFileXlsxBtn");
@@ -8459,6 +8477,35 @@
     dealerSel.innerHTML = '<option value="">Not set</option>' + names.map(function (n) {
       return '<option>' + mfEscapeHtml_(n) + '</option>';
     }).join("");
+  }
+  // Opens the Task Manager's create-task form pre-filled for a Master
+  // File row's dealer/DSR - see the "Remarks -> Task" comment above
+  // renderMasterFileTable_'s taskBtnHtml for why this exists (10 Oct
+  // 2026). Reuses taskManagerAddBtnEl's own click handler just below to
+  // open/populate the form exactly as "+ New" would (only when it's
+  // actually still hidden, since clicking an already-open toggle would
+  // close it again), then layers the dealer/DSR pre-fill on top -
+  // skipped gracefully if the DSR/dealer name doesn't match a real
+  // <option> (e.g. "Vacant Karaikudi" has no matching DSR), leaving the
+  // owner to pick it manually rather than silently failing.
+  function openTaskFormForMasterFileRow_(dealer, dsrName) {
+    var detailsEl = document.getElementById("taskManagerDetails");
+    var addBtnEl = document.getElementById("taskManagerAddBtn");
+    var formEl = document.getElementById("taskCreateForm");
+    if (detailsEl) detailsEl.open = true;
+    if (formEl && formEl.hidden && addBtnEl) addBtnEl.click();
+    var assignedSel = document.getElementById("tcAssignedTo");
+    if (assignedSel && dsrName) {
+      var hasOption = Array.prototype.some.call(assignedSel.options, function (o) { return o.value === dsrName; });
+      if (hasOption) assignedSel.value = dsrName;
+    }
+    if (typeof populateTcDealerOptions_ === "function") populateTcDealerOptions_();
+    var dealerSel = document.getElementById("tcDealer");
+    if (dealerSel && dealer) {
+      var hasDealerOption = Array.prototype.some.call(dealerSel.options, function (o) { return o.value === dealer; });
+      if (hasDealerOption) dealerSel.value = dealer;
+    }
+    if (detailsEl && detailsEl.scrollIntoView) detailsEl.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   var taskManagerAddBtnEl = document.getElementById("taskManagerAddBtn");
   var taskCreateFormEl = document.getElementById("taskCreateForm");
