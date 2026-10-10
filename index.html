@@ -316,6 +316,11 @@
     font-size: 13px; font-weight: 700; line-height: 1;
   }
   .area-child-row td { color: var(--ink-secondary); font-size: 12px; }
+  /* "Dealer Activity — by DSR" click-to-show-names, added 6 Oct 2026
+     (owner: "IF CLICKED ON THE NUMBER CAN SHOW THE NAME") - only a
+     cell with a real (>0) count gets this class, so a zero never looks
+     tappable. */
+  .activity-num-clickable { cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-decoration-color: var(--border); }
   /* "Balance" column added 26 Sep 2026 (Sales + new Collection area
      tables) - reuses the existing "target reached" green (var(--good))
      already used for .stat.balance.done/.pill.done/.balance-line.done
@@ -503,6 +508,62 @@
   .age-table { border-collapse: collapse; min-width: 480px; font-size: 12.5px; table-layout: fixed; }
   .age-table th, .age-table td { padding: 7px 10px; text-align: center; white-space: nowrap; border-bottom: 1px solid var(--border); }
   .age-table th:first-child, .age-table td:first-child { text-align: center; font-weight: 600; color: var(--ink-secondary); position: sticky; left: 0; background: var(--surface); }
+
+  /* Master File + Task Manager - added 6 Oct 2026, see
+     fetchMasterFile_()/renderMasterFileTable_()/fetchTasks_()/
+     renderTaskManager_() below for the live wiring. */
+  .master-file-table { border-collapse: collapse; min-width: 980px; font-size: 12.5px; table-layout: fixed; }
+  .master-file-table th, .master-file-table td { padding: 7px 10px; text-align: center; white-space: nowrap; border-bottom: 1px solid var(--border); }
+  .master-file-table th:first-child, .master-file-table td:first-child { text-align: left; font-weight: 600; color: var(--ink-secondary); white-space: normal; }
+  .master-file-table th { font-size: 11px; color: var(--ink-muted); font-weight: 600; white-space: normal; }
+  .master-file-table td.mf-num { font-variant-numeric: tabular-nums; }
+  .master-file-table td.mf-good { color: var(--good); font-weight: 700; }
+  .master-file-table td.mf-warn { color: var(--warn); font-weight: 700; }
+  .master-file-table td.mf-money { color: var(--money); }
+  .master-file-filters { display: flex; gap: 10px; flex-wrap: wrap; padding: 10px 18px 4px; align-items: center; }
+  .master-file-filters select { font-size: 12.5px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); }
+  .master-file-filters label { font-size: 11px; color: var(--ink-muted); margin-right: 3px; }
+  /* Remarks -> Task button, 10 Oct 2026 - see the Master File <th>/row
+     comments near renderMasterFileTable_ for why. .mf-remarks-cell/
+     .mf-remark-* replaced with .mf-task-cell/.mf-task-btn. */
+  .mf-task-cell { white-space:normal !important; text-align:left !important; max-width:220px; }
+  .mf-task-btn { background:var(--accent-soft); color:var(--accent); border:none; border-radius:5px; padding:3px 8px; cursor:pointer; font-size:11.5px; }
+  .mf-editable { position: relative; }
+  .mf-edit-input { width: 80px; padding: 3px 5px; border-radius: 5px; border: 1px solid var(--border); font-size: 12px; text-align: right; }
+  .mf-beat-input, .mf-district-input { text-align: left; background: var(--surface); color: var(--ink); }
+  .mf-district-input { width: 110px; }
+
+  .task-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin: 10px 4px; background: var(--surface); }
+  .task-card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .task-name { font-weight:700; font-size:13.5px; color: var(--ink); }
+  .task-type-badge { font-size:10.5px; font-weight:600; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+  .task-type-payment { background: var(--money-soft); color: var(--money); }
+  .task-type-sales { background: var(--good-soft); color: var(--good); }
+  .task-type-stock { background: var(--warn-soft); color: var(--warn); }
+  .task-type-general { background: var(--surface-alt, #f0ece2); color: var(--ink-muted); }
+  .task-pills { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; align-items: center; }
+  .task-pill { font-size:10.5px; font-weight:600; padding:4px 10px; border-radius:999px; }
+  .task-pill-type { background: var(--surface-alt, #f0ece2); color: var(--ink-muted); }
+  .task-status-select { font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; border:1px solid var(--border); background: var(--warn-soft); color: var(--warn); }
+  .task-meta { font-size:11px; color: var(--ink-muted); margin-top:8px; }
+  .task-card-foot { display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap: wrap; }
+  .task-icon-btn { border:1px solid var(--border); background: var(--surface); border-radius:8px; padding:4px 10px; font-size:11.5px; cursor:pointer; }
+  .task-visible-tag { font-size:10px; color: var(--ink-muted); }
+  .task-comments { margin-top: 8px; }
+  .task-comment-row { font-size: 11px; color: var(--ink-secondary); padding: 3px 0; border-top: 1px dashed var(--border); }
+  .task-comment-input { flex: 1 1 140px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); font-size: 12px; }
+
+  /* Task Manager redesign - 8 Oct 2026, modeled on the owner's own
+     reference screenshot of a BizApp-style "Follow Ups" list (clear
+     matter/status up top, then who-and-what, then date), per "Show clear
+     message in dashboard and app what is the matter who created due date
+     comment remarks". */
+  .task-overdue-badge { font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:999px; background: var(--warn-soft); color: var(--warn); white-space:nowrap; }
+  .task-dealer-line { font-size:12px; color: var(--ink-secondary); margin-top:6px; }
+  .task-dealer-line b { color: var(--ink); }
+  .task-due-line { font-size:11.5px; color: var(--ink-muted); margin-top:4px; }
+  .task-due-line.overdue { color: var(--warn); font-weight:600; }
+
   /* Long dealer/item names (e.g. "SRI MEENAKSHI AUTO STORES,APT (OIL)")
      were pushing the numeric columns off-screen on mobile, hiding the
      figures the owner actually needs while scrolling - added 25 Sep 2026.
@@ -1110,6 +1171,17 @@
           <option value="week">Week</option>
           <option value="quarter">Quarter</option>
           <option value="year">Year</option>
+          <!-- "Today", added 3 Oct 2026 at the owner's request ("add only
+               1 option at last as today - to see only todays
+               transaction") - deliberately the LAST option. No sub-row
+               of its own (nothing to pick - there's only one "today"):
+               see applyReportPeriodRowVisibility_() in the script below,
+               which hides all 4 existing sub-rows for any kind it
+               doesn't recognize, 'today' included, with no change
+               needed there. Reuses the exact same reduced Combined +
+               By-DSR view as Week/Quarter/Year - see
+               handleTodaySummaryGet_() in Code.gs for how it's computed. -->
+          <option value="today">Today</option>
         </select>
       </div>
       <div class="month-select-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0;">
@@ -1182,7 +1254,7 @@
   <div id="periodReportContent" hidden style="margin:0 0 18px;">
     <div id="periodCombinedWrap" style="margin:0 0 16px;"></div>
     <div class="section-label-row">
-      <p class="section-label">Full Petronas — Sales &amp; Collection</p>
+      <p class="section-label" id="periodAreaSectionLabel">Full Petronas — Sales &amp; Collection</p>
     </div>
     <div id="periodAreaWrap"></div>
     <p style="font-size:12.5px;color:var(--ink-muted);margin-top:16px;">Stock, Day Book, Collection Group Summary, Outstanding/60+ ageing, Needs attention, Dealer review, Ranking, Top selling SKU and Items Covered aren't shown for a Week/Quarter/Year view - only Combined Sales/Collection and the By-DSR breakdown above.</p>
@@ -1430,6 +1502,26 @@
         <div style="display:flex;align-items:center;gap:4px;"><button type="button" class="share-icon-btn small" id="dealerReviewShareBtn" title="Share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg></button><button type="button" class="dormant-close" id="dealerReviewCloseBtn" aria-label="Close">&times;</button></div>
       </div>
       <div id="dealerReviewSheetList"></div>
+    </div>
+  </div>
+
+  <!-- "Dealer Activity — by DSR" click-to-show-names modal, added
+       6 Oct 2026 at the owner's request ("IF CLICKED ON THE NUMBER CAN
+       SHOW THE NAME NO NEED FOR TOTAL") - same overlay/sheet styling as
+       the others above, opened from renderInactiveVsBilled_()'s own
+       cells (see bindActivityNamesClicks_()/openActivityNamesSheet_()
+       below). No share button - this is a quick tap-to-peek list, not
+       something separately shared like the others. -->
+  <div class="dormant-overlay" id="activityNamesOverlay" style="display:none;">
+    <div class="dormant-sheet">
+      <div class="dormant-sheet-head">
+        <div>
+          <p class="dormant-sheet-title" id="activityNamesSheetTitle"></p>
+          <p class="dormant-sheet-sub" id="activityNamesSheetSub"></p>
+        </div>
+        <button type="button" class="dormant-close" id="activityNamesCloseBtn" aria-label="Close">&times;</button>
+      </div>
+      <div id="activityNamesSheetList"></div>
     </div>
   </div>
 
@@ -1985,6 +2077,166 @@
     </div>
   </details>
 </div>
+<div id="captureMasterFile">
+  <p class="section-label" id="masterFileLabel">Master File (dealer-wise Sales &amp; Collection)</p>
+  <details class="dsr-row" id="masterFileDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Master File</span>
+        <span class="card-territory" id="masterFileTerritory">This month · fill/edit each dealer's target below</span></span>
+      <span class="dsr-row-headright">
+        <button type="button" class="share-icon-btn small" id="exportMasterFileXlsxBtn" title="Export as Excel — same columns as your Master File upload" style="margin-left:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        </button>
+      </span>
+    </summary>
+    <div class="dsr-row-body">
+      <div class="master-file-filters">
+        <span><label>DSR</label><select id="mfDsrFilter"><option value="">All</option></select></span>
+        <span><label>Beat Day</label><select id="mfBeatFilter"><option value="">All</option><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Not set</option></select></span>
+        <span><label>DT</label><select id="mfDistrictFilter"><option value="">All</option></select></span>
+      </div>
+      <div class="age-table-scroll">
+        <table class="master-file-table" id="mfCurrentTable">
+          <thead>
+            <tr>
+              <th>Dealer</th>
+              <th>DSR</th>
+              <th>Beat Day</th>
+              <th>DT</th>
+              <th>Overall Outstanding<br><span style="font-weight:400;font-size:9.5px;">(as of month start)</span></th>
+              <th>Collectable<br><span style="font-weight:400;font-size:9.5px;">(45+ days)</span></th>
+              <th>Sales Target (Ltr)</th>
+              <th>Sales Actual (Ltr)</th>
+              <th>Sales Balance</th>
+              <th>Collection Plan (₹)</th>
+              <th>Collection Actual (₹)</th>
+              <th>Collection Balance</th>
+              <!-- Remarks -> Task, 10 Oct 2026 - owner: "if i add remarks
+                   there that will be visible for me only, can u change
+                   that task create new button there instead of that".
+                   Dealer Remarks was Master-File-only (Owner-only screen)
+                   and, despite its own "shown in their DSR's app" prompt
+                   text, was never actually wired into any DSR app - so a
+                   remark really was only ever visible back here. A Task
+                   IS already visible across the dashboard, the Area
+                   Manager login, and the assigned DSR's own app
+                   (taskRowVisible_), so this swap genuinely solves the
+                   visibility complaint rather than just renaming it. -->
+              <th>Task</th>
+            </tr>
+          </thead>
+          <tbody id="mfCurrentTableBody"><tr><td colspan="12" style="text-align:center;color:var(--ink-muted);">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <p style="font-size:11px;color:var(--ink-muted);margin:8px 18px 0;" id="mfFooterNote"></p>
+    </div>
+  </details>
+</div>
+
+<div id="captureTaskManager">
+  <p class="section-label" id="taskManagerLabel">Task Manager</p>
+  <details class="dsr-row" id="taskManagerDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Task Manager</span>
+        <span class="card-territory" id="taskManagerTerritory">Visible here, in the Area Manager login and in each DSR's own app</span></span>
+      <span class="dsr-row-headright">
+        <!-- Open-task count, added 6 Oct 2026 ("near the new button show
+             the number of open task in heading") - filled in by
+             renderTaskManager_() from the same already-fetched
+             TASKS_DATA_, no extra request. -->
+        <span id="taskManagerOpenCount" class="card-territory" style="margin-right:4px;"></span>
+        <button type="button" class="task-icon-btn" id="taskManagerAddBtn" title="New task" style="margin-left:6px;">+ New</button>
+      </span>
+    </summary>
+    <div class="dsr-row-body">
+      <div id="taskCreateForm" hidden style="padding:10px 18px;border-bottom:1px solid var(--border);">
+        <div class="master-file-filters" style="padding:4px 0;">
+          <!-- Task Name widened 9 Oct 2026 ("task name space big"), as
+               part of removing the unreliable Dealer dropdown below - see
+               that removal's comment for why. -->
+          <span style="flex:3 1 420px;"><label>Task Name</label><input type="text" id="tcName" placeholder="Enter your Task Here" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
+          <span><label>Type</label><select id="tcType"><option>Sales</option><option>Stock</option><option>Payment</option><option>General</option><option>Others</option></select></span>
+          <!-- Due Date - required (8 Oct 2026, "do not accept any task"
+               without one); defaults to today the moment the form opens
+               (see taskManagerAddBtnEl's click handler below), same as a
+               calendar picker's own "today" default. -->
+          <span><label>Due Date *</label><input type="date" id="tcDueDate" required style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
+          <!-- Reminder Time - added 6 Oct 2026, same 3 fixed slots as the
+               DSR app (see TASK_REMINDER_SLOTS_ further down). -->
+          <span><label>Reminder</label><select id="tcReminderTime">
+            <option value="">No reminder</option>
+            <option value="11:00 AM">11:00 AM</option>
+            <option value="3:00 PM">3:00 PM</option>
+            <option value="4:30 PM">4:30 PM</option>
+          </select></span>
+        </div>
+        <div class="master-file-filters" style="padding:4px 0;">
+          <!-- Assigned To - 8 Oct 2026: "Alagu" (Owner) added as a
+               selectable option alongside the 7 DSRs, per "for me also dsr
+               or manager can assign task" (a Manager/Area Manager's own
+               "+ New" form can now assign a task straight to the owner,
+               not only to a DSR). -->
+          <!-- Fixed widths added 9 Oct 2026 ("after selecting dsr name
+               the dealer name space also reduced and not set is
+               coming"): neither of these two <select>s (nor their
+               wrapping <span>s) had ever had an explicit width, so each
+               one's closed-state box sized itself to its CURRENTLY
+               SELECTED option's own text width (a browser default, not a
+               bug in the data) - genuinely narrow whenever "Select
+               name"/"Not set" (short text) was the current selection,
+               and visibly resizing every time the selection changed,
+               however long the real dealer names populated into the
+               list are. A fixed flex-basis + width:100% on the <select>
+               itself keeps both boxes a stable, readable size regardless
+               of which option is currently showing. -->
+          <span style="flex:1 1 160px;"><label>Assigned To</label><select id="tcAssignedTo" style="width:100%;"></select></span>
+          <!-- Dealer dropdown - REMOVED 9 Oct 2026, RE-ADDED 10 Oct 2026
+               with a different data source (owner: "if we set the dealer
+               name it will easy to dsr to folly it otherwise name has to
+               be written by us" - worth having if it can be made
+               reliable). History: it replaced the old geography "Area"
+               dropdown on 8 Oct 2026, meant to filter live to whichever
+               DSR was picked above - but it was originally sourced from
+               MASTER_FILE_DATA_'s `dsrName` field, which is the
+               DealerMeta Google Sheet's hand-typed "DSR Name" column,
+               and kept coming back empty/wrong even after two rounds of
+               fixes that same day (the async-fetch race, then a
+               trim/lowercase normalization pass), so it was removed
+               rather than keep chasing a free-text matching issue.
+               Re-added using `knownDealerDsrMap_()` instead (see that
+               function's own comment, ~line 3533) - a {dealerName:
+               dsrDisplayName} map this dashboard already builds from
+               `dealerRoster`, which comes straight from Tally's own
+               ledger groupings (?type=live's response), not hand-typed
+               sheet text, and is already relied on elsewhere (Needs
+               Attention, Top 5 Customers, dealer lookup) with no
+               reported matching bugs. Same DSR-filtering behavior as
+               before (see populateTcDealerOptions_() below), just a more
+               trustworthy source underneath. The task's own Area-
+               Manager-visibility field is unaffected either way - it was
+               always set automatically from the selected DSR (see
+               tcSaveBtnEl's click handler below), never from this
+               picker. -->
+          <span style="flex:1 1 220px;"><label>Dealer</label><select id="tcDealer" style="width:100%;"><option value="">Not set</option></select></span>
+          <span style="flex:1 1 180px;"><label>Also visible to</label><input type="text" id="tcAlsoVisible" placeholder="comma-separated names" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
+        </div>
+        <div class="master-file-filters" style="padding:4px 0;">
+          <span style="flex:1 1 100%;"><label>Remarks</label><input type="text" id="tcRemarks" placeholder="Optional" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
+        </div>
+        <button type="button" class="share-icon-btn small" id="tcSaveBtn" style="font-size:12px;padding:6px 14px;width:auto;border-radius:6px;margin-top:6px;">Create task</button>
+      </div>
+      <div class="master-file-filters" style="padding-bottom:0;">
+        <!-- Defaults to "open" (6 Oct 2026, "always show open task
+             only") - still switchable here if the owner wants to check
+             something completed. -->
+        <span><label>Show</label><select id="tmFilter"><option value="all">All tasks</option><option value="open" selected>Open / In Progress / On Hold</option><option value="done">Completed</option></select></span>
+      </div>
+      <div id="taskManagerList"><p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">Loading…</p></div>
+    </div>
+  </details>
+</div>
   </div>
 </div>
 
@@ -2104,25 +2356,31 @@
     return { totalInStock: totalInStock, soldCount: coveredItems.length, coveredItems: coveredItems };
   }
 
+  // Sales/Collection targets updated for October 2026, 7 Oct 2026, per the
+  // owner's monthly target list ("SALES TARGET FOR OCT - CHANGE EVERY
+  // WHERE IN NEED OF TARGET ,IN DSR APP ALSO"). Previous (September)
+  // figures: Prabha 4200/1119523, Arun 4100/1302920, Nagaraj 5100/2060761,
+  // Chellamani 5330/1355606, Anandh 6100/2344746, Madhu 2500/884005,
+  // AAA Direct 6900/2170281. The owner's list also named two DSRs not
+  // tracked on this dashboard - "THE PIONEER" (1200 Ltr) and "VARI" (1500
+  // Ltr) - with "IF VARI AND PIONEER WE DONT FOLLOW HERE LEAVE IT", so
+  // those two targets are not applied anywhere in this file (they explain
+  // the gap between the 7 DSRs below summing to 29300 Ltr and the owner's
+  // stated Sales Target TOTAL of 32000: 29300 + 1200 + 1500 = 32000).
   var DSRS = [
-    { name: "Prabha",     dsrName: "PETRONAS THENI AREA (PRABHA)",         territory: "Theni Area",        appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4200, collectionTarget: 1119523, todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
-    { name: "Arun",       dsrName: "PETRONAS DINDIGUL AREA (ARUN)",        territory: "Dindigul Area",     appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4100, collectionTarget: 1302920,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
-    { name: "Nagaraj",    dsrName: "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)", territory: "Virudhunagar Area", appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5100, collectionTarget: 2060761,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
-    { name: "Chellamani", dsrName: "PETRONAS MDU AREA (CHELLAMANI)",       territory: "MDU Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5330, collectionTarget: 1355606,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
-    { name: "Anandh",     dsrName: "PETRONAS TVL1 AREA (ANANDH)",          territory: "TVL1 Area",         appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 6100, collectionTarget: 2344746,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
-    { name: "Madhu",      dsrName: "PETRONAS NKL AREA (MADHU)",            territory: "NKL Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 2500, collectionTarget: 884005,   todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
-    // AAA Direct added 18 Sep 2026, per the owner's request. Same 6900 Ltr
-    // target already baked into its own order-taking app. Collection
-    // target (Rs 21,70,281) given by the owner the same day, so its
-    // Collection block is on from the start - same "0 hides the panel"
-    // convention used everywhere else on this dashboard would have kept
-    // it hidden if this were still 0. Saravanan is NOT added as his own
-    // card - his dealers are a separate Tally Group but his orders are
-    // taken through Chellamani's app and counted under her name, so the
-    // watcher now folds his real Tally Sales/Collection into her totals
-    // instead (see _merge_saravanan_into_chellamani() in
+    { name: "Prabha",     dsrName: "PETRONAS THENI AREA (PRABHA)",         territory: "Theni Area",        appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4300, collectionTarget: 1004558, todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
+    { name: "Arun",       dsrName: "PETRONAS DINDIGUL AREA (ARUN)",        territory: "Dindigul Area",     appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4000, collectionTarget: 1671027,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
+    { name: "Nagaraj",    dsrName: "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)", territory: "Virudhunagar Area", appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4000, collectionTarget: 1867376,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
+    { name: "Chellamani", dsrName: "PETRONAS MDU AREA (CHELLAMANI)",       territory: "MDU Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5000, collectionTarget: 1902282,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
+    { name: "Anandh",     dsrName: "PETRONAS TVL1 AREA (ANANDH)",          territory: "TVL1 Area",         appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5500, collectionTarget: 2877541,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
+    { name: "Madhu",      dsrName: "PETRONAS NKL AREA (MADHU)",            territory: "NKL Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 2000, collectionTarget: 861225,   todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
+    // AAA Direct added 18 Sep 2026, per the owner's request. Saravanan is
+    // NOT added as his own card - his dealers are a separate Tally Group
+    // but his orders are taken through Chellamani's app and counted under
+    // her name, so the watcher folds his real Tally Sales/Collection into
+    // her totals instead (see _merge_saravanan_into_chellamani() in
     // tally_live_watcher.py).
-    { name: "AAA Direct", dsrName: "PETRONAS AAA DIRECT AREA SALES",       territory: "AAA Direct Area",   appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 6900, collectionTarget: 2170281,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null }
+    { name: "AAA Direct", dsrName: "PETRONAS AAA DIRECT AREA SALES",       territory: "AAA Direct Area",   appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4500, collectionTarget: 1180153,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null }
   ];
 
   // Top 5 panels' state, added 17 Sep 2026, switched to Tally-sourced
@@ -2233,6 +2491,16 @@
   var salesTrendMap = null;
   var collectionTrendMap = null;
   var trendError = false;
+  // Added 5 Oct 2026 for the "Live Cache" speed fix (see Code.gs's
+  // handleLiveGet_()/refreshLiveCache_()) - null means this fetch's
+  // ?type=live response was a genuinely fresh, this-instant rebuild (no
+  // cache file yet, or it was stale), so the existing nowStamp()
+  // "Updated <now>" text stays accurate. When the backend served a
+  // cached payload instead, this holds that payload's own `_cachedAt`
+  // ISO timestamp (when it was actually built) so refreshAll() below
+  // can show the TRUE data age instead of implying the figures are
+  // from this exact second.
+  var LIVE_CACHED_AT_ISO = null;
   // Rs-value twin of salesTrendMap, added 20 Sep 2026 for the Collection-
   // to-Sales Ratio ("Collection Health") - see renderCollectionRatio_()
   // and tally_live_watcher.py's daily_rs_totals in fetch_sales(). Same
@@ -2511,6 +2779,23 @@
       if (rec && rec.month > 0) mb++;
     });
     return mb;
+  }
+  // Added 6 Oct 2026 for "Dealer Activity — by DSR" click-to-show-names
+  // (owner: "IF CLICKED ON THE NUMBER CAN SHOW THE NAME NO NEED FOR
+  // TOTAL") - names-returning sibling of countMB_() above, same exact
+  // filter, grouped straight to {dsrDisplayName: [names...]} since the
+  // "Billed" row needs every DSR's list in one pass.
+  function billedDealerNamesByDsr_(byDealerMap) {
+    var out = {};
+    if (!byDealerMap || !dealerRoster) return out;
+    var dsrMap = knownDealerDsrMap_();
+    Object.keys(dsrMap).forEach(function (dealerName) {
+      var dsrDisplayName = dsrMap[dealerName];
+      var rec = byDealerMap[dealerName];
+      if (rec && rec.month > 0) (out[dsrDisplayName] = out[dsrDisplayName] || []).push(dealerName);
+    });
+    Object.keys(out).forEach(function (dsrDisplayName) { out[dsrDisplayName].sort(); });
+    return out;
   }
   // Total dealer count (regardless of billed status) for the "X / Y"
   // rendering of the MB line below, added 25 Sep 2026 at the owner's
@@ -3753,6 +4038,26 @@
     });
     return out;
   }
+  // Added 6 Oct 2026, same click-to-show-names request as
+  // billedDealerNamesByDsr_() above - names-returning sibling of
+  // newDealersBilledByDsr_() above, identical filter.
+  function newDealersBilledNamesByDsr_() {
+    var out = {};
+    if (!newDealers || !salesByDealer) return out;
+    var ym = currentYyyyMm_();
+    visibleDsrs_().forEach(function (d) {
+      var list = (newDealers[d.dsrName] || []).slice();
+      if (d.name === 'Chellamani' && newDealers['PETRONAS MDU AREA (SARAVANAN)']) {
+        list = list.concat(newDealers['PETRONAS MDU AREA (SARAVANAN)']);
+      }
+      out[d.name] = list.filter(function (r) {
+        if (!r.firstSeenDate || r.firstSeenDate.slice(0, 7) !== ym) return false;
+        var rec = salesByDealer[r.name];
+        return !!(rec && rec.month > 0);
+      }).map(function (r) { return r.name; }).sort();
+    });
+    return out;
+  }
 
   // "Dealers Reactivated This Month", added 23 Sep 2026 at the owner's
   // request ("Dormant Dealer Reactivation... 'Dealers Reactivated This
@@ -3789,6 +4094,27 @@
     });
     return out;
   }
+  // Added 6 Oct 2026, same click-to-show-names request as
+  // billedDealerNamesByDsr_() above - names-returning sibling of
+  // reactivatedByDsr_() above, identical filter.
+  function reactivatedNamesByDsr_() {
+    var out = {};
+    if (salesByDealer === null || dealerRoster === null) return out;
+    var dealerDsr = knownDealerDsrMap_();
+    var now = new Date();
+    var monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    Object.keys(salesByDealer).forEach(function (name) {
+      var dsrName = dealerDsr[name];
+      if (!dsrName) return;
+      var rec = salesByDealer[name] || {};
+      if (!(rec.month > 0)) return;
+      var gap = daysBetweenYyyymmddAndDate_(rec.lastSaleBeforeMonth, monthStart);
+      if (gap === null || gap < DORMANT_MAX_DAYS) return;
+      (out[dsrName] = out[dsrName] || []).push(name);
+    });
+    Object.keys(out).forEach(function (dsrName) { out[dsrName].sort(); });
+    return out;
+  }
 
   // "Dealer activity — by DSR", restructured 23 Sep 2026 from the old
   // compact "Inactive dealers vs Billed" row list (owner: "balance 2 need
@@ -3805,47 +4131,108 @@
   // dealer belongs to exactly one DSR, so Total is a straight sum.
   // Must run AFTER renderDormant() (needs lastDormantSummary.byDsr) -
   // see render() below.
+  // Rebuilt by every renderInactiveVsBilled_() call below, read by the
+  // delegated click handler (bindActivityNamesClicks_ further down) to
+  // look up which dealer names a clicked cell represents. Keyed by
+  // "<metric>||<dsrDisplayName>". Added 6 Oct 2026, see that function's
+  // own comment for the full request.
+  var activityNamesLookup_ = {};
+
   function renderInactiveVsBilled_() {
     var wrap = document.getElementById('inactiveVsBilledWrap');
     if (lastDormantSummary === null || salesByDealer === null) {
       wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);padding:14px 18px;">Waiting for the next Tally sync…</p>';
       return;
     }
-    var newDealersByDsr = newDealersBilledByDsr_();
-    var reactByDsr = reactivatedByDsr_();
+    // Names-returning siblings of the plain counters this table used
+    // before - added 6 Oct 2026 at the owner's request ("IF CLICKED ON
+    // THE NUMBER CAN SHOW THE NAME NO NEED FOR TOTAL"), see
+    // billedDealerNamesByDsr_()/newDealersBilledNamesByDsr_()/
+    // reactivatedNamesByDsr_() above for each one's exact filter (same
+    // as the old count-only versions, just returning the list instead
+    // of its length).
+    var billedNamesByDsr = billedDealerNamesByDsr_(salesByDealer);
+    var newDealersNamesByDsr = newDealersBilledNamesByDsr_();
+    var reactivatedNamesByDsr = reactivatedNamesByDsr_();
+    activityNamesLookup_ = {};
     var rows = visibleDsrs_().map(function (d) {
+      var billedNames = billedNamesByDsr[d.name] || [];
+      var inactiveNames = (lastDormantSummary.byDsr[d.name] || []).map(function (r) { return r.name; });
+      var newBilledNames = newDealersNamesByDsr[d.name] || [];
+      var reactivatedNames = reactivatedNamesByDsr[d.name] || [];
+      activityNamesLookup_['billed||' + d.name] = { title: d.name + ' — Billed', names: billedNames };
+      activityNamesLookup_['inactive||' + d.name] = { title: d.name + ' — Inactive', names: inactiveNames };
+      activityNamesLookup_['newBilled||' + d.name] = { title: d.name + ' — New Dealers Billed', names: newBilledNames };
+      activityNamesLookup_['reactivated||' + d.name] = { title: d.name + ' — Reactivated', names: reactivatedNames };
       return {
         dsrName: d.name,
-        billed: countMB_(d.name, salesByDealer),
-        inactive: (lastDormantSummary.byDsr[d.name] || []).length,
-        newBilled: newDealersByDsr[d.name] || 0,
-        reactivated: reactByDsr[d.name] || 0
+        billed: billedNames.length,
+        inactive: inactiveNames.length,
+        newBilled: newBilledNames.length,
+        reactivated: reactivatedNames.length
       };
     });
-    var grand = { billed: 0, inactive: 0, newBilled: 0, reactivated: 0 };
-    rows.forEach(function (r) {
-      grand.billed += r.billed; grand.inactive += r.inactive;
-      grand.newBilled += r.newBilled; grand.reactivated += r.reactivated;
-    });
-    var cell = function (val) { return '<td class="num">' + val + '</td>'; };
-    var totalCell = function (val) { return '<td class="num total-col">' + val + '</td>'; };
-    var headHtml = '<tr><th>DSR</th>' + rows.map(function (r) { return '<th>' + r.dsrName + '</th>'; }).join('') + '<th class="total-col">Total</th></tr>';
-    var metricRow = function (label, field, extraCls) {
+    // Only a real (>0) count is clickable - a zero isn't worth a tap and
+    // shows as a plain number with no click affordance. Total column
+    // removed the same round, per the owner's own "no need for total" -
+    // a per-DSR click already answers "who", so the Total figure added
+    // nothing once the names themselves are a tap away.
+    var cell = function (val, dsrName, metric) {
+      if (val > 0) {
+        return '<td class="num activity-num-clickable" data-dsr="' + dsrName + '" data-metric="' + metric + '" title="Tap to see names">' + val + '</td>';
+      }
+      return '<td class="num">' + val + '</td>';
+    };
+    var headHtml = '<tr><th>DSR</th>' + rows.map(function (r) { return '<th>' + r.dsrName + '</th>'; }).join('') + '</tr>';
+    var metricRow = function (label, field, metric, extraCls) {
       return '<tr' + (extraCls ? ' class="' + extraCls + '"' : '') + '><td>' + label + '</td>' +
-        rows.map(function (r) { return cell(r[field]); }).join('') + totalCell(grand[field]) + '</tr>';
+        rows.map(function (r) { return cell(r[field], r.dsrName, metric); }).join('') + '</tr>';
     };
     // Same explicit inline min-width (+ width:100%) fix as
     // renderAgeTable_() above (26 Sep 2026, later corrected the same
-    // day) - this table also builds its own markup directly.
-    var inactiveVsBilledTableW = 100 + (rows.length + 1) * 92;
+    // day) - this table also builds its own markup directly. One column
+    // narrower now that Total is gone (6 Oct 2026).
+    var inactiveVsBilledTableW = 100 + rows.length * 92;
     wrap.innerHTML = '<div class="age-table-scroll"><table class="age-table" style="width:100%;min-width:' + inactiveVsBilledTableW + 'px;">' +
       '<thead>' + headHtml + '</thead>' +
       '<tbody>' +
-      metricRow('Billed', 'billed') +
-      metricRow('Inactive', 'inactive') +
-      metricRow('New Dealers Billed', 'newBilled', 'age-table-group-start') +
-      metricRow('Reactivated', 'reactivated') +
+      metricRow('Billed', 'billed', 'billed') +
+      metricRow('Inactive', 'inactive', 'inactive') +
+      metricRow('New Dealers Billed', 'newBilled', 'newBilled', 'age-table-group-start') +
+      metricRow('Reactivated', 'reactivated', 'reactivated') +
       '</tbody></table></div>';
+  }
+
+  // Opens the click-to-show-names modal for one Dealer Activity cell -
+  // added 6 Oct 2026, see renderInactiveVsBilled_() above for the full
+  // request/design.
+  function openActivityNamesSheet_(dsrName, metric) {
+    var entry = activityNamesLookup_[metric + '||' + dsrName];
+    if (!entry) return;
+    document.getElementById('activityNamesSheetTitle').textContent = entry.title;
+    document.getElementById('activityNamesSheetSub').textContent = entry.names.length + ' dealer' + (entry.names.length === 1 ? '' : 's');
+    var rowsHtml = entry.names.map(function (n) { return '<tr><td>' + n + '</td></tr>'; }).join('');
+    document.getElementById('activityNamesSheetList').innerHTML = ageTableWrap_('<thead><tr><th>Dealer</th></tr></thead>', rowsHtml);
+    document.getElementById('activityNamesOverlay').style.display = 'flex';
+  }
+  function closeActivityNamesSheet_() {
+    document.getElementById('activityNamesOverlay').style.display = 'none';
+  }
+  document.getElementById('activityNamesCloseBtn').addEventListener('click', closeActivityNamesSheet_);
+  document.getElementById('activityNamesOverlay').addEventListener('click', function (e) {
+    if (e.target.id === 'activityNamesOverlay') closeActivityNamesSheet_();
+  });
+  // Delegated on the wrap element (persists across renderInactiveVsBilled_()
+  // re-renders; only its innerHTML is replaced) rather than re-bound per
+  // cell - same pattern as bindAreaToggle_() below.
+  function bindActivityNamesClicks_(wrapId) {
+    var wrapEl = document.getElementById(wrapId);
+    if (!wrapEl) return;
+    wrapEl.addEventListener('click', function (e) {
+      var td = e.target.closest('[data-dsr][data-metric]');
+      if (!td) return;
+      openActivityNamesSheet_(td.getAttribute('data-dsr'), td.getAttribute('data-metric'));
+    });
   }
 
   // "Part number covered / overall how many part number stock having -
@@ -3966,24 +4353,32 @@
   // see tally_live_watcher.py's dsr_sixmo_totals comment for where these
   // come from) - omit it to build a table with no 6M AVG column at all
   // (not currently used, but keeps this helper usable for a future table
-  // that shouldn't show one).
-  function buildAreaTableRows_(valueField, targetField, fmtFn, avgField) {
+  // that shouldn't show one). `lastMonthField` (added 6 Oct 2026, owner:
+  // "IN DASHBOARD ALL LAST MONTH SALES AND COLLECTION AFTER THIS MONTH
+  // COLOUMN") - the DSRS[] field for a new "Last month" column, placed
+  // right after "This month" (before 6M AVG) - reuses the already-live
+  // lastMonthFullLtr/lastMonthFull fields (flowing in since 21 Sep 2026
+  // for each DSR card's own "Last month" line), no backend change
+  // needed. Omit it the same way avgField is omitted, if ever needed.
+  function buildAreaTableRows_(valueField, targetField, fmtFn, avgField, lastMonthField) {
     // 27 Sep 2026: a restricted Area Manager (see visibleDsrs_()) only
     // gets rows/totals for DSRs on their own allowed list - AAA Direct's
     // own row is left out entirely if it's not visible, and each area
     // group below is filtered down to just its visible members (the
     // whole group is skipped if none of its members are visible).
     var visibleNames = visibleDsrs_().map(function (d) { return d.name; });
-    var byVal = {}, byTarget = {}, byAvg = {};
+    var byVal = {}, byTarget = {}, byAvg = {}, byLastMonth = {};
     DSRS.forEach(function (d) {
       byVal[d.name] = d[valueField] || 0;
       byTarget[d.name] = d[targetField] || 0;
       byAvg[d.name] = avgField ? (d[avgField] || 0) : 0;
+      byLastMonth[d.name] = lastMonthField ? (d[lastMonthField] || 0) : 0;
     });
     var aaaVisible = visibleNames.indexOf('AAA Direct') !== -1;
     var aaaVal = aaaVisible ? (byVal['AAA Direct'] || 0) : 0;
     var aaaTarget = aaaVisible ? (byTarget['AAA Direct'] || 0) : 0;
     var aaaAvg = aaaVisible ? (byAvg['AAA Direct'] || 0) : 0;
+    var aaaLastMonth = aaaVisible ? (byLastMonth['AAA Direct'] || 0) : 0;
     // TODO(coimbatore): sum a 4th "Coimbatore Area" group here once that
     // territory's own real-Tally diagnostic is resolved - see this
     // section's HTML comment above.
@@ -4007,7 +4402,7 @@
     // above already do (monthLtr -> Sales, monthCollected -> Collection) -
     // see dealerBreakdownByDsr_() below.
     var dealerBreakdown = dealerBreakdownByDsr_(valueField);
-    var otherColsCount = 2 + (avgField ? 1 : 0); // 6M AVG (if present) + Target + Balance
+    var otherColsCount = 2 + (avgField ? 1 : 0) + (lastMonthField ? 1 : 0); // Last month (if present) + 6M AVG (if present) + Target + Balance
     var dashCells = function (n) {
       var s = '';
       for (var i = 0; i < n; i++) s += '<td class="num zero">\u2014</td>';
@@ -4029,29 +4424,30 @@
     var dsrNameCell = function (dsrName) {
       return '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + dsrName + '</td>';
     };
-    var grandVal = aaaVal, grandTarget = aaaTarget, grandAvg = aaaAvg;
+    var grandVal = aaaVal, grandTarget = aaaTarget, grandAvg = aaaAvg, grandLastMonth = aaaLastMonth;
     var rowsHtml = aaaVisible
-      ? ('<tr data-dsr-toggle="AAA Direct">' + dsrNameCell('AAA Direct') + cell(aaaVal) + (avgField ? cell(aaaAvg) : '') + cell(aaaTarget) + balCell(aaaTarget - aaaVal) + '</tr>' +
+      ? ('<tr data-dsr-toggle="AAA Direct">' + dsrNameCell('AAA Direct') + cell(aaaVal) + (lastMonthField ? cell(aaaLastMonth) : '') + (avgField ? cell(aaaAvg) : '') + cell(aaaTarget) + balCell(aaaTarget - aaaVal) + '</tr>' +
          dsrChildRowsHtml('AAA Direct', null))
       : '';
     PETRONAS_AREA_GROUPS_.forEach(function (g) {
       var visibleMembers = g.members.filter(function (name) { return visibleNames.indexOf(name) !== -1; });
       if (!visibleMembers.length) return; // whole area hidden for this viewer
       var memberVals = visibleMembers.map(function (name) {
-        return { label: name, value: byVal[name] || 0, target: byTarget[name] || 0, avg: byAvg[name] || 0 };
+        return { label: name, value: byVal[name] || 0, target: byTarget[name] || 0, avg: byAvg[name] || 0, lastMonth: byLastMonth[name] || 0 };
       });
       var total = memberVals.reduce(function (s, m) { return s + m.value; }, 0);
       var targetTotal = memberVals.reduce(function (s, m) { return s + m.target; }, 0);
       var avgTotal = memberVals.reduce(function (s, m) { return s + m.avg; }, 0);
-      grandVal += total; grandTarget += targetTotal; grandAvg += avgTotal;
+      var lastMonthTotal = memberVals.reduce(function (s, m) { return s + m.lastMonth; }, 0);
+      grandVal += total; grandTarget += targetTotal; grandAvg += avgTotal; grandLastMonth += lastMonthTotal;
       rowsHtml += '<tr class="area-toggle-row" data-area-toggle="' + g.key + '">' +
-        '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + g.label + '</td>' + cell(total) + (avgField ? cell(avgTotal) : '') + cell(targetTotal) + balCell(targetTotal - total) + '</tr>';
+        '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + g.label + '</td>' + cell(total) + (lastMonthField ? cell(lastMonthTotal) : '') + (avgField ? cell(avgTotal) : '') + cell(targetTotal) + balCell(targetTotal - total) + '</tr>';
       rowsHtml += memberVals.map(function (m) {
-        return '<tr class="area-child-row" data-area-child="' + g.key + '" data-dsr-toggle="' + m.label + '" style="display:none;">' + dsrNameCell(m.label) + cell(m.value) + (avgField ? cell(m.avg) : '') + cell(m.target) + balCell(m.target - m.value) + '</tr>' +
+        return '<tr class="area-child-row" data-area-child="' + g.key + '" data-dsr-toggle="' + m.label + '" style="display:none;">' + dsrNameCell(m.label) + cell(m.value) + (lastMonthField ? cell(m.lastMonth) : '') + (avgField ? cell(m.avg) : '') + cell(m.target) + balCell(m.target - m.value) + '</tr>' +
           dsrChildRowsHtml(m.label, g.key);
       }).join('');
     });
-    var totalRow = '<tr class="age-table-total"><td>Total</td>' + cell(grandVal) + (avgField ? cell(grandAvg) : '') + cell(grandTarget) + balCell(grandTarget - grandVal) + '</tr>';
+    var totalRow = '<tr class="age-table-total"><td>Total</td>' + cell(grandVal) + (lastMonthField ? cell(grandLastMonth) : '') + (avgField ? cell(grandAvg) : '') + cell(grandTarget) + balCell(grandTarget - grandVal) + '</tr>';
     return rowsHtml + totalRow;
   }
   // {dealerName: dsrDisplayName} -> {dsrDisplayName: [{name, value}, ...]}
@@ -4085,8 +4481,8 @@
   function renderPetronasAreaTable_() {
     var wrap = document.getElementById('petronasAreaWrap');
     if (!wrap) return;
-    var rows = buildAreaTableRows_('monthLtr', 'target', function (v) { return fmt(v) + ' Ltr'; }, 'avg6moLtr');
-    wrap.innerHTML = ageTableWrap_('<thead><tr><th>Area</th><th>This month (Ltr)</th><th>6M AVG (Ltr)</th><th>Target (Ltr)</th><th>Balance (Ltr)</th></tr></thead>', rows);
+    var rows = buildAreaTableRows_('monthLtr', 'target', function (v) { return fmt(v) + ' Ltr'; }, 'avg6moLtr', 'lastMonthFullLtr');
+    wrap.innerHTML = ageTableWrap_('<thead><tr><th>Area</th><th>This month (Ltr)</th><th>Last month (Ltr)</th><th>6M AVG (Ltr)</th><th>Target (Ltr)</th><th>Balance (Ltr)</th></tr></thead>', rows);
   }
   // Collection twin of the table above, added 26 Sep 2026 at the owner's
   // request ("SAME AS PER Full Petronas This Month Sales NEED COLLECTION
@@ -4096,8 +4492,8 @@
   function renderPetronasCollectionAreaTable_() {
     var wrap = document.getElementById('petronasCollectionAreaWrap');
     if (!wrap) return;
-    var rows = buildAreaTableRows_('monthCollected', 'collectionTarget', fmtRs, 'avg6moCollectedRs');
-    wrap.innerHTML = ageTableWrap_('<thead><tr><th>Area</th><th>This month (Rs)</th><th>6M AVG (Rs)</th><th>Target (Rs)</th><th>Balance (Rs)</th></tr></thead>', rows);
+    var rows = buildAreaTableRows_('monthCollected', 'collectionTarget', fmtRs, 'avg6moCollectedRs', 'lastMonthFull');
+    wrap.innerHTML = ageTableWrap_('<thead><tr><th>Area</th><th>This month (Rs)</th><th>Last month (Rs)</th><th>6M AVG (Rs)</th><th>Target (Rs)</th><th>Balance (Rs)</th></tr></thead>', rows);
   }
 
   // Collection Group Summary table, added 28 Sep 2026 - see
@@ -4292,6 +4688,17 @@
   // fetched yet" apart from "fetched, but genuinely zero Petronas rows".
   var daybookItemGroupRows = null;
   var daybookItemGroupFetchFailed = false;
+  // Trailing-6-closed-month average Alt Qty (Ltr) per RAW item group,
+  // from Code.gs's new ?type=itemGroupSixMoAvg endpoint - added 6 Oct
+  // 2026 for this panel's new 6M AVG column (owner: "CAN ADD 6M AVG
+  // AFTER ALT QTY"). null before the first fetch completes (or on a
+  // failed fetch - see fetchItemGroupSixMoAvg_() below), same "not
+  // fetched yet" convention as daybookItemGroupRows above. Shape:
+  // {itemGroupRaw: avgLtr}, same raw/unfiltered/un-merged item-group
+  // keys Code.gs returns them in - isPetronasItemGroup_()/
+  // daybookMainGroup_() below do the same filtering/folding on this map
+  // that they already do on daybookItemGroupRows.
+  var itemGroupSixMoAvgMap = null;
 
   // Only the 17 real "PETRONAS ..." Item Groups found in the actual Sheet
   // data should count - everything else in this same Day Book feed is a
@@ -4348,6 +4755,25 @@
         daybookItemGroupFetchFailed = true;
       });
   }
+  // Fetches the trailing-6-closed-month average Alt Qty (Ltr) per item
+  // group from Code.gs's new ?type=itemGroupSixMoAvg endpoint - added
+  // 6 Oct 2026 for this panel's new 6M AVG column. Same error-tolerant
+  // convention as fetchDaybookItemGroupRows_() above (never rejects, so
+  // one failed fetch doesn't break refreshAll()'s Promise.all) - a
+  // failure just leaves the 6M AVG column blank (renderDaybookItemGroupSummary_()
+  // below treats a missing/null entry as "no 6-mo history yet"), the
+  // panel's real "this month" figures are unaffected either way.
+  function fetchItemGroupSixMoAvg_() {
+    var url = ORDERS_API_URL + '?type=itemGroupSixMoAvg&_ts=' + Date.now();
+    return fetchJson_(url, 2, 30000)
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'Server error');
+        itemGroupSixMoAvgMap = res.avgAltQtyLtrByItemGroup || {};
+      })
+      .catch(function () {
+        // Leave itemGroupSixMoAvgMap as-is (null on a first-ever failure).
+      });
+  }
   // ONE level of expand (Main Group -> DSR, via the same knownDealerDsrMap_()
   // join Collection Group Summary's own DSR breakdown uses) - no dealer-
   // name drill-down, per the owner's own "no dealers name need". A dealer
@@ -4392,14 +4818,39 @@
       if (headerTotalEl) headerTotalEl.textContent = 'Total ALT QTY 0 Ltr';
       return;
     }
+    // 6M AVG per Main Group, added 6 Oct 2026 (owner: "CAN ADD 6M AVG
+    // AFTER ALT QTY") - folds itemGroupSixMoAvgMap's RAW item-group keys
+    // into the same Main Group buckets as byMainGroup above, via the
+    // identical isPetronasItemGroup_()/daybookMainGroup_() filter/merge,
+    // so a group split across bracket-suffix variants (e.g. "PETRONAS
+    // PCMO (2)"/"PETRONAS PCMO (0)") sums correctly into one figure, same
+    // as g.total already does for this month's Alt Qty. A main group
+    // with no 6-month data at all (itemGroupSixMoAvgMap null/missing
+    // entries) is simply absent from avgByMainGroup, rendered as a dash
+    // below rather than a misleading 0.
+    var avgByMainGroup = {};
+    if (itemGroupSixMoAvgMap) {
+      Object.keys(itemGroupSixMoAvgMap).forEach(function (rawGroup) {
+        if (!isPetronasItemGroup_(rawGroup)) return;
+        var v = itemGroupSixMoAvgMap[rawGroup];
+        if (v === null || v === undefined) return;
+        var mainGroup = daybookMainGroup_(rawGroup);
+        avgByMainGroup[mainGroup] = (avgByMainGroup[mainGroup] || 0) + v;
+      });
+    }
     var cell = function (v) { return '<td class="num">' + fmt(v) + ' Ltr</td>'; };
+    var dashCell = '<td class="num zero">—</td>';
+    var avgCellFor = function (mainGroup) {
+      return avgByMainGroup[mainGroup] !== undefined ? cell(avgByMainGroup[mainGroup]) : dashCell;
+    };
     var rowsHtml = '';
-    var grandTotal = 0;
+    var grandTotal = 0, grandAvgTotal = 0;
     mainGroupNames.forEach(function (mainGroup) {
       var g = byMainGroup[mainGroup];
       grandTotal += g.total;
+      grandAvgTotal += avgByMainGroup[mainGroup] || 0;
       rowsHtml += '<tr class="area-toggle-row" data-area-toggle="' + mainGroup + '">' +
-        '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + mainGroup + '</td>' + cell(g.total) + '</tr>';
+        '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + mainGroup + '</td>' + cell(g.total) + avgCellFor(mainGroup) + '</tr>';
       // Sorted high to low by that DSR's own Alt Qty within this item
       // group (added 29 Sep 2026 at the owner's request - "sort high to
       // low inside a item group in dsr level also"), matching the same
@@ -4407,13 +4858,16 @@
       // use, instead of the fixed DSR-roster order used previously.
       var dsrOrder = Object.keys(g.byDsr).sort(function (a, b) { return g.byDsr[b] - g.byDsr[a]; });
       rowsHtml += dsrOrder.map(function (dsrName) {
+        // 6M AVG isn't split by DSR (Code.gs's itemGroupSixMoAvg endpoint
+        // only aggregates by item group, not by DSR/dealer) - shown as a
+        // dash on these per-DSR child rows rather than a real figure.
         return '<tr class="area-child-row" data-area-child="' + mainGroup + '" style="display:none;">' +
-          '<td style="padding-left:26px;">' + dsrName + '</td>' + cell(g.byDsr[dsrName]) + '</tr>';
+          '<td style="padding-left:26px;">' + dsrName + '</td>' + cell(g.byDsr[dsrName]) + dashCell + '</tr>';
       }).join('');
     });
-    var totalRow = '<tr class="age-table-total"><td>Grand Total</td>' + cell(grandTotal) + '</tr>';
+    var totalRow = '<tr class="age-table-total"><td>Grand Total</td>' + cell(grandTotal) + cell(grandAvgTotal) + '</tr>';
     wrap.innerHTML = ageTableWrap_(
-      '<thead><tr><th>Item Group Name</th><th>Alt Qty (Ltr)</th></tr></thead>',
+      '<thead><tr><th>Item Group Name</th><th>Alt Qty (Ltr)</th><th>6M AVG (Ltr)</th></tr></thead>',
       rowsHtml + totalRow, 'namecol');
     if (summaryTotalEl) summaryTotalEl.textContent = 'Total ALT QTY ' + fmt(grandTotal) + ' Ltr';
     if (headerTotalEl) headerTotalEl.textContent = 'Total ALT QTY ' + fmt(grandTotal) + ' Ltr';
@@ -4545,6 +4999,15 @@
   // Sales(Ltr) for that month specifically (not running/cumulative) per
   // the owner's own formula - the separate running Balance column below
   // is the cumulative one.
+  // salesValue below is the owner's own screenshot figures, UNCHANGED -
+  // GST was briefly (and wrongly) multiplied into these 5 Oct 2026, then
+  // reverted 6 Oct 2026 per the owner's explicit correction ("i asked to
+  // add gst from sep live data, but u have wrongly added from jan to
+  // aug, so remove gst added and add gst from sep onwards"). GST now
+  // applies ONLY to the live Sep-onward figures, in Code.gs's own
+  // handleLiveGet_() (see its petronasSummaryLive salesValue line) - not
+  // here, and not in tally_live_watcher.py. purchaseLtr/salesLtr/
+  // collected/purchaseValue/payment were never touched by any of this.
   var PETRONAS_SUMMARY_DATA_ = [
     { month: 'Jan 2026', purchaseLtr: 30982, salesLtr: 27576, salesValue: 6909179.00, collected: 8127543.00, purchaseValue: 7221248.26, payment: 6471590.07 },
     { month: 'Feb 2026', purchaseLtr: 32564, salesLtr: 29675, salesValue: 25872739.00, collected: 7306703.00, purchaseValue: 8075840.06, payment: 8277424.01 },
@@ -5701,7 +6164,17 @@
     var childRowsHtml = Array.prototype.filter.call(wrap.querySelectorAll('.area-child-row'), function (tr) {
       return tr.getAttribute('data-area-child') === pickedGroupName;
     }).map(function (tr) {
-      return tr.outerHTML.replace(' style="display:none;"', '');
+      // 6 Oct 2026: each child row now also carries a 3rd <td> (6M AVG,
+      // always a dash here since that figure isn't split by DSR - see
+      // renderDaybookItemGroupSummary_() above). Stripped here so this
+      // per-group share capture stays the 2-column shape it's always
+      // been (theadHtml below is unchanged) rather than showing an extra
+      // unlabeled column.
+      var clone = tr.cloneNode(true);
+      clone.removeAttribute('style');
+      var tds = clone.querySelectorAll('td');
+      if (tds.length > 2) clone.removeChild(tds[tds.length - 1]);
+      return clone.outerHTML;
     }).join('');
     var theadHtml = '<thead><tr><th>Item Group Name</th><th>Alt Qty (Ltr)</th></tr></thead>';
     var tableHtml = ageTableWrap_(theadHtml, groupRowHtml + childRowsHtml, 'namecol');
@@ -7316,6 +7789,7 @@
   }
   bindAreaToggle_('petronasAreaWrap');
   bindAreaToggle_('petronasCollectionAreaWrap');
+  bindActivityNamesClicks_('inactiveVsBilledWrap');
   // Collection Group Summary's own wrap, added 28 Sep 2026 - reuses
   // bindAreaToggle_() as-is since renderGroupSummaryTable_() above emits
   // the identical data-area-toggle/area-child-row markup, just one level
@@ -7333,6 +7807,17 @@
   // renderLastMonthReport_() later fills the wrap with real rows.
   bindAreaToggle_('lastMonthAreaWrap');
   bindAreaToggle_('lastMonthGroupSummaryWrap');
+  // "Report period" Week/Quarter/Year view's own area wrap, added 2 Oct
+  // 2026 alongside renderPeriodSummary_() - missed when that feature was
+  // first built (every other bindAreaToggle_() wrap above was bound the
+  // same day its own render function was added; this one wasn't), which
+  // is why the Area table's "+" rows never expanded for Week/Quarter/
+  // Year (found and fixed 7 Oct 2026). renderPeriodSummary_() fills
+  // #periodAreaWrap with buildAreaRowsFromBreakdown_()'s identical
+  // data-area-toggle/data-dsr-toggle markup, so the same delegated
+  // handler works here with zero changes - same "safe to bind on an
+  // empty/hidden wrap" reasoning as lastMonthAreaWrap above.
+  bindAreaToggle_('periodAreaWrap');
   // "Share Inactive dealers" (whole-company) removed 22 Sep 2026 along
   // with the standalone Inactive Dealers section itself - inactive-dealer
   // detail is now per-DSR, inside each DSR's own expandable row, and
@@ -7484,6 +7969,682 @@
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     }).then(function (r) { return r.json(); });
+  }
+
+  // ===================================================================
+  // Master File + Task Manager - added 6 Oct 2026. Live-wired to the new
+  // ?type=masterFile / ?type=tasks endpoints and the dealerTargetSet/
+  // dealerRemarkAdd/taskCreate/taskUpdateStatus/taskAddComment actions on
+  // Code.gs (see the big comment block above handleDealerTargetsGet_()
+  // there for the full feature). This first build covers the CURRENT
+  // month only - a past-month history view and "Review by DSR" (every
+  // month Jan 2026-present side by side, for one DSR's own dealers) use
+  // the ?type=masterFileReview endpoint, already live on the backend,
+  // but aren't wired into this screen yet; same for the month picker.
+  // visibleDsrs_() (declared above) gives this filtering for free, the
+  // same way every other section on this dashboard already scopes a
+  // restricted Area Manager's own view.
+  function mfEscapeHtml_(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function mfMoney_(n) {
+    if (n === null || n === undefined || n === "") return "—";
+    return "₹" + Math.round(Number(n)).toLocaleString("en-IN");
+  }
+  function mfNum_(n) {
+    if (n === null || n === undefined || n === "") return "—";
+    return Number(n).toLocaleString("en-IN");
+  }
+
+  var MASTER_FILE_DATA_ = [];
+  function currentMonthKeyISO_dashboard_() {
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  }
+
+  function fetchMasterFile_() {
+    var bodyEl = document.getElementById("mfCurrentTableBody");
+    if (!bodyEl || typeof ORDERS_API_URL !== "string") return;
+    var month = currentMonthKeyISO_dashboard_();
+    fetch(ORDERS_API_URL + "?type=masterFile&month=" + encodeURIComponent(month) + "&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) { bodyEl.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--ink-muted);">Could not load the Master File.</td></tr>'; return; }
+        MASTER_FILE_DATA_ = data.dealers || [];
+        populateMasterFileFilterOptions_();
+        renderMasterFileTable_();
+        // Task Manager's "Dealer" dropdown used to re-populate from THIS
+        // fetch (MASTER_FILE_DATA_) - removed 9 Oct 2026 (see the Dealer
+        // field's markup comment above) and re-added 10 Oct 2026 sourced
+        // from `dealerRoster` instead (refreshed in
+        // applyLivePayloadToState_() below, not here - this fetch no
+        // longer has anything to do with the Dealer dropdown).
+        var footEl = document.getElementById("mfFooterNote");
+        if (footEl) {
+          footEl.textContent = "Showing " + MASTER_FILE_DATA_.length + " dealers for " + month + ". Target/Plan (pencil icon): editable here or by each DSR in their own app. " +
+            (data.outstandingIsSnapshot ? ("Overall Outstanding is the frozen balance as of " + data.outstandingAsOfMonthKey + "'s month-end.") : "Overall Outstanding: live balance (no month-start freeze found yet for this month).");
+        }
+      })
+      .catch(function () { bodyEl.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--ink-muted);">Could not reach the server.</td></tr>'; });
+  }
+
+  function populateMasterFileFilterOptions_() {
+    var dsrSel = document.getElementById("mfDsrFilter");
+    // Renamed from the old Area filter (areaSel/mfAreaFilter) 8 Oct 2026
+    // alongside the table itself switching its editable geography column
+    // from Area to DT (District) - see renderMasterFileTable_'s row
+    // builder and saveMasterFileMeta_ below.
+    var districtSel = document.getElementById("mfDistrictFilter");
+    if (!dsrSel || !districtSel) return;
+    var dsrs = {}, districts = {};
+    MASTER_FILE_DATA_.forEach(function (d) { if (d.dsrName) dsrs[d.dsrName] = true; if (d.district) districts[d.district] = true; });
+    var dsrVal = dsrSel.value, districtVal = districtSel.value;
+    dsrSel.innerHTML = '<option value="">All</option>' + Object.keys(dsrs).sort().map(function (n) { return '<option>' + mfEscapeHtml_(n) + '</option>'; }).join("");
+    districtSel.innerHTML = '<option value="">All</option>' + Object.keys(districts).sort().map(function (n) { return '<option>' + mfEscapeHtml_(n) + '</option>'; }).join("");
+    dsrSel.value = dsrVal; districtSel.value = districtVal;
+  }
+
+  function renderMasterFileTable_() {
+    var bodyEl = document.getElementById("mfCurrentTableBody");
+    if (!bodyEl) return;
+    var dsrFilter = (document.getElementById("mfDsrFilter") || {}).value || "";
+    var beatFilter = (document.getElementById("mfBeatFilter") || {}).value || "";
+    var districtFilter = (document.getElementById("mfDistrictFilter") || {}).value || "";
+    var allowedNames = (typeof visibleDsrs_ === "function") ? visibleDsrs_().map(function (d) { return d.name; }) : null;
+    // Only a RESTRICTED Area Manager's allowedNames list should hide a
+    // dealer whose DSR doesn't match - for an unrestricted Owner/Manager,
+    // visibleDsrs_() already returns every known DSR, which used to also
+    // hide a dealer with a blank or unmatched DSR Name (e.g. "Vacant
+    // Karaikudi", or one not yet assigned at all) from EVERYONE, Owner
+    // included - exactly the dealers the new DSR dropdown below exists to
+    // fix. Fixed 6 Oct 2026: an unrestricted viewer now sees every dealer
+    // regardless of DSR match; a restricted Area Manager still only sees
+    // their own allowed DSRs' dealers, same as before.
+    var restrictedMf = !!CURRENT_ALLOWED_AREAS;
+
+    var rows = MASTER_FILE_DATA_.filter(function (d) {
+      if (restrictedMf && allowedNames && allowedNames.indexOf(d.dsrName) === -1) return false;
+      if (dsrFilter && d.dsrName !== dsrFilter) return false;
+      if (districtFilter && d.district !== districtFilter) return false;
+      if (beatFilter === "Not set" && d.beatDay) return false;
+      if (beatFilter && beatFilter !== "Not set" && d.beatDay !== beatFilter) return false;
+      return true;
+    });
+
+    if (!rows.length) { bodyEl.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--ink-muted);">No dealers match this filter.</td></tr>'; return; }
+
+    var html = "";
+    for (var i = 0; i < rows.length; i++) {
+      var d = rows[i];
+      // Balance formula fixed 10 Oct 2026 - owner: "collection and sales
+      // balance are coming in negative". It used to be Actual - Target
+      // (negative = short of target), the opposite of every OTHER
+      // Target/Balance convention already used throughout this dashboard
+      // (each DSR's own card, the Area tables, the Week view - all
+      // Target - Achieved, so a dealer who's sold/collected nothing shows
+      // a plain positive "still needed" number, not a confusing negative
+      // one). Flipped to match: now Target - Actual, so a shortfall is a
+      // positive, red number (how much is still needed) and hitting/
+      // beating target shows "+X over" in green - same semantics as the
+      // per-DSR card's own cBalance/cDone just above in this file.
+      var salesBalance = (d.salesLtr !== null && d.salesTargetLtr !== null) ? (d.salesTargetLtr - d.salesLtr) : null;
+      var collBalance = (d.collectionRs !== null && d.collectionPlanRs !== null) ? (d.collectionPlanRs - d.collectionRs) : null;
+      // Remarks -> Task button, 10 Oct 2026 - owner: "if i add remarks
+      // there that will be visible for me only, can u change that task
+      // create new button there instead of that". Dealer Remarks was
+      // Master-File-only (an Owner-only screen) and, despite its own
+      // "shown in their DSR's app" prompt text, was never actually wired
+      // into any DSR app - so a remark really was only ever visible back
+      // here. A Task IS already visible across the dashboard, the Area
+      // Manager login, and the assigned DSR's own app (taskRowVisible_),
+      // so this swap genuinely solves the visibility complaint rather
+      // than just renaming it. Opens the existing Task Manager create
+      // form via openTaskFormForMasterFileRow_ (see its own comment,
+      // further down this file), pre-filled with this row's dealer/DSR.
+      var taskBtnHtml = '<button type="button" class="mf-task-btn" data-dealer="' + mfEscapeHtml_(d.dealer) + '" data-dsr="' + mfEscapeHtml_(d.dsrName || "") + '" title="Create a task for this dealer">+ New Task</button>';
+      // Hardened 10 Oct 2026, same bug class/fix pattern as the DSR
+      // dropdown just below: a dealer's real d.beatDay that doesn't
+      // EXACTLY match one of these 6 fixed Title-Case options (e.g. the
+      // Excel's own ALL-CAPS "MONDAY" before Code.gs's normalizeBeatDay_
+      // fix, 10 Oct 2026) used to make this <select> silently show its
+      // first/blank option ("Not set") even though the real value was
+      // sitting correctly in DealerMeta the whole time - that was the
+      // actual root cause behind every dealer showing "Not set" despite
+      // 589 of 678 dealers having a real Beat Day. Code.gs now normalizes
+      // this on import, but keeping this defensive fallback too means a
+      // genuinely unrecognized future value is shown as an extra option
+      // (never silently hidden) instead of this exact bug being able to
+      // recur invisibly again.
+      var beatDayOptionList_ = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      if (d.beatDay && beatDayOptionList_.indexOf(d.beatDay) === -1) beatDayOptionList_.push(d.beatDay);
+      var beatOptions = beatDayOptionList_.map(function (b) {
+        return '<option value="' + mfEscapeHtml_(b) + '"' + (b === (d.beatDay || "") ? " selected" : "") + '>' + mfEscapeHtml_(b || "Not set") + '</option>';
+      }).join("");
+      var dsrKnownNames = DSRS.map(function (x) { return x.name; });
+      var dsrOptionList = [""].concat(dsrKnownNames);
+      // Current value might be blank, "Vacant Karaikudi", or any other
+      // name not in DSRS yet (an unmatched SALES REP from the Excel, or a
+      // dealer with no DSR assigned at all) - keep it as an extra option
+      // so the dropdown always shows the dealer's real current value
+      // instead of silently falling back to "Not set".
+      if (d.dsrName && dsrKnownNames.indexOf(d.dsrName) === -1) dsrOptionList.push(d.dsrName);
+      var dsrOptions = dsrOptionList.map(function (n) {
+        return '<option value="' + mfEscapeHtml_(n) + '"' + (n === (d.dsrName || "") ? " selected" : "") + '>' + (n || "Not set") + '</option>';
+      }).join("");
+      html += '<tr data-dealer="' + mfEscapeHtml_(d.dealer) + '">' +
+        '<td>' + mfEscapeHtml_(d.dealer) + '</td>' +
+        '<td class="mf-editable"><select class="mf-edit-input mf-dsr-input">' + dsrOptions + '</select></td>' +
+        '<td class="mf-editable"><select class="mf-edit-input mf-beat-input">' + beatOptions + '</select></td>' +
+        // Area -> DT (District), 8 Oct 2026, per the owner's request -
+        // Area is still stored (still comes from the Excel import, see
+        // DEALER_META_HEADERS in Code.gs) but is no longer what this table
+        // edits; District is more complete/consistent across the real
+        // Master File Excel. Still a free-text field (not a <select>)
+        // since District values in the real data aren't perfectly
+        // standardized (casing/spelling variants) - same reasoning Area
+        // was free text for.
+        '<td class="mf-editable"><input type="text" class="mf-edit-input mf-district-input" value="' + mfEscapeHtml_(d.district || "") + '" placeholder="Not set"></td>' +
+        '<td class="mf-num mf-money">' + mfMoney_(d.overallOutstandingRs) + '</td>' +
+        '<td class="mf-num' + (d.collectableRs ? ' mf-warn' : '') + '">' + mfMoney_(d.collectableRs) + '</td>' +
+        '<td class="mf-num mf-editable"><span style="display:flex;align-items:center;gap:3px;justify-content:flex-end;">' +
+        '<input type="number" class="mf-edit-input mf-target-input" value="' + (d.salesTargetLtr === null ? "" : d.salesTargetLtr) + '" placeholder="0" style="width:62px;">' +
+        // Explicit Save button, added 6 Oct 2026 ("how the target put on
+        // dsr app will save there is no option in both app and
+        // dashboard"). This ✓ click is now the ONLY way a Target/Plan
+        // edit saves - the old auto-save-on-"change"/blur listener was
+        // removed 8 Oct 2026 alongside the matching DSR-app fix, because
+        // tapping away and then clicking ✓ fired the save TWICE back to
+        // back (once on blur, once on click), each followed by a full
+        // table re-render - that double save+re-render was the "buffering
+        // a lot...flickering...don't know if it was saved" report.
+        '<button type="button" class="mf-save-btn" title="Save">✓</button></span></td>' +
+        '<td class="mf-num">' + mfNum_(d.salesLtr) + '</td>' +
+        // Target - Actual convention (see the salesBalance comment above):
+        // >0 still short (red, plain number = how much remains), <=0
+        // target met/beaten (green, "+X" = how much over).
+        '<td class="mf-num' + (salesBalance !== null && salesBalance > 0 ? ' mf-warn' : (salesBalance !== null ? ' mf-good' : '')) + '">' + (salesBalance === null ? '—' : (salesBalance <= 0 ? '+' + mfNum_(Math.abs(salesBalance)) : mfNum_(salesBalance))) + '</td>' +
+        '<td class="mf-num mf-editable"><span style="display:flex;align-items:center;gap:3px;justify-content:flex-end;">' +
+        '<input type="number" class="mf-edit-input mf-plan-input" value="' + (d.collectionPlanRs === null ? "" : d.collectionPlanRs) + '" placeholder="0" style="width:62px;">' +
+        '<button type="button" class="mf-save-btn" title="Save">✓</button></span></td>' +
+        '<td class="mf-num mf-money">' + mfMoney_(d.collectionRs) + '</td>' +
+        // Same Target - Actual convention as Sales Balance above.
+        '<td class="mf-num' + (collBalance !== null && collBalance > 0 ? ' mf-warn' : (collBalance !== null ? ' mf-good' : '')) + '">' + (collBalance === null ? '—' : (collBalance <= 0 ? '+' + mfMoney_(Math.abs(collBalance)) : mfMoney_(collBalance))) + '</td>' +
+        '<td class="mf-task-cell">' + taskBtnHtml + '</td>' +
+        '</tr>';
+    }
+    bodyEl.innerHTML = html;
+  }
+
+  function saveMasterFileTarget_(rowEl) {
+    // In-flight guard - ignore a second trigger (double-click, or "Use"-
+    // style rapid re-click) while this row's save is still in flight,
+    // instead of firing an overlapping second POST. Added 8 Oct 2026
+    // alongside removing the auto-save-on-blur listener - together these
+    // make exactly one save happen per click, updating only this row (see
+    // below) rather than the whole table.
+    if (rowEl.getAttribute("data-saving") === "1") return;
+    rowEl.setAttribute("data-saving", "1");
+    var dealer = rowEl.getAttribute("data-dealer");
+    var ltrEl = rowEl.querySelector(".mf-target-input");
+    var planEl = rowEl.querySelector(".mf-plan-input");
+    var salesTargetLtr = ltrEl && ltrEl.value !== "" ? Number(ltrEl.value) : null;
+    var collectionPlanRs = planEl && planEl.value !== "" ? Number(planEl.value) : null;
+    var saveBtns = rowEl.querySelectorAll(".mf-save-btn");
+    for (var s = 0; s < saveBtns.length; s++) { saveBtns[s].disabled = true; }
+    dashboardApiPost_("dealerTargetSet", {
+      month: currentMonthKeyISO_dashboard_(), dealer: dealer,
+      salesTargetLtr: salesTargetLtr, collectionPlanRs: collectionPlanRs,
+      editedBy: CURRENT_USER_NAME || ""
+    }).then(function (res) {
+      rowEl.removeAttribute("data-saving");
+      for (var b = 0; b < saveBtns.length; b++) { saveBtns[b].disabled = false; }
+      if (res && res.ok) {
+        // Update just this dealer's remembered values in place - no
+        // re-fetch, no full-table re-render, so the rest of the table
+        // (including anything else being edited) is left undisturbed and
+        // the "Saved" flash is actually seen rather than instantly wiped
+        // out by an incoming re-render.
+        for (var i = 0; i < MASTER_FILE_DATA_.length; i++) {
+          if (MASTER_FILE_DATA_[i].dealer === dealer) {
+            MASTER_FILE_DATA_[i].salesTargetLtr = salesTargetLtr;
+            MASTER_FILE_DATA_[i].collectionPlanRs = collectionPlanRs;
+            break;
+          }
+        }
+        for (var b2 = 0; b2 < saveBtns.length; b2++) {
+          (function (btn) {
+            var orig = btn.textContent;
+            btn.textContent = "✓ Saved";
+            setTimeout(function () { btn.textContent = orig; }, 1200);
+          })(saveBtns[b2]);
+        }
+      } else {
+        window.alert("Could not save - please try again.");
+      }
+    }).catch(function () {
+      rowEl.removeAttribute("data-saving");
+      for (var b3 = 0; b3 < saveBtns.length; b3++) { saveBtns[b3].disabled = false; }
+      window.alert("Could not reach the server - please try again.");
+    });
+  }
+
+  // Beat Day / Area / DSR - added 6 Oct 2026, mainly for a dealer that
+  // just arrived via the backend's new roster auto-add (see
+  // autoAddMissingDealerMeta_() in Code.gs) and has no Beat Day/Area/DSR
+  // yet. Lighter-weight than re-importing the whole Master File Excel
+  // for one dealer. DSR dropdown added same day, same request as Beat
+  // Day/Area: pick a DSR for a dealer that has none, or move an existing
+  // dealer to a different DSR later - a confirm prompt guards only the
+  // DSR change (not Beat Day/Area) since reassigning a dealer moves it
+  // between apps' Dealer Targets/visibility, not just a label.
+  function saveMasterFileMeta_(rowEl, changedDsr) {
+    var dealer = rowEl.getAttribute("data-dealer");
+    var dsrEl = rowEl.querySelector(".mf-dsr-input");
+    var beatEl = rowEl.querySelector(".mf-beat-input");
+    // Renamed from the old mf-area-input (areaEl) 8 Oct 2026, alongside the
+    // table switching its editable geography column from Area to DT
+    // (District) - see the row-builder comment in renderMasterFileTable_.
+    var districtEl = rowEl.querySelector(".mf-district-input");
+    if (changedDsr && dsrEl) {
+      var newDsr = dsrEl.value || "(not set)";
+      if (!window.confirm('Move "' + dealer + '" to ' + newDsr + '? This changes which DSR app sees this dealer\'s targets.')) {
+        fetchMasterFile_(); // revert the dropdown to the saved value
+        return;
+      }
+    }
+    dashboardApiPost_("dealerMetaSet", {
+      dealer: dealer,
+      dsrName: dsrEl ? dsrEl.value : undefined,
+      beatDay: beatEl ? beatEl.value : undefined,
+      district: districtEl ? districtEl.value : undefined
+    }).then(function (res) { if (res && res.ok) fetchMasterFile_(); }).catch(function () { /* best-effort */ });
+  }
+
+  ["mfDsrFilter", "mfBeatFilter", "mfDistrictFilter"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("change", renderMasterFileTable_);
+  });
+  var mfTableBodyEl = document.getElementById("mfCurrentTableBody");
+  if (mfTableBodyEl) {
+    mfTableBodyEl.addEventListener("change", function (e) {
+      // mf-target-input/mf-plan-input auto-save-on-change listener removed
+      // 8 Oct 2026 - the explicit ✓ Save button (below, in the "click"
+      // listener) is now the only trigger for those two fields; see
+      // saveMasterFileTarget_'s comment for why.
+      if (e.target.classList.contains("mf-beat-input") || e.target.classList.contains("mf-district-input")) {
+        saveMasterFileMeta_(e.target.closest("tr"), false);
+      }
+      if (e.target.classList.contains("mf-dsr-input")) {
+        saveMasterFileMeta_(e.target.closest("tr"), true);
+      }
+    });
+    mfTableBodyEl.addEventListener("click", function (e) {
+      var saveBtn = e.target.closest(".mf-save-btn");
+      if (saveBtn) { saveMasterFileTarget_(saveBtn.closest("tr")); return; }
+      var taskBtn = e.target.closest(".mf-task-btn");
+      if (!taskBtn) return;
+      openTaskFormForMasterFileRow_(taskBtn.getAttribute("data-dealer"), taskBtn.getAttribute("data-dsr"));
+    });
+  }
+  var exportMfBtnEl = document.getElementById("exportMasterFileXlsxBtn");
+  if (exportMfBtnEl) {
+    exportMfBtnEl.addEventListener("click", function () {
+      if (typeof ORDERS_API_URL !== "string") return;
+      exportMfBtnEl.disabled = true;
+      var origTitle = exportMfBtnEl.title;
+      exportMfBtnEl.title = "Preparing export…";
+      fetch(ORDERS_API_URL + "?type=masterFileExport&month=" + encodeURIComponent(currentMonthKeyISO_dashboard_()) + "&_ts=" + Date.now(), { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          exportMfBtnEl.disabled = false;
+          exportMfBtnEl.title = origTitle;
+          if (res && res.ok && res.downloadUrl) window.open(res.downloadUrl, "_blank");
+          else window.alert("Export failed: " + ((res && res.error) || "unknown error"));
+        })
+        .catch(function () { exportMfBtnEl.disabled = false; exportMfBtnEl.title = origTitle; window.alert("Could not reach the server."); });
+    });
+  }
+
+  // ----- Task Manager -----
+  var TASKS_DATA_ = [];
+  var TASK_TYPE_CLASS_DASH_ = { "Sales": "task-type-sales", "Stock": "task-type-stock", "Payment": "task-type-payment", "General": "task-type-general", "Others": "task-type-general" };
+
+  function fetchTasks_() {
+    var listEl = document.getElementById("taskManagerList");
+    if (!listEl || typeof ORDERS_API_URL !== "string") return;
+    var allowedAreasStr = CURRENT_ALLOWED_AREAS ? CURRENT_ALLOWED_AREAS.join(",") : "";
+    fetch(ORDERS_API_URL + "?type=tasks&viewerName=" + encodeURIComponent(CURRENT_USER_NAME || "") + "&viewerRole=" + encodeURIComponent(CURRENT_USER_ROLE || "") + "&allowedAreas=" + encodeURIComponent(allowedAreasStr) + "&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) { listEl.innerHTML = '<p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">Could not load tasks.</p>'; return; }
+        TASKS_DATA_ = data.tasks || [];
+        renderTaskManager_();
+        if (typeof checkTaskRemindersDash_ === "function") checkTaskRemindersDash_(TASKS_DATA_);
+      })
+      .catch(function () { listEl.innerHTML = '<p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">Could not reach the server.</p>'; });
+  }
+
+  function renderTaskManager_() {
+    var listEl = document.getElementById("taskManagerList");
+    if (!listEl) return;
+    var filterVal = (document.getElementById("tmFilter") || {}).value || "open";
+    var tasks = TASKS_DATA_.filter(function (t) {
+      if (filterVal === "open") return t.status !== "Completed";
+      if (filterVal === "done") return t.status === "Completed";
+      return true;
+    });
+    // Open-task count near "+ New" - added 6 Oct 2026, independent of
+    // whatever filterVal the Show dropdown is currently set to (always
+    // the true open count, not "however many rows are showing now").
+    var openCountEl = document.getElementById("taskManagerOpenCount");
+    if (openCountEl) {
+      var openCount = TASKS_DATA_.filter(function (t) { return t.status !== "Completed"; }).length;
+      openCountEl.textContent = openCount ? (openCount + " open") : "";
+    }
+    if (!tasks.length) { listEl.innerHTML = '<p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">No tasks.</p>'; return; }
+    var canCreate = (CURRENT_USER_ROLE === "Owner" || CURRENT_USER_ROLE === "Manager");
+    // Status options restricted by role - 8 Oct 2026 ("Only the complete
+    // in prograss option should be set my me or manager not area manager
+    // or dsr"). Owner/Manager keep all 4; Area Manager (the only
+    // non-DSR, non-Owner/Manager role that reaches this dashboard) only
+    // ever sees Open/On Hold as pickable - handleTaskUpdateStatus_
+    // enforces the same restriction server-side.
+    var canSetInProgressOrDone = (CURRENT_USER_ROLE === "Owner" || CURRENT_USER_ROLE === "Manager");
+    var statuses = canSetInProgressOrDone ? ["Open", "In Progress", "On Hold", "Completed"] : ["Open", "On Hold"];
+    var todayIso = todayIso_();
+    var html = "";
+    for (var i = 0; i < tasks.length; i++) {
+      var t = tasks[i];
+      var typeClass = TASK_TYPE_CLASS_DASH_[t.type] || "task-type-general";
+      // A task's CURRENT status might be one this viewer can no longer
+      // pick (e.g. an Area Manager looking at a task a Manager already
+      // marked "Completed") - always include it as an option even if
+      // outside this viewer's normally-allowed list, so the select never
+      // silently shows the wrong value; the viewer still can't pick a
+      // *different* restricted status, since no other restricted option
+      // is offered.
+      var statusOptionsForThis = statuses.indexOf(t.status) === -1 ? statuses.concat([t.status]) : statuses;
+      var optionsHtml = statusOptionsForThis.map(function (s) { return '<option' + (s === t.status ? " selected" : "") + '>' + s + '</option>'; }).join("");
+      var commentsHtml = (t.comments || []).map(function (c) {
+        return '<div class="task-comment-row"><b>' + mfEscapeHtml_(c.author) + ':</b> ' + mfEscapeHtml_(c.text) + '</div>';
+      }).join("");
+      // Delete - creator, OR Owner regardless of creator (8 Oct 2026,
+      // "For my id put delete option who ever created i can also
+      // delete") - checked again server-side in handleTaskDelete_.
+      var canDelete = (t.createdBy && t.createdBy === CURRENT_USER_NAME) || CURRENT_USER_ROLE === "Owner";
+      var deleteBtnHtml = canDelete
+        ? '<button type="button" class="task-icon-btn task-delete-btn" title="Delete this task">Delete</button>'
+        : '';
+      var remarksHtml = t.remarks ? ('<div class="task-meta">Remarks: ' + mfEscapeHtml_(t.remarks) + '</div>') : '';
+      var reminderHtml = t.reminderTime ? (' &middot; Reminder ' + mfEscapeHtml_(t.reminderTime)) : '';
+      // Overdue - 8 Oct 2026 ("Show if the due date crossed as overdue"):
+      // a task is overdue when its due date is strictly before today and
+      // it isn't already Completed - styled the same red as the BizApp
+      // reference screenshot's own "Over Due" label.
+      var isOverdue = !!(t.dueDate && t.status !== "Completed" && t.dueDate < todayIso);
+      var overdueBadgeHtml = isOverdue ? '<span class="task-overdue-badge">Overdue</span>' : '';
+      // Clear card layout - 8 Oct 2026 ("Show clear message in dashboard
+      // and app what is the matter who created due date comment
+      // remarks"), modeled on the owner's own BizApp reference
+      // screenshot: matter + status/overdue on top, who-and-which-dealer
+      // next, then a clean due date (no time-of-day, no GMT string - see
+      // Code.gs's formatTaskDate_ for where that bug actually lived).
+      var dealerLineHtml = t.dealerName
+        ? ('<div class="task-dealer-line">Dealer: <b>' + mfEscapeHtml_(t.dealerName) + '</b> &middot; ' + mfEscapeHtml_(t.assignedTo || "Unassigned") + '</div>')
+        : ('<div class="task-dealer-line">' + mfEscapeHtml_(t.assignedTo || "Unassigned") + '</div>');
+      html += '<div class="task-card" data-task-id="' + mfEscapeHtml_(t.id) + '">' +
+        '<div class="task-card-head"><span class="task-name">' + mfEscapeHtml_(t.name) + '</span>' +
+        '<span class="task-type-badge ' + typeClass + '">' + mfEscapeHtml_(t.type) + '</span></div>' +
+        dealerLineHtml +
+        '<div class="task-pills"><select class="task-status-select">' + optionsHtml + '</select>' + overdueBadgeHtml + deleteBtnHtml + '</div>' +
+        '<div class="task-due-line' + (isOverdue ? ' overdue' : '') + '">Due ' + mfEscapeHtml_(t.dueDate || "—") + reminderHtml + '</div>' +
+        '<div class="task-meta">Created by ' + mfEscapeHtml_(t.createdBy || "") + '</div>' +
+        remarksHtml +
+        '<div class="task-comments">' + commentsHtml + '</div>' +
+        '<div class="task-card-foot"><input type="text" class="task-comment-input" placeholder="Add a comment…">' +
+        '<button type="button" class="task-icon-btn task-comment-send" title="Add comment">Comment</button>' +
+        (t.alsoVisibleTo && t.alsoVisibleTo.length ? ('<span class="task-visible-tag">Also visible: ' + mfEscapeHtml_(t.alsoVisibleTo.join(", ")) + '</span>') : '') +
+        '</div></div>';
+    }
+    listEl.innerHTML = html;
+    void canCreate; // reserved for a future "assign-only" DSR view distinction
+  }
+
+  var tmFilterEl = document.getElementById("tmFilter");
+  if (tmFilterEl) tmFilterEl.addEventListener("change", renderTaskManager_);
+  var taskManagerListEl = document.getElementById("taskManagerList");
+  if (taskManagerListEl) {
+    taskManagerListEl.addEventListener("change", function (e) {
+      if (!e.target.classList.contains("task-status-select")) return;
+      var cardEl = e.target.closest(".task-card");
+      dashboardApiPost_("taskUpdateStatus", { id: cardEl.getAttribute("data-task-id"), status: e.target.value, requestedByRole: CURRENT_USER_ROLE || "" }).then(function (res) {
+        if (res && res.ok) fetchTasks_();
+        else { window.alert("Could not update status: " + ((res && res.error) || "unknown error")); fetchTasks_(); }
+      }).catch(function () { /* best-effort */ });
+    });
+    taskManagerListEl.addEventListener("click", function (e) {
+      var deleteBtn = e.target.closest(".task-delete-btn");
+      if (deleteBtn) {
+        var delCardEl = deleteBtn.closest(".task-card");
+        var delTaskId = delCardEl.getAttribute("data-task-id");
+        if (!window.confirm("Delete this task? This can't be undone.")) return;
+        dashboardApiPost_("taskDelete", { id: delTaskId, requestedBy: CURRENT_USER_NAME || "", requestedByRole: CURRENT_USER_ROLE || "" }).then(function (res) {
+          if (res && res.ok) fetchTasks_();
+          else window.alert("Could not delete: " + ((res && res.error) || "unknown error"));
+        }).catch(function () { window.alert("Could not reach the server."); });
+        return;
+      }
+      var btn = e.target.closest(".task-comment-send");
+      if (!btn) return;
+      var cardEl = btn.closest(".task-card");
+      var inputEl = cardEl.querySelector(".task-comment-input");
+      var text = inputEl && inputEl.value.trim();
+      if (!text) return;
+      dashboardApiPost_("taskAddComment", { taskId: cardEl.getAttribute("data-task-id"), author: CURRENT_USER_NAME || "", text: text })
+        .then(function (res) { if (res && res.ok) fetchTasks_(); }).catch(function () { /* best-effort */ });
+    });
+  }
+
+  // Dealer options for the currently-selected Assigned-To DSR - removed
+  // 9 Oct 2026, re-added 10 Oct 2026 (see the Dealer field's markup
+  // comment above for the full history). This version is sourced from
+  // `knownDealerDsrMap_()` (built from `dealerRoster`, Tally's own ledger
+  // groupings) instead of the old MASTER_FILE_DATA_/DealerMeta-sheet
+  // text match, which should make it reliable this time. "Alagu" (Owner)
+  // has no dealers of their own, so the Dealer list is simply empty
+  // (just "Not set") whenever Owner is the one assigned - same as
+  // before.
+  function populateTcDealerOptions_() {
+    var assignedSel = document.getElementById("tcAssignedTo");
+    var dealerSel = document.getElementById("tcDealer");
+    if (!assignedSel || !dealerSel) return;
+    var shortName = assignedSel.value;
+    // No DSR picked yet (the "Select name" placeholder) - just show "Not
+    // set", same defensive short-circuit as the old version (never run a
+    // filter against an empty/placeholder selection).
+    if (!shortName) { dealerSel.innerHTML = '<option value="">Not set</option>'; return; }
+    // {dealerName: dsrDisplayName}, already-proven-reliable mapping this
+    // dashboard builds elsewhere from dealerRoster (see that function's
+    // own comment, ~line 3533) - already folds Saravanan's dealers into
+    // Chellamani's, already scoped to visibleDsrs_() for a restricted
+    // Area Manager, so this picks all of that up for free.
+    var map = knownDealerDsrMap_();
+    var names = Object.keys(map).filter(function (dealerName) {
+      return map[dealerName] === shortName;
+    }).sort();
+    dealerSel.innerHTML = '<option value="">Not set</option>' + names.map(function (n) {
+      return '<option>' + mfEscapeHtml_(n) + '</option>';
+    }).join("");
+  }
+  // Opens the Task Manager's create-task form pre-filled for a Master
+  // File row's dealer/DSR - see the "Remarks -> Task" comment above
+  // renderMasterFileTable_'s taskBtnHtml for why this exists (10 Oct
+  // 2026). Reuses taskManagerAddBtnEl's own click handler just below to
+  // open/populate the form exactly as "+ New" would (only when it's
+  // actually still hidden, since clicking an already-open toggle would
+  // close it again), then layers the dealer/DSR pre-fill on top -
+  // skipped gracefully if the DSR/dealer name doesn't match a real
+  // <option> (e.g. "Vacant Karaikudi" has no matching DSR), leaving the
+  // owner to pick it manually rather than silently failing.
+  function openTaskFormForMasterFileRow_(dealer, dsrName) {
+    var detailsEl = document.getElementById("taskManagerDetails");
+    var addBtnEl = document.getElementById("taskManagerAddBtn");
+    var formEl = document.getElementById("taskCreateForm");
+    if (detailsEl) detailsEl.open = true;
+    if (formEl && formEl.hidden && addBtnEl) addBtnEl.click();
+    var assignedSel = document.getElementById("tcAssignedTo");
+    if (assignedSel && dsrName) {
+      var hasOption = Array.prototype.some.call(assignedSel.options, function (o) { return o.value === dsrName; });
+      if (hasOption) assignedSel.value = dsrName;
+    }
+    if (typeof populateTcDealerOptions_ === "function") populateTcDealerOptions_();
+    var dealerSel = document.getElementById("tcDealer");
+    if (dealerSel && dealer) {
+      var hasDealerOption = Array.prototype.some.call(dealerSel.options, function (o) { return o.value === dealer; });
+      if (hasDealerOption) dealerSel.value = dealer;
+    }
+    if (detailsEl && detailsEl.scrollIntoView) detailsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  var taskManagerAddBtnEl = document.getElementById("taskManagerAddBtn");
+  var taskCreateFormEl = document.getElementById("taskCreateForm");
+  if (taskManagerAddBtnEl && taskCreateFormEl) {
+    taskManagerAddBtnEl.addEventListener("click", function () {
+      taskCreateFormEl.hidden = !taskCreateFormEl.hidden;
+      if (!taskCreateFormEl.hidden) {
+        var assignedSel = document.getElementById("tcAssignedTo");
+        // "Alagu" (Owner) added 8 Oct 2026 as a selectable assignee
+        // alongside the 7 DSRs - see the big comment on the markup above.
+        if (assignedSel && !assignedSel.options.length && typeof DSRS !== "undefined") {
+          var assignOptions = DSRS.map(function (d) { return d.name; });
+          assignOptions.push("Alagu");
+          // Placeholder default - 9 Oct 2026 ("in dashboard assign to be
+          // not default to prabha , make as select name as default"): the
+          // very first DSRS entry (Prabha) used to end up pre-selected
+          // simply because it was the first <option> in the list - not a
+          // deliberate default, just how <select> works. A blank
+          // "Select name" option up front means nobody is pre-selected
+          // until the owner/manager actually picks one.
+          assignedSel.innerHTML = '<option value="" selected>Select name</option>' +
+            assignOptions.map(function (n) { return '<option>' + mfEscapeHtml_(n) + '</option>'; }).join("");
+          populateTcDealerOptions_();
+        }
+        // Due Date defaults to today - 8 Oct 2026 ("set as calender date
+        // as default"), only when the field is still empty (don't
+        // clobber a value the owner already typed if they reopen the
+        // form mid-edit).
+        var dueDateEl = document.getElementById("tcDueDate");
+        if (dueDateEl && !dueDateEl.value) {
+          var today = new Date();
+          dueDateEl.value = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+        }
+      }
+    });
+  }
+  var tcAssignedToEl = document.getElementById("tcAssignedTo");
+  if (tcAssignedToEl) tcAssignedToEl.addEventListener("change", populateTcDealerOptions_);
+  var tcSaveBtnEl = document.getElementById("tcSaveBtn");
+  if (tcSaveBtnEl) {
+    tcSaveBtnEl.addEventListener("click", function () {
+      var name = (document.getElementById("tcName") || {}).value || "";
+      if (!name.trim()) { window.alert("Enter a task name."); return; }
+      var dueDateVal = (document.getElementById("tcDueDate") || {}).value || "";
+      // Due Date required - 8 Oct 2026 ("do not accept any task" without
+      // one) - client-side check; handleTaskCreate_ also refuses a blank
+      // dueDate server-side as a backstop.
+      if (!dueDateVal) { window.alert("Pick a due date before creating the task."); return; }
+      var assignedToVal = (document.getElementById("tcAssignedTo") || {}).value || "";
+      dashboardApiPost_("taskCreate", {
+        name: name.trim(),
+        type: (document.getElementById("tcType") || {}).value || "General",
+        status: "Open",
+        dueDate: dueDateVal,
+        createdBy: CURRENT_USER_NAME || "",
+        assignedTo: assignedToVal,
+        // Area - 8 Oct 2026: now always the selected DSR's own short name
+        // (the same namespace an Area Manager's AllowedAreas list uses),
+        // never a manually-picked geography string - fixes the
+        // pre-existing Area-Manager-visibility mismatch flagged in the
+        // 6 Oct 2026 build notes, as a side effect of removing the old
+        // Area dropdown entirely. A task assigned to "Alagu" (Owner) has
+        // no DSR area of its own; Owner/Manager see every task regardless
+        // of Area anyway (taskRowVisible_), so an empty Area here is fine.
+        area: (assignedToVal === "Alagu") ? "" : assignedToVal,
+        // Dealer dropdown removed 9 Oct 2026, re-added 10 Oct 2026 with a
+        // more reliable data source (see markup comment above) - back to
+        // reading #tcDealer's value directly, same as the original.
+        dealerName: (document.getElementById("tcDealer") || {}).value || "",
+        alsoVisibleTo: (document.getElementById("tcAlsoVisible") || {}).value || "",
+        remarks: (document.getElementById("tcRemarks") || {}).value || "",
+        reminderTime: (document.getElementById("tcReminderTime") || {}).value || ""
+      }).then(function (res) {
+        if (res && res.ok) {
+          taskCreateFormEl.hidden = true;
+          document.getElementById("tcName").value = "";
+          document.getElementById("tcAlsoVisible").value = "";
+          document.getElementById("tcRemarks").value = "";
+          document.getElementById("tcReminderTime").value = "";
+          document.getElementById("tcDueDate").value = "";
+          fetchTasks_();
+        } else {
+          window.alert("Could not create task: " + ((res && res.error) || "unknown error"));
+        }
+      }).catch(function () { window.alert("Could not reach the server."); });
+    });
+  }
+
+  // ----- Task reminders (on-screen, this device only) - added 6 Oct
+  // 2026, same mechanism as the DSR app's own version (see its matching
+  // comment block for the full "why" - no push notifications, this is
+  // a plain static page). Checked once a minute against TASKS_DATA_
+  // (re-fetched on the same cadence - see the setInterval call near
+  // afterLogin_ below), for a task due TODAY, not Completed, viewer-
+  // visible (TASKS_DATA_ already only contains tasks this viewer can
+  // see, per taskRowVisible_ server-side). -----
+  var TASK_REMINDER_SLOTS_DASH_ = { "11:00 AM": 11 * 60, "3:00 PM": 15 * 60, "4:30 PM": 16 * 60 + 30 };
+  var TASK_REMINDER_WINDOW_MIN_DASH_ = 15;
+  function taskReminderTodayKeyDash_() {
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function taskReminderSeenKeyDash_() { return "taskReminderSeen_" + (CURRENT_USER_NAME || "dashboard"); }
+  function taskReminderAlreadyShownDash_(taskId, slot) {
+    try {
+      var seen = JSON.parse(localStorage.getItem(taskReminderSeenKeyDash_()) || "{}");
+      return seen[taskReminderTodayKeyDash_() + "|" + taskId + "|" + slot] === true;
+    } catch (e) { return false; }
+  }
+  function taskReminderMarkShownDash_(taskId, slot) {
+    try {
+      var seen = JSON.parse(localStorage.getItem(taskReminderSeenKeyDash_()) || "{}");
+      seen[taskReminderTodayKeyDash_() + "|" + taskId + "|" + slot] = true;
+      localStorage.setItem(taskReminderSeenKeyDash_(), JSON.stringify(seen));
+    } catch (e) { /* ignore - private browsing / storage disabled */ }
+  }
+  function showTaskReminderToastDash_(task) {
+    var toast = document.createElement("div");
+    toast.textContent = "Reminder (" + task.reminderTime + "): " + task.name;
+    toast.style.cssText = "position:fixed;left:12px;right:12px;bottom:18px;z-index:9999;background:#2563eb;color:#fff;padding:12px 14px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.25);font-size:13px;line-height:1.4;max-width:420px;margin:0 auto;";
+    document.body.appendChild(toast);
+    setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 9000);
+  }
+  function checkTaskRemindersDash_(tasks) {
+    if (!tasks || !tasks.length) return;
+    var now = new Date();
+    var nowMinutes = now.getHours() * 60 + now.getMinutes();
+    var todayIso = taskReminderTodayKeyDash_();
+    for (var i = 0; i < tasks.length; i++) {
+      var t = tasks[i];
+      if (!t.reminderTime || t.status === "Completed") continue;
+      if ((t.dueDate || "") !== todayIso) continue;
+      var slotMinutes = TASK_REMINDER_SLOTS_DASH_[t.reminderTime];
+      if (slotMinutes === undefined) continue;
+      if (nowMinutes < slotMinutes || nowMinutes > slotMinutes + TASK_REMINDER_WINDOW_MIN_DASH_) continue;
+      if (taskReminderAlreadyShownDash_(t.id, t.reminderTime)) continue;
+      taskReminderMarkShownDash_(t.id, t.reminderTime);
+      showTaskReminderToastDash_(t);
+    }
   }
 
   function loginHeartbeatPing_() {
@@ -7874,6 +9035,14 @@
     var sectionVisBlock = document.getElementById('sectionVisBlock');
     if (sectionVisBlock) sectionVisBlock.hidden = (role !== 'Owner');
     if (role === 'Owner') { loadAdminUsersList_(); loadSectionVisibility_(); }
+    // Master File + Task Manager - added 6 Oct 2026, see the big comment
+    // block above fetchMasterFile_() for the full feature.
+    fetchMasterFile_();
+    fetchTasks_();
+    // Re-fetch every 60s so a reminder can fire even if nobody re-opens
+    // the Task Manager panel themselves (see checkTaskRemindersDash_
+    // above) - same cadence as the DSR app's own version of this.
+    setInterval(fetchTasks_, 60000);
     // "Run Full Archive", added 30 Sep 2026 - Owner only, same gating as
     // the password-reset admin block just above (see the long HTML
     // comment above #archiveBlock for why this exists).
@@ -7921,6 +9090,20 @@
     if (stockDetails) stockDetails.hidden = sectionHidden_('stocks');
     var petronasSummaryBlock = document.getElementById('capturePetronasSummary');
     if (petronasSummaryBlock) petronasSummaryBlock.hidden = sectionHidden_('petronasSummary');
+    // Master File - added 6 Oct 2026, hard-coded Owner-only for now (NOT
+    // wired through sectionHidden_()/the Admin panel's per-role toggle,
+    // unlike the blocks above) per the owner's explicit instruction:
+    // "remove master file from manager and area manager id - will
+    // develop it with me and after full setup will give to all". Revisit
+    // once that development/rollout is actually done - at that point this
+    // probably belongs in SECTION_VIS_KNOWN_KEYS_ instead so the owner can
+    // turn it on from the Admin panel per role rather than needing a code
+    // change. isManagerRole_() covers exactly 'Manager' and 'Area Manager'.
+    var masterFileHideForRole = isManagerRole_(role);
+    var masterFileLabelEl = document.getElementById('masterFileLabel');
+    if (masterFileLabelEl) masterFileLabelEl.hidden = masterFileHideForRole;
+    var masterFileDetailsEl = document.getElementById('masterFileDetails');
+    if (masterFileDetailsEl) masterFileDetailsEl.hidden = masterFileHideForRole;
     // Simplified 2 Oct 2026 when the picker became one foldable
     // <details id="reportPeriodDetails"> (see the long HTML comment above
     // it) - hiding that one wrapper hides the summary line AND every row
@@ -8192,6 +9375,8 @@
   // same shape) - so there is exactly one place that could ever drift out
   // of sync with the backend's field names, not two.
   function applyLivePayloadToState_(res) {
+    // See LIVE_CACHED_AT_ISO's own comment above.
+    LIVE_CACHED_AT_ISO = (res && res.ok && res._cachedAt) ? res._cachedAt : null;
     var collection = (res && res.ok && res.collection) ? res.collection : null;
     DSRS.forEach(function (d) {
       if (d.collectionTarget <= 0) return;
@@ -8227,7 +9412,16 @@
     // claude/dsr-app-registry.md).
     if (res && res.ok && res.outstanding) outstandingMap = res.outstanding;
     if (res && res.ok && res.creditLimit) creditLimitMap = res.creditLimit;
-    if (res && res.ok && res.dealerRoster) dealerRoster = res.dealerRoster;
+    if (res && res.ok && res.dealerRoster) {
+      dealerRoster = res.dealerRoster;
+      // Task Manager's "Dealer" dropdown (re-added 10 Oct 2026) reads
+      // dealerRoster too, via knownDealerDsrMap_() - refresh it here,
+      // every time this refreshes, same reasoning as the original
+      // MASTER_FILE_DATA_ race fix: this call can resolve after the
+      // "+New" form is already open with a DSR picked, so the dropdown
+      // must not just be populated once at form-open time.
+      if (typeof populateTcDealerOptions_ === "function") populateTcDealerOptions_();
+    }
     if (res && res.ok && res.newDealers) newDealers = res.newDealers;
 
     // Added 18 Sep 2026 - actually-billed Sales, from Tally's own
@@ -8437,9 +9631,18 @@
       });
     }
 
-    var criticalDone = Promise.all([fetchLive(), fetchDaybookItemGroupRows_()]).then(function () {
+    var criticalDone = Promise.all([fetchLive(), fetchDaybookItemGroupRows_(), fetchItemGroupSixMoAvg_()]).then(function () {
       render();
-      document.getElementById('sourceLabel').textContent = 'Updated ' + nowStamp();
+      // Honest timestamp (added 5 Oct 2026, "Live Cache" fix): when the
+      // backend served a pre-built cached payload, show when that data
+      // was actually built (LIVE_CACHED_AT_ISO), not this instant -
+      // otherwise a few-minutes-stale cached response would still claim
+      // "Updated just now" via nowStamp(). A fresh direct rebuild (no
+      // cache yet, or stale and rebuilt on the spot) still shows the
+      // original "Updated <now>" text, since that one really is current.
+      document.getElementById('sourceLabel').textContent = LIVE_CACHED_AT_ISO
+        ? 'Updated ' + frozenAtStamp_(LIVE_CACHED_AT_ISO)
+        : 'Updated ' + nowStamp();
       updateRefreshNote_();
     });
 
@@ -8571,6 +9774,117 @@
     });
     return out;
   }
+  // Week-level Target split + rollover, added 7 Oct 2026 at the owner's
+  // request ("make the target also split in to the week counting, if the
+  // before week is pening then it to add with the next and in same Full
+  // Petronas Sales & Collection targen anmd balance to do, this need only
+  // for current month's week"). Scope, read from that request: ONLY the
+  // Week sub-view (never Quarter/Year), and ONLY while the week being
+  // viewed is in the CURRENT, still-open month (checked in
+  // renderPeriodSummary_() below via currentMonthKeyISO_dashboard_()) -
+  // a week in a past month is already fully closed, no "pace so far"
+  // concept applies there, and Quarter/Year keep the original 3-column
+  // table untouched exactly as the owner's wording implies.
+  //
+  // A DSR's own weekly target is its monthly target (DSRS[].target Ltr /
+  // .collectionTarget Rs) prorated by how many days that week actually
+  // has within the month (weekDayCount_()/weeklyTargetShare_() below) -
+  // weeks 1-4 are always a fixed 7 days, the final week is whatever's
+  // left (1-3 days), so a flat 1/5 split would be unfair to it.
+  //
+  // "If the before week is pending then it to add with the next": a week
+  // ONLY carries its shortfall forward if it fell short - an earlier
+  // week that met or beat its own share never reduces a later week's
+  // target (no "banking" of surplus, since the owner described only the
+  // pending/shortfall case). So for week N, effective target = week N's
+  // own share + max(0, sum of weeks 1..N-1's own shares minus what was
+  // actually achieved across weeks 1..N-1) - computeWeekRolloverTargets_()
+  // below implements exactly that, per DSR, independently for Sales and
+  // Collection (they can each be pending or not on their own).
+  function daysInMonthFrontend_dashboard_(monthKey) {
+    var parts = monthKey.split('-');
+    return daysInMonthFrontend_(Number(parts[0]), Number(parts[1]));
+  }
+  function weekDayCount_(monthKey, weekNum) {
+    var lastDay = daysInMonthFrontend_dashboard_(monthKey);
+    var startDay = (weekNum - 1) * 7 + 1;
+    var endDay = Math.min(startDay + 6, lastDay);
+    return Math.max(0, endDay - startDay + 1);
+  }
+  function weeklyTargetShare_(monthlyTarget, monthKey, weekNum) {
+    var totalDays = daysInMonthFrontend_dashboard_(monthKey);
+    if (!totalDays || !monthlyTarget) return 0;
+    return monthlyTarget * weekDayCount_(monthKey, weekNum) / totalDays;
+  }
+  // Raw GET of one week's dealer breakdown, independent of the picker's
+  // own CURRENT_VIEW_PERIOD/staleness state - loadPeriodSummary_() above
+  // is tied to whichever week/quarter/year is currently SHOWING, but
+  // computeWeekRolloverTargets_() below needs EARLIER weeks' data purely
+  // as rollover input, without disturbing what's on screen. Resolves to
+  // null (never rejects) on any failure/not-found, so one missing earlier
+  // week degrades gracefully rather than breaking the whole calculation.
+  function fetchWeekDealerMaps_(monthKey, weekNum) {
+    var url = ORDERS_API_URL + '?type=weekSummary&month=' + encodeURIComponent(monthKey) + '&week=' + encodeURIComponent(weekNum) + '&_ts=' + Date.now();
+    return fetchJson_(url, 2, 45000).then(function (res) {
+      if (!res || !res.ok || !res.found) return null;
+      return { salesByDealer: res.salesByDealer || {}, collectionByDealer: res.collectionByDealer || {} };
+    }).catch(function () { return null; });
+  }
+  // Per-DSR Sales/Collection totals from a periodDealerBreakdown_()-shaped
+  // breakdown (which is per-DEALER, grouped by DSR) - just sums each
+  // DSR's own dealer list, reusing the exact grouping buildAreaRowsFrom
+  // Breakdown_()'s own dsrTotals() does internally.
+  function dsrTotalsFromBreakdown_(breakdown) {
+    var out = {};
+    Object.keys(breakdown).forEach(function (dsrName) {
+      out[dsrName] = breakdown[dsrName].reduce(function (acc, m) {
+        acc.salesLtr += m.salesLtr; acc.collectionRs += m.collectionRs; return acc;
+      }, { salesLtr: 0, collectionRs: 0 });
+    });
+    return out;
+  }
+  // Returns a Promise<{salesTargetByDsr, collectionTargetByDsr}> - each a
+  // {dsrName: effectiveTargetForWeekNum} map, per the rollover rule
+  // described above. Week 1 needs no extra fetches (nothing to roll over
+  // yet); week N needs weeks 1..N-1's own dealer breakdowns, fetched in
+  // parallel (at most 4 extra calls, for Week 5).
+  function computeWeekRolloverTargets_(monthKey, weekNum) {
+    var priorWeekNums = [];
+    for (var w = 1; w < weekNum; w++) priorWeekNums.push(w);
+    return Promise.all(priorWeekNums.map(function (w) { return fetchWeekDealerMaps_(monthKey, w); })).then(function (priorResults) {
+      var salesTargetByDsr = {}, collectionTargetByDsr = {};
+      DSRS.forEach(function (d) {
+        var cumulativeTargetLtr = 0, cumulativeActualLtr = 0;
+        var cumulativeTargetRs = 0, cumulativeActualRs = 0;
+        var ok = true;
+        for (var i = 0; i < priorResults.length; i++) {
+          var w = priorWeekNums[i];
+          cumulativeTargetLtr += weeklyTargetShare_(d.target || 0, monthKey, w);
+          cumulativeTargetRs += weeklyTargetShare_(d.collectionTarget || 0, monthKey, w);
+          var res = priorResults[i];
+          if (!res) { ok = false; continue; }
+          var breakdown = periodDealerBreakdown_(res.salesByDealer, res.collectionByDealer, 'salesLtr', 'collectionRs');
+          var totals = dsrTotalsFromBreakdown_(breakdown)[d.name] || { salesLtr: 0, collectionRs: 0 };
+          cumulativeActualLtr += totals.salesLtr;
+          cumulativeActualRs += totals.collectionRs;
+        }
+        var ownShareLtr = weeklyTargetShare_(d.target || 0, monthKey, weekNum);
+        var ownShareRs = weeklyTargetShare_(d.collectionTarget || 0, monthKey, weekNum);
+        if (!ok) {
+          // Couldn't confirm every earlier week's actual figures (an
+          // unfrozen/missing day, a network hiccup) - fall back to this
+          // week's own plain share, no rollover, rather than show a
+          // number that might be wrong.
+          salesTargetByDsr[d.name] = ownShareLtr;
+          collectionTargetByDsr[d.name] = ownShareRs;
+          return;
+        }
+        salesTargetByDsr[d.name] = ownShareLtr + Math.max(0, cumulativeTargetLtr - cumulativeActualLtr);
+        collectionTargetByDsr[d.name] = ownShareRs + Math.max(0, cumulativeTargetRs - cumulativeActualRs);
+      });
+      return { salesTargetByDsr: salesTargetByDsr, collectionTargetByDsr: collectionTargetByDsr };
+    });
+  }
   // AAA Direct + Madurai/Tirunelveli Area rows for LAST month, same
   // visibility scoping (visibleDsrs_()) and expand-to-dealers markup
   // convention (data-area-toggle/data-dsr-toggle, bound once below via
@@ -8589,8 +9903,17 @@
   // Week/Quarter/Year views reuse this exact AAA Direct/Madurai/
   // Tirunelveli -> DSR -> dealer table (including the tap-to-expand
   // markup) instead of a second copy of it.
-  function buildAreaRowsFromBreakdown_(breakdown) {
+  function buildAreaRowsFromBreakdown_(breakdown, salesTargetByDsr, collectionTargetByDsr) {
     var visibleNames = visibleDsrs_().map(function (d) { return d.name; });
+    // Target/Balance columns, added 7 Oct 2026 for the Week view's own
+    // "split the monthly target by week, a pending week's shortfall
+    // rolls into the next" feature - see computeWeekRolloverTargets_()
+    // above for how salesTargetByDsr/collectionTargetByDsr are built.
+    // Only ever passed in for a Week period in the CURRENT month
+    // (renderPeriodSummary_() below) - every other caller
+    // (buildLastMonthAreaRows_(), Quarter/Year) omits both and gets the
+    // original 3-column table exactly as before.
+    var hasTargets = !!(salesTargetByDsr || collectionTargetByDsr);
     function dsrTotals(dsrName) {
       return (breakdown[dsrName] || []).reduce(function (acc, m) {
         acc.salesLtr += m.salesLtr; acc.collectionRs += m.collectionRs; return acc;
@@ -8598,26 +9921,66 @@
     }
     var cellLtr = function (v) { return v > 0 ? '<td class="num">' + fmt(v) + ' Ltr</td>' : '<td class="num zero">—</td>'; };
     var cellRs = function (v) { return v > 0 ? '<td class="num">' + fmtRs(v) + '</td>' : '<td class="num zero">—</td>'; };
+    // Balance = Target - achieved so far this week - same "<=0 shown as a
+    // green +surplus" convention as buildAreaTableRows_()'s own balCell.
+    var balCellLtr = function (v) { return v <= 0 ? '<td class="num done">+' + fmt(Math.abs(v)) + ' Ltr</td>' : '<td class="num">' + fmt(v) + ' Ltr</td>'; };
+    var balCellRs = function (v) { return v <= 0 ? '<td class="num done">+' + fmtRs(Math.abs(v)) + '</td>' : '<td class="num">' + fmtRs(v) + '</td>'; };
+    // Split into a Sales-side pair and a Collection-side pair (rather
+    // than one function returning all 4 cells together) because the
+    // table header interleaves them - Sales, Sales Target, Sales
+    // Balance, Collection, Collection Target, Collection Balance - not
+    // grouped as Sales+Collection followed by all 4 target/balance
+    // cells. Fixed 7 Oct 2026: the original single targetColsFor()
+    // returned its 4 cells as one block appended AFTER both the Sales
+    // and Collection actual cells, which put every cell from "Sales
+    // Target" onward one column to the left of its own header -
+    // confirmed from the owner's screenshot (Sales Target showing a Rs
+    // figure, Collection showing a Ltr figure). Every call site below
+    // now inserts the Sales pair right after the Sales actual cell and
+    // the Collection pair right after the Collection actual cell.
+    var salesTargetCols = function (dsrName, salesVal) {
+      if (!hasTargets) return '';
+      var st = salesTargetByDsr ? (salesTargetByDsr[dsrName] || 0) : 0;
+      return cellLtr(st) + balCellLtr(st - salesVal);
+    };
+    var collectionTargetCols = function (dsrName, collectionVal) {
+      if (!hasTargets) return '';
+      var ct = collectionTargetByDsr ? (collectionTargetByDsr[dsrName] || 0) : 0;
+      return cellRs(ct) + balCellRs(ct - collectionVal);
+    };
+    // Dealers have no individual weekly target (same as the monthly
+    // table's own dealer rows, which dash out Target/Balance too).
+    var dashSalesTargetCols = function () {
+      return hasTargets ? '<td class="num zero">—</td><td class="num zero">—</td>' : '';
+    };
+    var dashCollectionTargetCols = function () {
+      return hasTargets ? '<td class="num zero">—</td><td class="num zero">—</td>' : '';
+    };
     var nameCell = function (label) { return '<td><span class="area-toggle-icon" aria-hidden="true">+</span>' + label + '</td>'; };
     var dsrChildRows = function (dsrName, areaKey) {
       var dealers = breakdown[dsrName] || [];
       var areaAttr = areaKey ? ' data-area-child="' + areaKey + '"' : '';
+      var colCount = 3 + (hasTargets ? 4 : 0);
       if (!dealers.length) {
         return '<tr class="area-dsr-child" data-dsr-child="' + dsrName + '"' + areaAttr + ' style="display:none;">' +
-          '<td colspan="3" style="padding-left:26px;color:var(--ink-muted);text-align:left;">No dealer-level data for this period</td></tr>';
+          '<td colspan="' + colCount + '" style="padding-left:26px;color:var(--ink-muted);text-align:left;">No dealer-level data for this period</td></tr>';
       }
       return dealers.map(function (m) {
         return '<tr class="area-dsr-child" data-dsr-child="' + dsrName + '"' + areaAttr + ' style="display:none;">' +
-          '<td style="padding-left:26px;">' + m.name + '</td>' + cellLtr(m.salesLtr) + cellRs(m.collectionRs) + '</tr>';
+          '<td style="padding-left:26px;">' + m.name + '</td>' + cellLtr(m.salesLtr) + dashSalesTargetCols() + cellRs(m.collectionRs) + dashCollectionTargetCols() + '</tr>';
       }).join('');
     };
     var rowsHtml = '';
-    var grand = { salesLtr: 0, collectionRs: 0 };
+    var grand = { salesLtr: 0, collectionRs: 0, salesTarget: 0, collectionTarget: 0 };
     var aaaVisible = visibleNames.indexOf('AAA Direct') !== -1;
     if (aaaVisible) {
       var aaaTotals = dsrTotals('AAA Direct');
       grand.salesLtr += aaaTotals.salesLtr; grand.collectionRs += aaaTotals.collectionRs;
-      rowsHtml += '<tr data-dsr-toggle="AAA Direct">' + nameCell('AAA Direct') + cellLtr(aaaTotals.salesLtr) + cellRs(aaaTotals.collectionRs) + '</tr>' +
+      if (hasTargets) {
+        grand.salesTarget += salesTargetByDsr ? (salesTargetByDsr['AAA Direct'] || 0) : 0;
+        grand.collectionTarget += collectionTargetByDsr ? (collectionTargetByDsr['AAA Direct'] || 0) : 0;
+      }
+      rowsHtml += '<tr data-dsr-toggle="AAA Direct">' + nameCell('AAA Direct') + cellLtr(aaaTotals.salesLtr) + salesTargetCols('AAA Direct', aaaTotals.salesLtr) + cellRs(aaaTotals.collectionRs) + collectionTargetCols('AAA Direct', aaaTotals.collectionRs) + '</tr>' +
         dsrChildRows('AAA Direct', null);
     }
     PETRONAS_AREA_GROUPS_.forEach(function (g) {
@@ -8627,13 +9990,29 @@
       var areaSalesLtr = memberTotals.reduce(function (s, m) { return s + m.totals.salesLtr; }, 0);
       var areaCollectionRs = memberTotals.reduce(function (s, m) { return s + m.totals.collectionRs; }, 0);
       grand.salesLtr += areaSalesLtr; grand.collectionRs += areaCollectionRs;
-      rowsHtml += '<tr class="area-toggle-row" data-area-toggle="' + g.key + '">' + nameCell(g.label) + cellLtr(areaSalesLtr) + cellRs(areaCollectionRs) + '</tr>';
+      var areaTargetCols = '';
+      if (hasTargets) {
+        var areaSalesTarget = memberTotals.reduce(function (s, m) { return s + (salesTargetByDsr ? (salesTargetByDsr[m.label] || 0) : 0); }, 0);
+        var areaCollectionTarget = memberTotals.reduce(function (s, m) { return s + (collectionTargetByDsr ? (collectionTargetByDsr[m.label] || 0) : 0); }, 0);
+        grand.salesTarget += areaSalesTarget; grand.collectionTarget += areaCollectionTarget;
+        areaTargetCols = {
+          sales: cellLtr(areaSalesTarget) + balCellLtr(areaSalesTarget - areaSalesLtr),
+          collection: cellRs(areaCollectionTarget) + balCellRs(areaCollectionTarget - areaCollectionRs)
+        };
+      }
+      rowsHtml += '<tr class="area-toggle-row" data-area-toggle="' + g.key + '">' + nameCell(g.label) + cellLtr(areaSalesLtr) + (areaTargetCols ? areaTargetCols.sales : '') + cellRs(areaCollectionRs) + (areaTargetCols ? areaTargetCols.collection : '') + '</tr>';
       rowsHtml += memberTotals.map(function (m) {
-        return '<tr class="area-child-row" data-area-child="' + g.key + '" data-dsr-toggle="' + m.label + '" style="display:none;">' + nameCell(m.label) + cellLtr(m.totals.salesLtr) + cellRs(m.totals.collectionRs) + '</tr>' +
+        return '<tr class="area-child-row" data-area-child="' + g.key + '" data-dsr-toggle="' + m.label + '" style="display:none;">' + nameCell(m.label) + cellLtr(m.totals.salesLtr) + salesTargetCols(m.label, m.totals.salesLtr) + cellRs(m.totals.collectionRs) + collectionTargetCols(m.label, m.totals.collectionRs) + '</tr>' +
           dsrChildRows(m.label, g.key);
       }).join('');
     });
-    rowsHtml += '<tr class="age-table-total"><td>Total</td>' + cellLtr(grand.salesLtr) + cellRs(grand.collectionRs) + '</tr>';
+    var totalSalesTargetCols = hasTargets
+      ? (cellLtr(grand.salesTarget) + balCellLtr(grand.salesTarget - grand.salesLtr))
+      : '';
+    var totalCollectionTargetCols = hasTargets
+      ? (cellRs(grand.collectionTarget) + balCellRs(grand.collectionTarget - grand.collectionRs))
+      : '';
+    rowsHtml += '<tr class="age-table-total"><td>Total</td>' + cellLtr(grand.salesLtr) + totalSalesTargetCols + cellRs(grand.collectionRs) + totalCollectionTargetCols + '</tr>';
     return rowsHtml;
   }
   // Builds the whole last-month view into #lastMonthReportContent. `ym`
@@ -8806,6 +10185,26 @@
       combinedRange: [year + '-01-01', year + '-12-31']
     };
   }
+  // "Today" - added 3 Oct 2026, the 4th twin of buildWeekPeriod_()/
+  // buildQuarterPeriod_()/buildYearPeriod_() above. No sub-picker inputs
+  // at all (there's only one "today"), so unlike the other three this
+  // takes no arguments - todayISO() is the same "local browser date"
+  // helper already used throughout this file for every other "today"
+  // figure (Collection Health's month-to-date sum, etc.), so this stays
+  // consistent with what "today" already means everywhere else on this
+  // page. combinedRange is a single-day range ([todayKey, todayKey]) -
+  // sumMapInRange_() (used by renderPeriodSummary_() below) handles that
+  // the same as any other range, no special-casing needed.
+  function buildTodayPeriod_() {
+    var todayKey = todayISO();
+    return {
+      kind: 'today',
+      key: 'today:' + todayKey,
+      dateKey: todayKey,
+      label: 'Today (' + dayLabelFor_(todayKey) + ')',
+      combinedRange: [todayKey, todayKey]
+    };
+  }
   // Fills #periodCombinedWrap/#periodAreaWrap from a successful
   // handleWeekSummaryGet_/handlePeriodSummaryGet_ response - the
   // Week/Quarter/Year twin of renderLastMonthReport_() above, minus the
@@ -8836,9 +10235,59 @@
       }
     }
     var areaWrap = document.getElementById('periodAreaWrap');
+    var areaLabelEl = document.getElementById('periodAreaSectionLabel');
+    // Reset the section's own label back to its plain text on every
+    // render (Quarter/Year/past-month, and the initial plain-table pass
+    // for a current-month Week) - only the async upgrade branch below
+    // ever appends "(This Week)" to it, so this undoes that the moment
+    // the picker moves somewhere that scope note doesn't apply, rather
+    // than leaving a stale "(This Week)" stuck on the label after
+    // switching to Quarter/Year or a different week.
+    if (areaLabelEl) areaLabelEl.textContent = 'Full Petronas — Sales & Collection';
     if (areaWrap) {
       var breakdown = periodDealerBreakdown_(res.salesByDealer, res.collectionByDealer, 'salesLtr', 'collectionRs');
       areaWrap.innerHTML = ageTableWrap_('<thead><tr><th>Area</th><th>Sales (Ltr)</th><th>Collection (Rs)</th></tr></thead>', buildAreaRowsFromBreakdown_(breakdown));
+      // Target/Balance columns, added 7 Oct 2026 ("make the target also
+      // split in to the week counting, if the before week is pening then
+      // it to add with the next and in same Full Petronas Sales &
+      // Collection targen anmd balance to do, this need only for current
+      // month's week"). Quarter/Year and a week from a PAST month keep
+      // the plain 3-column table rendered just above, untouched; only a
+      // Week period whose own month is the CURRENT, still-open month
+      // gets upgraded to the 7-column Target/Balance table, in a second
+      // pass once computeWeekRolloverTargets_() resolves (it may need
+      // extra network calls for earlier weeks of the same month, so the
+      // table shows Sales/Collection immediately above rather than
+      // sitting blank while that resolves).
+      if (period.kind === 'week' && period.monthKey === currentMonthKeyISO_dashboard_()) {
+        var periodKeyAtCallTime = period.key;
+        computeWeekRolloverTargets_(period.monthKey, period.week).then(function (targets) {
+          // The picker may have moved to a different week/quarter/year/
+          // month while those extra fetches were in flight - same stale-
+          // response guard loadPeriodSummary_() itself already uses.
+          if (!CURRENT_VIEW_PERIOD || CURRENT_VIEW_PERIOD.key !== periodKeyAtCallTime) return;
+          // "This Week" scope note moved onto the section's own label
+          // (set once here) instead of being repeated on all 6 column
+          // headers - added 7 Oct 2026, replacing that same day's two
+          // earlier attempts ("This Week ..." on every header, then
+          // shortened to "This Wk ..." with wider 'wide'-variant columns)
+          // after the owner reported the table had become too wide to
+          // fit on one screen for a screenshot ("make as last file space
+          // so that i can take screenshot in one page"). Repeating the
+          // scope word on every header was never needed for the reader
+          // to know these are weekly figures - saying it once on the
+          // section title does the same job for a fraction of the width,
+          // so the headers go back to their original short text and the
+          // table goes back to the DEFAULT (narrow, 92px/col) width
+          // instead of 'wide' - both changes together bring the whole
+          // table back down near its original footprint.
+          if (areaLabelEl) areaLabelEl.textContent = 'Full Petronas — Sales & Collection (This Week)';
+          areaWrap.innerHTML = ageTableWrap_(
+            '<thead><tr><th>Area</th><th>Sales (Ltr)</th><th>Sales Target (Ltr)</th><th>Sales Balance (Ltr)</th><th>Collection (Rs)</th><th>Collection Target (Rs)</th><th>Collection Balance (Rs)</th></tr></thead>',
+            buildAreaRowsFromBreakdown_(breakdown, targets.salesTargetByDsr, targets.collectionTargetByDsr)
+          );
+        });
+      }
     }
   }
   // GET ?type=weekSummary / ?type=periodSummary, per `period.kind` - the
@@ -8851,6 +10300,8 @@
     var url;
     if (period.kind === 'week') {
       url = ORDERS_API_URL + '?type=weekSummary&month=' + encodeURIComponent(period.monthKey) + '&week=' + encodeURIComponent(period.week) + '&_ts=' + Date.now();
+    } else if (period.kind === 'today') {
+      url = ORDERS_API_URL + '?type=todaySummary&_ts=' + Date.now();
     } else {
       url = ORDERS_API_URL + '?type=periodSummary&start=' + encodeURIComponent(period.startMonth) + '&end=' + encodeURIComponent(period.endMonth) + '&_ts=' + Date.now();
     }
@@ -8876,6 +10327,9 @@
     }
     if (reason === 'month_not_frozen') {
       return 'No data for ' + period.label + ' yet — ' + (result.missingMonth || 'a month this needs') + ' was never frozen (before Monthly Freeze existed, or its month-end freeze hasn’t run yet).';
+    }
+    if (reason === 'yesterday_not_frozen') {
+      return 'No data for Today yet — yesterday (' + (result.dateKey || '') + ') was never frozen, so there’s no starting point to measure today’s own transactions from. This resolves automatically after tonight’s Daily Freeze run.';
     }
     return 'No data for ' + period.label + ' yet.';
   }
@@ -8926,7 +10380,9 @@
     applyReportPeriodRowVisibility_(kind);
 
     var period;
-    if (kind === 'week') {
+    if (kind === 'today') {
+      period = buildTodayPeriod_();
+    } else if (kind === 'week') {
       var wm = document.getElementById('reportWeekMonthSelect');
       var ws = document.getElementById('reportWeekSelect');
       if (!wm || !ws || !ws.value) return; // week list not populated yet for this month
