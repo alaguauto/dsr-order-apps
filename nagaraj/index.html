@@ -1083,7 +1083,7 @@
 
   <section style="padding-bottom:0;">
     <details class="manage" id="ordersDetails" open>
-      <summary>Target - Balance <span id="ordersCountLabel" class="num" style="font-weight:500;"></span></summary>
+      <summary>Sales — Balance To Do <span id="ordersCountLabel" class="num" style="font-weight:500;"></span></summary>
       <div class="manage-body">
         <div class="target-strip" id="targetStrip"></div>
         <div id="ordersList"></div>
@@ -1093,7 +1093,7 @@
 
   <section style="padding-bottom:0;">
     <details class="manage" id="collectionDetails">
-      <summary>Collection <span id="collectionSummaryLabel" class="num" style="font-weight:500;"></span></summary>
+      <summary>Collection — Balance To Do <span id="collectionSummaryLabel" class="num" style="font-weight:500;"></span></summary>
       <div class="manage-body">
         <p class="hint">Live from Tally — updates automatically, nothing to enter here.</p>
         <div class="target-strip" id="collectionStrip"></div>
@@ -1571,7 +1571,7 @@
   // strict from the very first load, matching "always require posting."
 
   // This DSR's monthly liters target, set by the office when publishing this app.
-  // 0 hides the Target/Balance chips in "Target - Balance" (only Today/This month still show).
+  // 0 hides the Target/Balance chips in "Sales — Balance To Do" (only Today/This month still show).
   var MONTHLY_TARGET_LTR = 4000;
 
   // This DSR's monthly Collection target (rupees), added 12 Sep 2026 - test
@@ -3377,7 +3377,7 @@
 
   // One-off fetch of a single past date's total (for the catch-up "post last day's
   // report" flow) — separate from fetchOrdersSummary()/ordersSummary, which always
-  // track TODAY's live totals for the Target - Balance panel.
+  // track TODAY's live totals for the Sales — Balance To Do panel.
   function fetchDayTotal(dateIso) {
     if (!apiConfigured()) return Promise.resolve(null);
     var dsrNameVal = document.getElementById("dsrName").value || "";
