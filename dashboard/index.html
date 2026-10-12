@@ -916,13 +916,20 @@
           <input type="text" id="adminTargetHideLogins" placeholder="Hide these people's logins from THIS person (comma-separated)">
         </div>
         <div class="admin-field-row">
-          <input type="password" id="adminNewPassword" placeholder="New password">
+          <input type="password" id="adminNewPassword" placeholder="New password (leave blank to keep their current password - existing user only)">
           <input type="password" id="adminConfirmYourPassword" placeholder="Your password (confirm)">
-          <button type="button" id="adminSaveBtn" class="admin-save-btn">Save password</button>
+          <button type="button" id="adminSaveBtn" class="admin-save-btn">Save</button>
         </div>
         <div id="adminMsg" class="admin-msg"></div>
         <div class="admin-msg" style="opacity:0.75;">Manager sees every DSR. Area Manager sees only the areas you list below - type the exact DSR card names separated by commas, e.g. Prabha,Arun,Chellamani (required for this role - it won't save blank). Areas is ignored for DSR/Owner.</div>
         <div class="admin-msg" style="opacity:0.75;">"Hide these people's logins" is about the usage report only, not the DSR data above - it's one-directional and per-person: e.g. type "Anbu" while Bala is selected to stop Bala (only) from seeing Anbu's logins; Anbu's own view is unaffected unless you set something on his row too. Leave blank to hide nobody.</div>
+        <!-- Blank-password metadata-only save, added 11 Oct 2026 - picking
+             an EXISTING user and leaving New Password blank now saves just
+             Role/Areas/Hide-logins and leaves their password (and any
+             "stay signed in" device) completely untouched. Typing a new
+             name (a brand-new user) still always needs a password - see
+             the click handler below. -->
+        <div class="admin-msg" style="opacity:0.75;">Leave New Password blank, for an existing user, to change only Role/Areas/Hide-logins without resetting their password. A brand-new user still needs one.</div>
       </div>
       <!-- "Section visibility (by role)", added 1 Oct 2026 at the owner's
            request ("i have a idea in admin page write the heading and ask
@@ -8033,6 +8040,15 @@
   }
 
   var MASTER_FILE_DATA_ = [];
+  // Beat Plan default - added 11 Oct 2026, mirrors the new Beat Plan
+  // panel in the DSR apps: the Beat Day filter below starts on TODAY's
+  // weekday the first time Master File loads each session, so opening
+  // it already shows "who's on the route today" across every DSR
+  // without having to pick a day first. Guarded by this flag so it only
+  // applies once - a manager who changes it back to "All" (or to a
+  // different day) during the session isn't silently reset on the next
+  // fetchMasterFile_() call (e.g. after a Save or a dropdown revert).
+  var mfBeatDayDefaultApplied_ = false;
   function currentMonthKeyISO_dashboard_() {
     var d = new Date();
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
@@ -8078,6 +8094,14 @@
     dsrSel.innerHTML = '<option value="">All</option>' + Object.keys(dsrs).sort().map(function (n) { return '<option>' + mfEscapeHtml_(n) + '</option>'; }).join("");
     districtSel.innerHTML = '<option value="">All</option>' + Object.keys(districts).sort().map(function (n) { return '<option>' + mfEscapeHtml_(n) + '</option>'; }).join("");
     dsrSel.value = dsrVal; districtSel.value = districtVal;
+    // Beat Plan default - see the comment above mfBeatDayDefaultApplied_.
+    var beatSel = document.getElementById("mfBeatFilter");
+    if (beatSel && !mfBeatDayDefaultApplied_) {
+      mfBeatDayDefaultApplied_ = true;
+      var mfTodayBeatName_ = new Date().toLocaleDateString("en-US", { weekday: "long" });
+      var mfValidBeatDays_ = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      if (mfValidBeatDays_.indexOf(mfTodayBeatName_) !== -1) beatSel.value = mfTodayBeatName_;
+    }
   }
 
   function renderMasterFileTable_() {
@@ -8344,6 +8368,13 @@
   // ----- Task Manager -----
   var TASKS_DATA_ = [];
   var TASK_TYPE_CLASS_DASH_ = { "Sales": "task-type-sales", "Stock": "task-type-stock", "Payment": "task-type-payment", "General": "task-type-general", "Others": "task-type-general" };
+  // Login task popup - added 11 Oct 2026, same feature as the DSR apps'
+  // own version (see its matching comment on the DSR side for the full
+  // "why") - fires once, right after the FIRST tasks fetch following
+  // login, covering every open task due today or earlier for whatever
+  // this viewer is allowed to see (TASKS_DATA_ is already scoped to that,
+  // same as the reminder/render functions above).
+  var loginTaskPopupCheckedDash_ = false;
 
   function fetchTasks_() {
     var listEl = document.getElementById("taskManagerList");
@@ -8356,6 +8387,10 @@
         TASKS_DATA_ = data.tasks || [];
         renderTaskManager_();
         if (typeof checkTaskRemindersDash_ === "function") checkTaskRemindersDash_(TASKS_DATA_);
+        if (!loginTaskPopupCheckedDash_ && typeof showLoginTaskPopupIfDueDash_ === "function") {
+          loginTaskPopupCheckedDash_ = true;
+          showLoginTaskPopupIfDueDash_(TASKS_DATA_);
+        }
       })
       .catch(function () { listEl.innerHTML = '<p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">Could not reach the server.</p>'; });
   }
@@ -8679,6 +8714,68 @@
       taskReminderMarkShownDash_(t.id, t.reminderTime);
       showTaskReminderToastDash_(t);
     }
+  }
+
+  // Login task popup - added 11 Oct 2026 ("reminder pops up when app
+  // opens... show anything due/overdue immediately, in both app and
+  // dashboard"). Separate from the 3-slot reminder above: covers EVERY
+  // open (not Completed) task in TASKS_DATA_ (already scoped to whatever
+  // this viewer is allowed to see) whose Due Date is today or already
+  // passed, regardless of whether it has a reminder time set at all.
+  // Shown once per calendar day per viewer (localStorage key includes
+  // CURRENT_USER_NAME, so Alagu/Anbu/Bala/Vimal each get their own,
+  // same pattern as taskReminderSeenKeyDash_ above) - only marked "seen"
+  // once something was actually shown, so an empty day is checked again
+  // next time the dashboard opens that day.
+  function loginTaskPopupSeenKeyDash_() { return "taskLoginPopupSeen_" + (CURRENT_USER_NAME || "dashboard"); }
+  function loginTaskPopupAlreadyShownTodayDash_() {
+    try { return localStorage.getItem(loginTaskPopupSeenKeyDash_()) === taskReminderTodayKeyDash_(); } catch (e) { return false; }
+  }
+  function loginTaskPopupMarkShownTodayDash_() {
+    try { localStorage.setItem(loginTaskPopupSeenKeyDash_(), taskReminderTodayKeyDash_()); } catch (e) { /* ignore */ }
+  }
+  function showLoginTaskPopupIfDueDash_(tasks) {
+    if (!tasks || !tasks.length) return;
+    if (loginTaskPopupAlreadyShownTodayDash_()) return;
+    var todayIso = taskReminderTodayKeyDash_();
+    var due = tasks.filter(function (t) { return t.status !== "Completed" && t.dueDate && t.dueDate <= todayIso; });
+    if (!due.length) return;
+    loginTaskPopupMarkShownTodayDash_();
+    due.sort(function (a, b) { return (a.dueDate || "").localeCompare(b.dueDate || ""); });
+    var overdueCount = due.filter(function (t) { return t.dueDate < todayIso; }).length;
+    var rowsHtml = due.slice(0, 6).map(function (t) {
+      var isOverdue = t.dueDate < todayIso;
+      return '<div style="padding:8px 0;border-bottom:1px solid var(--border);">' +
+        '<div style="font-weight:600;font-size:13.5px;">' + mfEscapeHtml_(t.name) +
+        (isOverdue ? ' <span class="task-overdue-badge" style="margin-left:6px;">Overdue</span>' : '') + '</div>' +
+        '<div style="font-size:12px;color:var(--ink-muted);">' + mfEscapeHtml_(t.dealerName ? ("Dealer: " + t.dealerName + " · ") : "") + mfEscapeHtml_(t.assignedTo || "Unassigned") + '</div>' +
+        '<div style="font-size:12px;' + (isOverdue ? 'color:var(--warn);font-weight:600;' : 'color:var(--ink-muted);') + '">Due ' + mfEscapeHtml_(t.dueDate) + '</div>' +
+        '</div>';
+    }).join("");
+    var moreNoteHtml = due.length > 6 ? ('<div style="font-size:12px;color:var(--ink-muted);margin-top:6px;">+' + (due.length - 6) + ' more</div>') : '';
+    var overlay = document.createElement("div");
+    overlay.id = "loginTaskPopupOverlayDash";
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;";
+    overlay.innerHTML =
+      '<div style="background:var(--surface);color:var(--ink);border-radius:14px;max-width:400px;width:100%;padding:18px;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.3);">' +
+      '<div style="font-weight:700;font-size:15px;margin-bottom:4px;">' + due.length + (due.length > 1 ? ' tasks need' : ' task needs') + ' attention' + (overdueCount ? (' (' + overdueCount + ' overdue)') : '') + '</div>' +
+      '<div style="font-size:12px;color:var(--ink-muted);margin-bottom:10px;">Due today or earlier, not yet completed.</div>' +
+      rowsHtml + moreNoteHtml +
+      '<div style="display:flex;gap:8px;margin-top:14px;">' +
+      '<button type="button" id="loginTaskPopupViewBtnDash" style="flex:1;padding:10px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-weight:600;cursor:pointer;">View Tasks</button>' +
+      '<button type="button" id="loginTaskPopupDismissBtnDash" style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--ink);cursor:pointer;">Dismiss</button>' +
+      '</div></div>';
+    document.body.appendChild(overlay);
+    function closeLoginTaskPopupDash_() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }
+    overlay.addEventListener("click", function (e) { if (e.target === overlay) closeLoginTaskPopupDash_(); });
+    var viewBtn = document.getElementById("loginTaskPopupViewBtnDash");
+    if (viewBtn) viewBtn.addEventListener("click", function () {
+      closeLoginTaskPopupDash_();
+      var tmDetailsEl = document.getElementById("taskManagerDetails");
+      if (tmDetailsEl) { tmDetailsEl.open = true; tmDetailsEl.scrollIntoView({ behavior: "smooth", block: "start" }); }
+    });
+    var dismissBtn = document.getElementById("loginTaskPopupDismissBtnDash");
+    if (dismissBtn) dismissBtn.addEventListener("click", closeLoginTaskPopupDash_);
   }
 
   function loginHeartbeatPing_() {
@@ -9398,7 +9495,14 @@
       // whole point of picking this role. Caught here before it's ever
       // sent, not just left to the admin to notice later.
       if (targetRole === 'Area Manager' && !targetAreas) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'Area Manager needs at least one area in the Areas box'; return; }
-      if (!newPassword || newPassword.length < 4) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'New password must be at least 4 characters'; return; }
+      // Blank password is now allowed, but ONLY for an existing user picked
+      // from the dropdown (not a brand-new name typed into the New box) -
+      // added 11 Oct 2026 so e.g. adding "Rani" to Anbu's "Hide these
+      // people's logins" doesn't force resetting Anbu's password too. See
+      // setUserPassword_'s own comment in Code.gs for the backend half.
+      var isExistingPickedUser = !!sel.value && !(newNameEl.value || '').trim();
+      if (newPassword && newPassword.length < 4) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'New password must be at least 4 characters'; return; }
+      if (!newPassword && !isExistingPickedUser) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'New password is required for a new user'; return; }
       if (!confirmPassword) { msgEl.className = 'admin-msg err'; msgEl.textContent = 'Enter your own password to confirm'; return; }
       adminSaveBtn.disabled = true;
       dashboardApiPost_('setPassword', {
@@ -9413,7 +9517,7 @@
           return;
         }
         msgEl.className = 'admin-msg ok';
-        msgEl.textContent = 'Password saved for ' + targetName + '.';
+        msgEl.textContent = (newPassword ? 'Password saved for ' : 'Saved for ') + targetName + '.';
         newPwEl.value = ''; confirmPwEl.value = ''; newNameEl.value = '';
         loadAdminUsersList_();
       }).catch(function () {

@@ -1127,6 +1127,40 @@
     </details>
   </section>
 
+  <!-- Beat Plan - added 11 Oct 2026 (owner: "need beat wise plan if
+       monday selected then the dealer in that beat has to show with
+       their target and balance to do"). Pick a day, see every dealer
+       whose Beat Day matches (DealerMeta's Beat Day field, already set
+       via the Master File Excel import) with the SAME Target/Sales/
+       Balance To Do and Collection Plan/Collected/Balance To Do math as
+       the "Dealer Targets - Balance To Do" panel above - reuses the same
+       already-fetched data (lastDealerTargetsData_), no new network call,
+       no Code.gs change (beatDay was already in that payload, just never
+       surfaced here). Unlike that panel, a dealer still shows here even
+       with no target/plan set yet (the whole point is "who's on today's
+       route"), with a plain note instead of a Balance row in that case.
+       No Sunday option - never a beat day anywhere else in this project
+       (DSRs' own leave day). Proven on AAA Direct first per the standing
+       new-feature scope rule, then rolled out to all 8 DSR apps 11 Oct
+       2026. -->
+  <section style="padding-bottom:0;">
+    <details class="manage" id="beatPlanDetails">
+      <summary>Beat Plan <span id="beatPlanCount" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">Pick a day to see that beat's dealers, with Sales/Collection Balance To Do where a target or plan is set.</p>
+        <select id="beatPlanDaySelect" style="margin-bottom:10px;max-width:220px;">
+          <option value="Monday">Monday</option>
+          <option value="Tuesday">Tuesday</option>
+          <option value="Wednesday">Wednesday</option>
+          <option value="Thursday">Thursday</option>
+          <option value="Friday">Friday</option>
+          <option value="Saturday">Saturday</option>
+        </select>
+        <div id="beatPlanList"><div class="task-empty-note">Loading…</div></div>
+      </div>
+    </details>
+  </section>
+
   <!-- Collection Health ("Sales billed vs Collected, this month"), added
        23 Sep 2026 - see renderCollectionHealth() below for the math and
        the .health-banner CSS comment above for the styling reasoning. -->
@@ -3127,10 +3161,17 @@
   // #dealerTargetsBalanceDetails for the full feature note.
   var dealerTargetsBalanceListEl = document.getElementById("dealerTargetsBalanceList");
   var dealerTargetsBalanceCountEl = document.getElementById("dealerTargetsBalanceCount");
+  // Beat Plan - added 11 Oct 2026. Reuses the same fetched dealerTargets
+  // data (lastDealerTargetsData_ below) - see the HTML comment above
+  // #beatPlanDetails for the full feature note.
+  var beatPlanListEl = document.getElementById("beatPlanList");
+  var beatPlanCountEl = document.getElementById("beatPlanCount");
+  var beatPlanDetailsEl = document.getElementById("beatPlanDetails");
+  var beatPlanDaySelectEl = document.getElementById("beatPlanDaySelect");
   var lastDealerTargetsData_ = [];
 
   function fetchDealerTargets_() {
-    if (!apiConfigured() || (!dealerTargetsListEl && !dealerTargetsBalanceListEl)) return;
+    if (!apiConfigured() || (!dealerTargetsListEl && !dealerTargetsBalanceListEl && !beatPlanListEl)) return;
     var month = currentMonthKeyISO_();
     fetch(ORDERS_API_URL + "?type=dealerTargets&month=" + encodeURIComponent(month) + "&dsrName=" + encodeURIComponent(DSR_SHORT_NAME) + "&_ts=" + Date.now(), { cache: "no-store" })
       .then(function (r) { return r.json(); })
@@ -3138,15 +3179,18 @@
         if (!data || !data.ok) {
           if (dealerTargetsListEl) dealerTargetsListEl.innerHTML = '<div class="task-empty-note">Could not load Dealer Targets.</div>';
           if (dealerTargetsBalanceListEl) dealerTargetsBalanceListEl.innerHTML = '<div class="task-empty-note">Could not load Dealer Targets.</div>';
+          if (beatPlanListEl) beatPlanListEl.innerHTML = '<div class="task-empty-note">Could not load Beat Plan.</div>';
           return;
         }
         lastDealerTargetsData_ = data.dealers || [];
         renderDealerTargets_();
         renderDealerTargetsBalance_();
+        renderBeatPlan_();
       })
       .catch(function () {
         if (dealerTargetsListEl) dealerTargetsListEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>';
         if (dealerTargetsBalanceListEl) dealerTargetsBalanceListEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>';
+        if (beatPlanListEl) beatPlanListEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>';
       });
   }
 
@@ -3196,6 +3240,68 @@
         '</div>';
     }
     dealerTargetsBalanceListEl.innerHTML = html;
+  }
+
+  // Beat Plan - added 11 Oct 2026 (owner: "need beat wise plan if monday
+  // selected then the dealer in that beat has to show with their target
+  // and balance to do"). Same chip-rendering as renderDealerTargetsBalance_
+  // above, but filtered by Beat Day instead of "has a target set" - and,
+  // unlike that panel, a dealer with NO target/plan set still shows here
+  // (the point is "who's on today's route"), just with a plain note
+  // instead of a Balance row. Client-side only - no extra network call,
+  // the day switch just re-filters lastDealerTargetsData_.
+  function renderBeatPlan_() {
+    if (!beatPlanListEl) return;
+    var day = beatPlanDaySelectEl ? beatPlanDaySelectEl.value : "Monday";
+    var rows = lastDealerTargetsData_.filter(function (d) {
+      return d.beatDay === day;
+    });
+    if (beatPlanCountEl) beatPlanCountEl.textContent = rows.length ? String(rows.length) : "";
+    if (!rows.length) { beatPlanListEl.innerHTML = '<div class="task-empty-note">No dealers set for ' + escapeHtml_(day) + ' yet.</div>'; return; }
+    // Dealers with a target/plan set first (most useful - today's actual
+    // numbers), then everyone else alphabetically.
+    rows = rows.slice().sort(function (a, b) {
+      var aSet = (a.salesTargetLtr !== null && a.salesTargetLtr !== undefined) || (a.collectionPlanRs !== null && a.collectionPlanRs !== undefined);
+      var bSet = (b.salesTargetLtr !== null && b.salesTargetLtr !== undefined) || (b.collectionPlanRs !== null && b.collectionPlanRs !== undefined);
+      if (aSet !== bSet) return aSet ? -1 : 1;
+      return String(a.dealer).localeCompare(String(b.dealer));
+    });
+    beatPlanListEl.className = "target-strip";
+    var html = "";
+    for (var i = 0; i < rows.length; i++) {
+      var d = rows[i];
+      var salesRow = "", collectionRow = "", noneNote = "";
+      if (d.salesTargetLtr !== null && d.salesTargetLtr !== undefined) {
+        var sales = (d.salesLtr === null || d.salesLtr === undefined) ? 0 : d.salesLtr;
+        var balanceLtr = d.salesTargetLtr - sales;
+        salesRow = '<div class="target-strip-row">' +
+          '<div class="target-chip">Target <b>' + formatNum(d.salesTargetLtr) + ' Ltr</b></div>' +
+          '<div class="target-chip">Sales <b>' + formatNum(sales) + ' Ltr</b></div>' +
+          (balanceLtr <= 0
+            ? '<div class="target-chip balance-met">Balance To Do <b>Target reached (+' + formatNum(Math.abs(balanceLtr)) + ' Ltr)</b></div>'
+            : '<div class="target-chip">Balance To Do <b>' + formatNum(balanceLtr) + ' Ltr</b></div>') +
+          '</div>';
+      }
+      if (d.collectionPlanRs !== null && d.collectionPlanRs !== undefined) {
+        var collected = (d.collectedRs === null || d.collectedRs === undefined) ? 0 : d.collectedRs;
+        var balanceRs = d.collectionPlanRs - collected;
+        collectionRow = '<div class="target-strip-row" style="margin-top:6px;">' +
+          '<div class="target-chip">Collection Plan <b>' + fmtMoney_(d.collectionPlanRs) + '</b></div>' +
+          '<div class="target-chip">Collected <b>' + fmtMoney_(collected) + '</b></div>' +
+          (balanceRs <= 0
+            ? '<div class="target-chip balance-met">Balance To Do <b>Target reached (+' + fmtMoney_(Math.abs(balanceRs)) + ')</b></div>'
+            : '<div class="target-chip">Balance To Do <b>' + fmtMoney_(balanceRs) + '</b></div>') +
+          '</div>';
+      }
+      if (!salesRow && !collectionRow) {
+        noneNote = '<div class="task-empty-note" style="margin:0;">No target or collection plan set yet this month.</div>';
+      }
+      html += '<div style="margin-bottom:10px;">' +
+        '<div style="font-weight:600;font-size:13px;margin-bottom:4px;">' + escapeHtml_(d.dealer) + '</div>' +
+        salesRow + collectionRow + noneNote +
+        '</div>';
+    }
+    beatPlanListEl.innerHTML = html;
   }
 
   function renderDealerTargets_() {
@@ -3303,6 +3409,7 @@
         if (statusEl) statusEl.textContent = "edited by " + DSR_SHORT_NAME + ", " + fmtAgo_(nowIso);
         if (flashEl) { flashEl.style.display = ""; setTimeout(function () { if (flashEl) flashEl.style.display = "none"; }, 2000); }
         renderDealerTargetsBalance_();
+        renderBeatPlan_();
       } else {
         alert("Could not save - please try again.");
       }
@@ -3336,6 +3443,24 @@
     dealerTargetsDetailsEl.addEventListener("toggle", function () { if (dealerTargetsDetailsEl.open) fetchDealerTargets_(); });
   }
 
+  // Beat Plan wiring - added 11 Oct 2026. Defaults the day select to
+  // today's actual weekday (Mon-Sat only - never defaults to Sunday,
+  // since that's never a beat day anywhere else in this project; on a
+  // Sunday it just stays on Monday). Switching the day re-filters the
+  // already-fetched data client-side (no network call); opening the
+  // panel re-fetches fresh data, same as the other two panels above.
+  if (beatPlanDaySelectEl) {
+    var beatPlanTodayName_ = new Date().toLocaleDateString("en-US", { weekday: "long" });
+    var beatPlanValidDays_ = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    if (beatPlanValidDays_.indexOf(beatPlanTodayName_) !== -1) {
+      beatPlanDaySelectEl.value = beatPlanTodayName_;
+    }
+    beatPlanDaySelectEl.addEventListener("change", function () { renderBeatPlan_(); });
+  }
+  if (beatPlanDetailsEl) {
+    beatPlanDetailsEl.addEventListener("toggle", function () { if (beatPlanDetailsEl.open) fetchDealerTargets_(); });
+  }
+
   // ----- My Tasks -----
   var myTasksListEl = document.getElementById("myTasksList");
   var myTasksCountEl = document.getElementById("myTasksCount");
@@ -3351,6 +3476,14 @@
   // Completed tasks anyway, but keeps the two concerns independent).
   var MY_TASKS_RAW_ = [];
   var myTasksShowCompleted_ = false;
+  // Login task popup - added 11 Oct 2026 ("reminder pops up when app
+  // opens...show anything due/overdue"), a different thing from the 3
+  // fixed-slot TASK_REMINDER_SLOTS_ reminders above: this fires once,
+  // right after the FIRST tasks fetch following login (not on the 60s
+  // background re-polls proceedAfterLogin() also sets up - see the "only
+  // once per fetchMyTasks_ call" guard below), and covers EVERY open task
+  // due today or earlier (not just ones with a reminder time set).
+  var loginTaskPopupChecked_ = false;
 
   function fetchMyTasks_() {
     if (!apiConfigured() || !myTasksListEl) return;
@@ -3361,6 +3494,7 @@
         MY_TASKS_RAW_ = data.tasks || [];
         renderMyTasks_();
         checkTaskReminders_(MY_TASKS_RAW_);
+        if (!loginTaskPopupChecked_) { loginTaskPopupChecked_ = true; showLoginTaskPopupIfDue_(MY_TASKS_RAW_); }
       })
       .catch(function () { myTasksListEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>'; });
   }
@@ -3640,6 +3774,65 @@
       taskReminderMarkShown_(t.id, t.reminderTime);
       showTaskReminderToast_(t);
     }
+  }
+
+  // Login task popup - added 11 Oct 2026 ("reminder pops up when app
+  // opens... show anything due/overdue immediately"). Separate from the
+  // 3-slot reminder above: covers EVERY open (not Completed) task whose
+  // Due Date is today or already passed, regardless of whether that task
+  // has a reminder time set at all. Shown once per calendar day (so
+  // reopening the app later the same day doesn't nag again) via the same
+  // per-day localStorage pattern as TASK_REMINDER_SEEN_KEY_ above, but
+  // only marked "seen" once something was actually shown - an empty day
+  // (nothing due yet) is checked again next time the app opens that day.
+  var LOGIN_TASK_POPUP_SEEN_KEY_ = "taskLoginPopupSeen_" + (typeof DSR_SHORT_NAME === "string" ? DSR_SHORT_NAME : "app");
+  function loginTaskPopupAlreadyShownToday_() {
+    try { return localStorage.getItem(LOGIN_TASK_POPUP_SEEN_KEY_) === taskReminderTodayKey_(); } catch (e) { return false; }
+  }
+  function loginTaskPopupMarkShownToday_() {
+    try { localStorage.setItem(LOGIN_TASK_POPUP_SEEN_KEY_, taskReminderTodayKey_()); } catch (e) { /* ignore */ }
+  }
+  function showLoginTaskPopupIfDue_(tasks) {
+    if (!tasks || !tasks.length) return;
+    if (loginTaskPopupAlreadyShownToday_()) return;
+    var todayIso = taskReminderTodayKey_();
+    var due = tasks.filter(function (t) { return t.status !== "Completed" && t.dueDate && t.dueDate <= todayIso; });
+    if (!due.length) return;
+    loginTaskPopupMarkShownToday_();
+    due.sort(function (a, b) { return (a.dueDate || "").localeCompare(b.dueDate || ""); });
+    var overdueCount = due.filter(function (t) { return t.dueDate < todayIso; }).length;
+    var rowsHtml = due.slice(0, 6).map(function (t) {
+      var isOverdue = t.dueDate < todayIso;
+      return '<div style="padding:8px 0;border-bottom:1px solid #eee;">' +
+        '<div style="font-weight:600;font-size:13.5px;">' + escapeHtml_(t.name) +
+        (isOverdue ? ' <span class="task-overdue-badge" style="margin-left:6px;">Overdue</span>' : '') + '</div>' +
+        (t.dealerName ? ('<div style="font-size:12px;color:#666;">Dealer: ' + escapeHtml_(t.dealerName) + '</div>') : '') +
+        '<div style="font-size:12px;' + (isOverdue ? 'color:#b23b3b;font-weight:600;' : 'color:#666;') + '">Due ' + escapeHtml_(t.dueDate) + '</div>' +
+        '</div>';
+    }).join("");
+    var moreNoteHtml = due.length > 6 ? ('<div style="font-size:12px;color:#666;margin-top:6px;">+' + (due.length - 6) + ' more</div>') : '';
+    var overlay = document.createElement("div");
+    overlay.id = "loginTaskPopupOverlay";
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;";
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:14px;max-width:360px;width:100%;padding:18px;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.3);">' +
+      '<div style="font-weight:700;font-size:15px;margin-bottom:4px;">' + due.length + (due.length > 1 ? ' tasks need' : ' task needs') + ' attention' + (overdueCount ? (' (' + overdueCount + ' overdue)') : '') + '</div>' +
+      '<div style="font-size:12px;color:#666;margin-bottom:10px;">Due today or earlier, not yet completed.</div>' +
+      rowsHtml + moreNoteHtml +
+      '<div style="display:flex;gap:8px;margin-top:14px;">' +
+      '<button type="button" id="loginTaskPopupViewBtn" style="flex:1;padding:10px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-weight:600;">View Tasks</button>' +
+      '<button type="button" id="loginTaskPopupDismissBtn" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ccc;background:#fff;color:#333;">Dismiss</button>' +
+      '</div></div>';
+    document.body.appendChild(overlay);
+    function closeLoginTaskPopup_() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }
+    overlay.addEventListener("click", function (e) { if (e.target === overlay) closeLoginTaskPopup_(); });
+    var viewBtn = document.getElementById("loginTaskPopupViewBtn");
+    if (viewBtn) viewBtn.addEventListener("click", function () {
+      closeLoginTaskPopup_();
+      if (myTasksDetailsEl) { myTasksDetailsEl.open = true; myTasksDetailsEl.scrollIntoView({ behavior: "smooth", block: "start" }); }
+    });
+    var dismissBtn = document.getElementById("loginTaskPopupDismissBtn");
+    if (dismissBtn) dismissBtn.addEventListener("click", closeLoginTaskPopup_);
   }
 
   // Offline-resilience queue: a save/update/delete that fails (no signal in the field)
