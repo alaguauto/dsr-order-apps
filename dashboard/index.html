@@ -374,6 +374,31 @@
   .leaderboard-title { font-size: 13px; font-weight: 600; color: var(--ink-secondary); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 4px; }
   .leaderboard-title.clickable { cursor: pointer; }
   .leaderboard-title.clickable:hover { text-decoration: underline; text-decoration-color: var(--border); }
+
+  /* Sales/Collection weekday heatmap, added 11 Oct 2026, placed directly
+     above Ranking (see captureHeatmap in the markup below) - matches the
+     owner's own reference screenshot (week rows x weekday columns, green-
+     shaded tiles, Less...More legend). */
+  .heatmap-tabs { display: flex; gap: 6px; margin: 0 0 10px; }
+  .heatmap-tab { font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-muted); background: var(--surface-2); cursor: pointer; }
+  .heatmap-tab.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .heatmap-grid { display: grid; grid-template-columns: 44px repeat(7, 1fr); gap: 4px; font-size: 11px; }
+  .heatmap-wk-label { color: var(--ink-muted); font-size: 10.5px; display: flex; align-items: center; }
+  .heatmap-day-label { text-align: center; color: var(--ink-muted); font-size: 10.5px; font-weight: 700; padding-bottom: 2px; }
+  .heatmap-cell { border-radius: 7px; padding: 8px 2px; text-align: center; font-weight: 700; }
+  .heatmap-cell.h0 { background: var(--surface-2); color: var(--ink-muted); font-weight: 400; }
+  .heatmap-cell.h1 { background: #d9ecdf; color: #1c4631; }
+  .heatmap-cell.h2 { background: #a9d6ba; color: #1c4631; }
+  .heatmap-cell.h3 { background: #6fb68f; color: #0d2b1c; }
+  .heatmap-cell.h4 { background: #2f7d5a; color: #fff; }
+  @media (prefers-color-scheme: dark) {
+    .heatmap-cell.h1 { background: #1c3226; color: #d9ecdf; }
+    .heatmap-cell.h2 { background: #28492f; color: #d9ecdf; }
+    .heatmap-cell.h3 { background: #366a3f; color: #fff; }
+    .heatmap-cell.h4 { background: #56b087; color: #0a1f12; }
+  }
+  .heatmap-legend { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 10.5px; color: var(--ink-muted); }
+  .heatmap-legend .sw { width: 14px; height: 10px; border-radius: 3px; display: inline-block; }
   .rank-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
   .rank-row:first-child { border-top: none; }
   .rank-num { font-family: 'Archivo', system-ui, sans-serif; font-weight: 800; font-size: 13px; color: var(--ink-muted); width: 18px; flex-shrink: 0; text-align: center; }
@@ -512,16 +537,34 @@
   /* Master File + Task Manager - added 6 Oct 2026, see
      fetchMasterFile_()/renderMasterFileTable_()/fetchTasks_()/
      renderTaskManager_() below for the live wiring. */
-  .master-file-table { border-collapse: collapse; min-width: 980px; font-size: 12.5px; table-layout: fixed; }
-  .master-file-table th, .master-file-table td { padding: 7px 10px; text-align: center; white-space: nowrap; border-bottom: 1px solid var(--border); }
+  /* Compressed 11 Oct 2026 ("make little compress to fit in the screen
+     like others") - smaller padding/font than the 7px/12.5px this table
+     used before, closer to .age-table's own footprint, and min-width
+     trimmed from 980px to 860px so less of the 12-column Plan table
+     needs horizontal scroll to reach. Shared by both the Plan table and
+     the newer Item-wise & Dealer-wise Summary table (mfdbTable), which
+     also benefits from the tighter fit. */
+  .master-file-table { border-collapse: collapse; min-width: 860px; font-size: 11.5px; table-layout: fixed; }
+  .master-file-table th, .master-file-table td { padding: 5px 7px; text-align: center; white-space: nowrap; border-bottom: 1px solid var(--border); }
   .master-file-table th:first-child, .master-file-table td:first-child { text-align: left; font-weight: 600; color: var(--ink-secondary); white-space: normal; }
-  .master-file-table th { font-size: 11px; color: var(--ink-muted); font-weight: 600; white-space: normal; }
+  /* word-break added 11 Oct 2026 ("not outside the box") - the selected
+     item-group name lands in this table's own header (th), and a long
+     one-word-ish name could still overflow its fixed-width column even
+     with white-space:normal above without this. */
+  .master-file-table th { font-size: 10px; color: var(--ink-muted); font-weight: 600; white-space: normal; word-break: break-word; }
   .master-file-table td.mf-num { font-variant-numeric: tabular-nums; }
   .master-file-table td.mf-good { color: var(--good); font-weight: 700; }
   .master-file-table td.mf-warn { color: var(--warn); font-weight: 700; }
   .master-file-table td.mf-money { color: var(--money); }
   .master-file-filters { display: flex; gap: 10px; flex-wrap: wrap; padding: 10px 18px 4px; align-items: center; }
-  .master-file-filters select { font-size: 12.5px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); }
+  /* max-width/ellipsis added 11 Oct 2026 ("not outside the box") - a plain
+     <select> sizes itself to fit its currently-selected option's text, so
+     a long item-group name (e.g. "TUTELA - Gear Oil (Transmission)") could
+     stretch the box wide enough to spill outside the filter row/panel on
+     a narrow screen. Same "stay inside the box" fix the age-table's own
+     first-column rule (max-width + word-break) already applies to long
+     names elsewhere on this dashboard. */
+  .master-file-filters select { font-size: 12.5px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
   .master-file-filters label { font-size: 11px; color: var(--ink-muted); margin-right: 3px; }
   /* Remarks -> Task button, 10 Oct 2026 - see the Master File <th>/row
      comments near renderMasterFileTable_ for why. .mf-remarks-cell/
@@ -1354,6 +1397,41 @@
     <div class="ratio-wrap" id="ratioWrap"></div>
   </div>
 
+  <!-- Sales/Collection weekday heatmap, added 11 Oct 2026 at the owner's
+       request ("the sales heatmap above Ranking ... ONLY SALES &
+       COLLECTION ... ONLY DSR BUT LIVE FROM TALLY") - placed directly
+       above Ranking per that request, inside the same captureSummary
+       capture block. Driven entirely by salesTrendByDsrList/
+       collectionTrendByDsrList (see their own comments near the var
+       declarations) - live Tally data, no app-logged fallback, matching
+       "LIVE FROM TALLY". Per-DSR only (no "All DSRs/company-wide" option)
+       per "ONLY DSR". -->
+  <div id="captureHeatmap">
+    <div class="section-label-row">
+      <p class="section-label">Sales / Collection — by weekday</p>
+      <button type="button" class="share-icon-btn small" id="shareHeatmapBtn" title="Share on WhatsApp">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+      </button>
+    </div>
+    <div class="leaderboard-panel">
+      <div class="master-file-filters" style="padding:0 0 10px;">
+        <span><label>DSR</label><select id="heatmapDsrFilter"></select></span>
+      </div>
+      <div class="heatmap-tabs">
+        <span class="heatmap-tab active" data-heatmap-tab="sales">Sales</span>
+        <span class="heatmap-tab" data-heatmap-tab="collection">Collection</span>
+      </div>
+      <div id="heatmapGridWrap"></div>
+      <div class="heatmap-legend">Less
+        <span class="sw" style="background:var(--surface-2);"></span>
+        <span class="sw" style="background:#d9ecdf;"></span>
+        <span class="sw" style="background:#a9d6ba;"></span>
+        <span class="sw" style="background:#6fb68f;"></span>
+        <span class="sw" style="background:#2f7d5a;"></span>
+      More</div>
+    </div>
+  </div>
+
   <div id="captureRanking">
     <div class="section-label-row">
       <p class="section-label">Ranking</p>
@@ -2019,7 +2097,11 @@
   <details class="dsr-row" id="stocksMasterDetails">
     <summary class="dsr-row-summary">
       <span class="dsr-row-toggle" aria-hidden="true"></span>
-      <span class="dsr-row-headtext"><span class="card-name">Stocks</span>
+      <!-- card-name dropped 11 Oct 2026 ("remove the additional name in
+           background for all") - it exactly duplicated the section-label
+           ("Current Stock, MRP & Nett Price") right above this row; the
+           status text below is now the row's only visible line. -->
+      <span class="dsr-row-headtext">
         <span class="card-territory" id="stocksMasterTotal">Loading…</span></span>
       <span class="dsr-row-headright">
         <button type="button" class="share-icon-btn small" id="exportStockXlsxBtn" title="Export as Excel" style="margin-left:6px;">
@@ -2101,7 +2183,9 @@
   <details class="dsr-row" id="petronasSummaryDetails">
     <summary class="dsr-row-summary">
       <span class="dsr-row-toggle" aria-hidden="true"></span>
-      <span class="dsr-row-headtext"><span class="card-name">Petronas Business Summary</span>
+      <!-- card-name dropped 11 Oct 2026, same dedup as Stocks above -
+           exact duplicate of the "Petronas Business Summary" section-label. -->
+      <span class="dsr-row-headtext">
         <span class="card-territory">Jan 2026 – present · company-wide · Sep 2026 onward live</span></span>
       <span class="dsr-row-headright">
         <button type="button" class="share-icon-btn small" id="exportPetronasSummaryXlsxBtn" title="Export as Excel" style="margin-left:6px;">
@@ -2116,14 +2200,32 @@
   </details>
 </div>
 <div id="captureMasterFile">
-  <p class="section-label" id="masterFileLabel">Master File (dealer-wise Sales &amp; Collection)</p>
+  <!-- Renamed 11 Oct 2026 at the owner's request ("Master File rename -
+       rename as DSR/DEALER/BEAT SALES & COLLECTION PLAN") - display text
+       only, same as the 10 Oct 2026 DSR-app panel renames: every internal
+       id/function name (masterFileLabel, masterFileDetails, fetchMasterFile_,
+       MASTER_FILE_DATA_, mfCurrentTable, etc.) is left exactly as-is so
+       nothing downstream breaks - only the two user-visible labels and the
+       "could not load" error text below change. -->
+  <p class="section-label" id="masterFileLabel">DSR / Dealer / Beat — Sales &amp; Collection Plan</p>
   <details class="dsr-row" id="masterFileDetails">
     <summary class="dsr-row-summary">
       <span class="dsr-row-toggle" aria-hidden="true"></span>
-      <span class="dsr-row-headtext"><span class="card-name">Master File</span>
+      <!-- card-name dropped 11 Oct 2026, same dedup as Stocks above -
+           exact duplicate of the "DSR / Dealer / Beat — Sales &
+           Collection Plan" section-label. -->
+      <span class="dsr-row-headtext">
         <span class="card-territory" id="masterFileTerritory">This month · fill/edit each dealer's target below</span></span>
       <span class="dsr-row-headright">
-        <button type="button" class="share-icon-btn small" id="exportMasterFileXlsxBtn" title="Export as Excel — same columns as your Master File upload" style="margin-left:6px;">
+        <!-- WhatsApp share, added 11 Oct 2026 ("need share button near the
+             download") - same preventDefault/stopPropagation-then-
+             openShareSheet_ pattern as shareDaybookItemGroupBtn, needed
+             because this button sits inside a <summary> (see that
+             button's own comment for why). -->
+        <button type="button" class="share-icon-btn small" id="shareMasterFileBtn" title="Share on WhatsApp" style="margin-left:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+        </button>
+        <button type="button" class="share-icon-btn small" id="exportMasterFileXlsxBtn" title="Export as Excel — same columns as your Sales &amp; Collection Plan upload" style="margin-left:6px;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
         </button>
       </span>
@@ -2172,12 +2274,78 @@
   </details>
 </div>
 
+<!-- Master File ("Plan") + Day Book - item-wise & dealer-wise summary,
+     added 11 Oct 2026 at the owner's request. Both directions ("WANT
+     BOTH"), dashboard-only ("DASHBOARD ONLY") - see
+     renderMfDaybookSummary_()/mfdbBuildIndexes_() below for the dealer-
+     name matching ("MATCH DEALER NAME") logic. -->
+<div id="captureMfDaybookSummary">
+  <p class="section-label" id="mfdbSummaryLabel">Item-wise &amp; Dealer-wise Summary (Plan + Day Book)</p>
+  <details class="dsr-row" id="mfdbSummaryDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <!-- card-name dropped 11 Oct 2026, same dedup as Stocks above - was
+           an exact duplicate of the "Item-wise & Dealer-wise Summary"
+           section-label. Subtitle given an id 11 Oct 2026 too (it used to
+           be static markup) so renderMfDaybookSummary_() can fill in the
+           real, dynamic month name on every render - the owner's own
+           "is this this month data or give a clarity on the heading"
+           question, answered by just naming the month instead of the
+           ambiguous word "This month". -->
+      <span class="dsr-row-headtext">
+        <span class="card-territory" id="mfdbSummaryTerritory">This month · Day Book sales matched against the Sales &amp; Collection Plan dealer list</span></span>
+      <span class="dsr-row-headright">
+        <!-- Share + download, added 11 Oct 2026 ("need share or download
+             button is here both also no problem") - owner explicitly OK
+             with having both, unlike panels elsewhere that only got one.
+             Both need preventDefault/stopPropagation since they sit
+             inside this <summary>, same reason as shareMasterFileBtn
+             above. -->
+        <button type="button" class="share-icon-btn small" id="shareMfdbBtn" title="Share on WhatsApp" style="margin-left:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+        </button>
+        <button type="button" class="share-icon-btn small" id="exportMfdbXlsxBtn" title="Export as Excel" style="margin-left:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        </button>
+      </span>
+    </summary>
+    <div class="dsr-row-body">
+      <div class="master-file-filters">
+        <span><label>View</label><select id="mfdbViewMode"><option value="byGroup">By Item Group → Dealers</option><option value="byDealer">By Dealer → Item Groups</option><option value="byDsr">By DSR Group → Item Groups</option></select></span>
+        <span id="mfdbGroupPickerWrap"><label>Item Group</label><select id="mfdbGroupPicker"></select></span>
+        <!-- DSR filter for the "By Item Group" view, added 11 Oct 2026
+             ("by item group - dsr also needed") - narrows the dealer list
+             for the selected item group down to one DSR's dealers.
+             Separate from mfdbDsrPicker below (that one drives the whole
+             "By DSR Group" VIEW; this is just a filter within the
+             "By Item Group" view) - shown/hidden together with
+             mfdbGroupPickerWrap since both only apply in byGroup mode. -->
+        <span id="mfdbGroupDsrFilterWrap"><label>DSR Group</label><select id="mfdbGroupDsrFilter"><option value="">All DSR Groups</option></select></span>
+        <span id="mfdbDealerPickerWrap" hidden><label>Dealer</label><select id="mfdbDealerPicker"></select></span>
+        <!-- "DSR Group" dropdown, added 11 Oct 2026 at the owner's request
+             ("add DSR GROUP also in dropdown") - a 3rd View mode, same
+             pattern as the Item Group/Dealer views either side of it. -->
+        <span id="mfdbDsrPickerWrap" hidden><label>DSR Group</label><select id="mfdbDsrPicker"></select></span>
+      </div>
+      <div class="age-table-scroll">
+        <table class="master-file-table" id="mfdbTable">
+          <thead id="mfdbTableHead"></thead>
+          <tbody id="mfdbTableBody"><tr><td style="text-align:center;color:var(--ink-muted);">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <p style="font-size:11px;color:var(--ink-muted);margin:8px 18px 0;" id="mfdbFooterNote"></p>
+    </div>
+  </details>
+</div>
+
 <div id="captureTaskManager">
   <p class="section-label" id="taskManagerLabel">Task Manager</p>
   <details class="dsr-row" id="taskManagerDetails">
     <summary class="dsr-row-summary">
       <span class="dsr-row-toggle" aria-hidden="true"></span>
-      <span class="dsr-row-headtext"><span class="card-name">Task Manager</span>
+      <!-- card-name dropped 11 Oct 2026, same dedup as Stocks above -
+           exact duplicate of the "Task Manager" section-label. -->
+      <span class="dsr-row-headtext">
         <span class="card-territory" id="taskManagerTerritory">Visible here, in the Area Manager login and in each DSR's own app</span></span>
       <span class="dsr-row-headright">
         <!-- Open-task count, added 6 Oct 2026 ("near the new button show
@@ -2529,6 +2697,14 @@
   var salesTrendMap = null;
   var collectionTrendMap = null;
   var trendError = false;
+  // Per-DSR daily Sales/Collection trend, added 11 Oct 2026 for the new
+  // weekday heatmap above Ranking - flat arrays of {dsrName, date, ltr}/
+  // {dsrName, date, rs}, same "flat, dashboard groups client-side"
+  // convention as salesByDsrItemList (see Code.gs's buildLivePayload_()
+  // comment on salesTrendByDsr/collectionTrendByDsr). null before the
+  // first successful ?type=live fetch.
+  var salesTrendByDsrList = null;
+  var collectionTrendByDsrList = null;
   // Added 5 Oct 2026 for the "Live Cache" speed fix (see Code.gs's
   // handleLiveGet_()/refreshLiveCache_()) - null means this fetch's
   // ?type=live response was a genuinely fresh, this-instant rebuild (no
@@ -3406,6 +3582,93 @@
     }));
     document.getElementById('collectionRanking').innerHTML = rows.join('') ||
       '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Collection targets set yet.</p>';
+  }
+
+  // Sales/Collection weekday heatmap, added 11 Oct 2026 - see
+  // captureHeatmap's own markup comment above for the full "why" and the
+  // owner's exact scope decisions (Sales + Collection only, no Purchase/
+  // Payment; per-DSR only, no company-wide option; live Tally data only).
+  // HEATMAP_TAB_ is 'sales' or 'collection'. salesTrendByDsrList/
+  // collectionTrendByDsrList are flat {dsrName, date, ltr|rs} arrays (see
+  // their own var-declaration comments) - filtered client-side by the
+  // selected DSR, same convention as every other *ByDsrItemList-style
+  // field on this dashboard.
+  var HEATMAP_TAB_ = 'sales';
+  // "Total" (all DSRs combined), added 11 Oct 2026 at the owner's request
+  // ("make default as total in dropdown and the total of all") - prepended
+  // as the FIRST <option> so it's also the default selection the moment
+  // the dropdown is first built (a plain <select> selects its first
+  // <option> until the person picks another one - no extra "selected"
+  // attribute or JS needed for that part).
+  var HEATMAP_TOTAL_VALUE_ = '__TOTAL__';
+  function renderSalesCollectionHeatmap_() {
+    var dsrSel = document.getElementById('heatmapDsrFilter');
+    var gridWrap = document.getElementById('heatmapGridWrap');
+    if (!dsrSel || !gridWrap) return;
+    if (dsrSel.getAttribute('data-built') !== '1') {
+      dsrSel.innerHTML = '<option value="' + HEATMAP_TOTAL_VALUE_ + '">Total (all DSRs)</option>' +
+        DSRS.map(function (d) { return '<option value="' + mfEscapeHtml_(d.dsrName) + '">' + mfEscapeHtml_(d.name) + '</option>'; }).join('');
+      dsrSel.setAttribute('data-built', '1');
+    }
+    var list = HEATMAP_TAB_ === 'collection' ? collectionTrendByDsrList : salesTrendByDsrList;
+    var valueKey = HEATMAP_TAB_ === 'collection' ? 'rs' : 'ltr';
+    if (list === null) {
+      gridWrap.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Loading…</p>';
+      return;
+    }
+    var selDsr = dsrSel.value || HEATMAP_TOTAL_VALUE_;
+    var byDate = {};
+    list.forEach(function (r) {
+      if (selDsr !== HEATMAP_TOTAL_VALUE_ && r.dsrName !== selDsr) return;
+      byDate[r.date] = (byDate[r.date] || 0) + (Number(r[valueKey]) || 0);
+    });
+
+    // Current calendar month only - daily_totals_by_dsr itself only ever
+    // carries this month + last month (see tally_live_watcher.py's
+    // fetch_sales()/fetch_collection()), same "current month" default as
+    // every other month-to-date figure on this dashboard.
+    var now = new Date();
+    var y = now.getFullYear(), m = now.getMonth();
+    var daysInMonth = new Date(y, m + 1, 0).getDate();
+    var firstWeekdayIdx = (new Date(y, m, 1).getDay() + 6) % 7; // Monday=0
+
+    var weeks = [];
+    var week = new Array(7).fill(null);
+    var col = firstWeekdayIdx;
+    var maxVal = 0;
+    for (var day = 1; day <= daysInMonth; day++) {
+      var iso = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+      var val = byDate[iso] || 0;
+      if (val > maxVal) maxVal = val;
+      week[col] = { iso: iso, val: val };
+      col++;
+      if (col === 7) { weeks.push(week); week = new Array(7).fill(null); col = 0; }
+    }
+    if (col !== 0) weeks.push(week);
+
+    // Relative shading (quartiles of this DSR's own month-to-date range,
+    // not a fixed absolute threshold) - same "Less...More" relative-heat
+    // convention as the owner's own reference screenshot.
+    function bucketClass_(v) {
+      if (!v || !maxVal) return 'h0';
+      var ratio = v / maxVal;
+      if (ratio > 0.75) return 'h4';
+      if (ratio > 0.5) return 'h3';
+      if (ratio > 0.25) return 'h2';
+      return 'h1';
+    }
+    var html = '<div class="heatmap-grid">';
+    html += '<div></div>';
+    ['M', 'T', 'W', 'T', 'F', 'S', 'S'].forEach(function (lbl) { html += '<div class="heatmap-day-label">' + lbl + '</div>'; });
+    weeks.forEach(function (w, wi) {
+      html += '<div class="heatmap-wk-label">Wk ' + (wi + 1) + '</div>';
+      w.forEach(function (cell) {
+        if (!cell) { html += '<div></div>'; return; }
+        html += '<div class="heatmap-cell ' + bucketClass_(cell.val) + '" title="' + cell.iso + '">' + fmt(cell.val) + '</div>';
+      });
+    });
+    html += '</div>';
+    gridWrap.innerHTML = html;
   }
 
   // Top 5 panels, added 17 Sep 2026, switched to Tally-live Sales data on
@@ -4911,6 +5174,252 @@
     if (headerTotalEl) headerTotalEl.textContent = 'Total ALT QTY ' + fmt(grandTotal) + ' Ltr';
   }
 
+  // Master File ("Sales & Collection Plan") + Day Book - item-wise &
+  // dealer-wise summary, added 11 Oct 2026 at the owner's request ("the
+  // Master File + Day Book item/dealer summary ... WANT BOTH ... DASHBOARD
+  // ONLY ... MATCH DEALER NAME AND IN FUTURE FOLLOW ONLY TALLY DAY NAME IN
+  // DAYBOOK, MASTERFILE SO THAT ITS EASY TO MAINTAIN"). Cross-references
+  // Day Book's "Sales by Item Group" rows (daybookItemGroupRows, the exact
+  // same already-fetched/verified data the panel just above uses - r.party
+  // is Tally's own exact ledger name) against the Plan's dealer list
+  // (MASTER_FILE_DATA_ - see fetchMasterFile_ above) to show the SAME Day
+  // Book Alt Qty figures broken out by individual dealer, which the Day
+  // Book panel itself deliberately never does (owner's original 28 Sep
+  // 2026 request: "no dealers name need"). No new Tally fetch or watcher
+  // change needed - pure client-side cross-reference of two already-live
+  // feeds, same as the Day Book item-group panel itself was.
+  //
+  // Name matching: normalized (trim + collapse whitespace + lowercase)
+  // EXACT match only - deliberately no fuzzy/partial matching, so two
+  // different dealers that happen to share a short name never get merged.
+  // A Day Book party with no Plan match still shows (as "Not in Plan",
+  // DSR/Beat Day/DT blank) rather than being silently dropped, so nothing
+  // sold goes missing from the totals - the gap is just visible so it can
+  // be fixed at the source. Per the owner's own instruction, dealers added
+  // to the Plan from now on should use their exact Tally ledger name (the
+  // same name Day Book already uses), so the match rate only improves
+  // over time - not something this code can enforce by itself, since the
+  // Plan's dealer names come from the owner's own Excel upload.
+  function mfdbNormName_(s) {
+    return String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  }
+  // Panel-local exclusions, added 11 Oct 2026 at the owner's request ("do
+  // not show coimbatore (cbe) item groups or dealer name , do not show
+  // PETRONAS MARUTI GROUP"). Scoped to THIS summary only - isPetronasItemGroup_()
+  // itself is untouched, so the Day Book "Sales by Item Group" panel above
+  // keeps showing CBE/Maruti rows exactly as before; the owner only asked
+  // to exclude them from this newer dealer-matched summary. voucherType is
+  // Tally's own exact "Sales - PETRONAS"/"Sales - CBE" string (see the Day
+  // Book panel's own long comment above for the full voucher-type split
+  // history) - a loose /cbe/i test is used rather than an exact match, so
+  // any future whitespace/casing variant still gets caught. "PETRONAS
+  // MARUTI GROUP" is matched after the same bracket-suffix strip
+  // daybookMainGroup_() already uses, so a "(2)"-style variant is excluded
+  // too - it's already a known non-lubricant line sharing the "PETRONAS..."
+  // prefix (see tally_live_watcher.py's own PETRONAS_ITEM_GROUP_EXCLUSIONS_,
+  // which excludes the same group server-side for the Petronas Business
+  // Summary panel's Purchase/Sales Ltr).
+  function mfdbIsExcludedRow_(r) {
+    if (/cbe/i.test(String(r.voucherType || ''))) return true;
+    if (daybookMainGroup_(r.itemGroup).trim().toLowerCase() === 'petronas maruti group') return true;
+    return false;
+  }
+  var MFDB_VIEW_MODE_ = 'byGroup';
+  function mfdbBuildIndexes_() {
+    var mfByNorm = {};
+    (MASTER_FILE_DATA_ || []).forEach(function (d) {
+      if (!d.dealer) return;
+      mfByNorm[mfdbNormName_(d.dealer)] = d;
+    });
+    // Dealer -> DSR join for the new "DSR Group" view, added 11 Oct 2026
+    // ("add DSR GROUP also in dropdown") - same knownDealerDsrMap_() join
+    // (Tally's own exact party name) the Day Book item-group panel's own
+    // per-DSR expand already uses just above, so a dealer not recognized
+    // under any of the 7 DSR rosters falls into "Other Areas / Dealers"
+    // rather than being silently dropped, same convention as that panel.
+    var dealerDsr = knownDealerDsrMap_();
+    var byGroup = {};  // mainGroup -> { total, byDealer: { normName: {label, ltr} } }
+    var byDealer = {}; // normName -> { label, total, byGroup: { mainGroup: ltr } }
+    var byDsr = {};    // dsrDisplayName -> { total, byGroup: { mainGroup: ltr } }
+    (daybookItemGroupRows || []).forEach(function (r) {
+      if (!isPetronasItemGroup_(r.itemGroup)) return;
+      if (mfdbIsExcludedRow_(r)) return;
+      var ltr = Number(r.altQtyLtr) || 0;
+      if (!ltr) return;
+      var mainGroup = daybookMainGroup_(r.itemGroup);
+      var norm = mfdbNormName_(r.party);
+      // Resolved once per row so byGroup's own per-dealer records can
+      // carry it too (added 11 Oct 2026 for the new "By Item Group" DSR
+      // filter, "by item group - dsr also needed") - same roster-based
+      // name every other DSR grouping on this dashboard uses, not the
+      // Plan's own free-text dsrName field (which mfdbDealerCellsHtml_
+      // shows in the table and can disagree in wording/coverage - this
+      // filter intentionally uses the more reliable roster join instead).
+      var dsrName = dealerDsr[r.party] || 'Other Areas / Dealers';
+      var g = (byGroup[mainGroup] = byGroup[mainGroup] || { total: 0, byDealer: {} });
+      g.total += ltr;
+      g.byDealer[norm] = g.byDealer[norm] || { label: r.party, ltr: 0, dsrName: dsrName };
+      g.byDealer[norm].ltr += ltr;
+      var dd = (byDealer[norm] = byDealer[norm] || { label: r.party, total: 0, byGroup: {} });
+      dd.total += ltr;
+      dd.byGroup[mainGroup] = (dd.byGroup[mainGroup] || 0) + ltr;
+      var ds = (byDsr[dsrName] = byDsr[dsrName] || { total: 0, byGroup: {} });
+      ds.total += ltr;
+      ds.byGroup[mainGroup] = (ds.byGroup[mainGroup] || 0) + ltr;
+    });
+    return { mfByNorm: mfByNorm, byGroup: byGroup, byDealer: byDealer, byDsr: byDsr };
+  }
+  function mfdbDealerCellsHtml_(label, mfByNorm, norm) {
+    var mf = mfByNorm[norm];
+    if (mf) {
+      return '<td>' + mfEscapeHtml_(mf.dealer) + '</td><td>' + mfEscapeHtml_(mf.dsrName || '—') + '</td>' +
+        '<td>' + mfEscapeHtml_(mf.beatDay || '—') + '</td><td>' + mfEscapeHtml_(mf.district || '—') + '</td>';
+    }
+    return '<td>' + mfEscapeHtml_(label) + ' <span style="color:var(--warn);font-size:10.5px;font-weight:700;">Not in Plan</span></td><td>—</td><td>—</td><td>—</td>';
+  }
+  function renderMfDaybookSummary_() {
+    var headEl = document.getElementById('mfdbTableHead');
+    var bodyEl = document.getElementById('mfdbTableBody');
+    var footEl = document.getElementById('mfdbFooterNote');
+    var groupPicker = document.getElementById('mfdbGroupPicker');
+    var groupDsrFilter = document.getElementById('mfdbGroupDsrFilter');
+    var dealerPicker = document.getElementById('mfdbDealerPicker');
+    var dsrPicker = document.getElementById('mfdbDsrPicker');
+    // Dynamic month name in the subtitle, added 11 Oct 2026 ("is this this
+    // month data or give a clarity on the heading") - reuses the same
+    // reportMonthLabelFor_() helper the Monthly Freeze month-picker already
+    // uses, against currentViewMonthKey_() (the real current month unless
+    // a frozen past month is being viewed), so the heading always names
+    // the actual month instead of the ambiguous word "This month".
+    var territoryEl = document.getElementById('mfdbSummaryTerritory');
+    if (territoryEl) {
+      territoryEl.textContent = reportMonthLabelFor_(currentViewMonthKey_()) + ' · Day Book sales matched against the Sales & Collection Plan dealer list';
+    }
+    if (!headEl || !bodyEl) return;
+    if (daybookItemGroupRows === null) {
+      headEl.innerHTML = '';
+      bodyEl.innerHTML = '<tr><td style="text-align:center;color:var(--ink-muted);">' +
+        (daybookItemGroupFetchFailed ? 'Couldn’t load Day Book right now — tap Refresh to try again.' : 'Loading…') + '</td></tr>';
+      return;
+    }
+    if (!MASTER_FILE_DATA_ || !MASTER_FILE_DATA_.length) {
+      headEl.innerHTML = '';
+      bodyEl.innerHTML = '<tr><td style="text-align:center;color:var(--ink-muted);">Loading the Sales &amp; Collection Plan…</td></tr>';
+      return;
+    }
+    var idx = mfdbBuildIndexes_();
+    var groupNames = Object.keys(idx.byGroup).sort(function (a, b) { return idx.byGroup[b].total - idx.byGroup[a].total; });
+    var dealerNorms = Object.keys(idx.byDealer).sort(function (a, b) { return idx.byDealer[b].total - idx.byDealer[a].total; });
+    var dsrNames = Object.keys(idx.byDsr).sort(function (a, b) { return idx.byDsr[b].total - idx.byDsr[a].total; });
+
+    // Keep pickers in sync - rebuild options only when the option set
+    // actually changed (tracked via a data-built fingerprint), so an open
+    // dropdown / mid-selection doesn't get reset on every render() pass.
+    if (groupPicker && groupPicker.getAttribute('data-built') !== groupNames.join('|')) {
+      groupPicker.innerHTML = groupNames.map(function (g) { return '<option value="' + mfEscapeHtml_(g) + '">' + mfEscapeHtml_(g) + '</option>'; }).join('');
+      groupPicker.setAttribute('data-built', groupNames.join('|'));
+    }
+    if (dealerPicker && dealerPicker.getAttribute('data-built') !== dealerNorms.join('|')) {
+      dealerPicker.innerHTML = dealerNorms.map(function (norm) {
+        var mf = idx.mfByNorm[norm];
+        var label = mf ? mf.dealer : (idx.byDealer[norm].label + ' (Not in Plan)');
+        return '<option value="' + mfEscapeHtml_(norm) + '">' + mfEscapeHtml_(label) + '</option>';
+      }).join('');
+      dealerPicker.setAttribute('data-built', dealerNorms.join('|'));
+    }
+    if (dsrPicker && dsrPicker.getAttribute('data-built') !== dsrNames.join('|')) {
+      dsrPicker.innerHTML = dsrNames.map(function (dsrName) { return '<option value="' + mfEscapeHtml_(dsrName) + '">' + mfEscapeHtml_(dsrName) + '</option>'; }).join('');
+      dsrPicker.setAttribute('data-built', dsrNames.join('|'));
+    }
+    // DSR filter for the "By Item Group" view, added 11 Oct 2026 - same
+    // dsrNames list as the DSR Group picker above, just with an "All"
+    // option prepended since this one is an optional narrow-down filter,
+    // not a required selection.
+    if (groupDsrFilter && groupDsrFilter.getAttribute('data-built') !== dsrNames.join('|')) {
+      groupDsrFilter.innerHTML = '<option value="">All DSR Groups</option>' +
+        dsrNames.map(function (dsrName) { return '<option value="' + mfEscapeHtml_(dsrName) + '">' + mfEscapeHtml_(dsrName) + '</option>'; }).join('');
+      groupDsrFilter.setAttribute('data-built', dsrNames.join('|'));
+    }
+
+    if (!groupNames.length) {
+      headEl.innerHTML = '';
+      bodyEl.innerHTML = '<tr><td style="text-align:center;color:var(--ink-muted);">No Petronas item-group sales synced for ' + currentViewMonthKey_() + ' yet.</td></tr>';
+      if (footEl) footEl.textContent = '';
+      return;
+    }
+
+    if (MFDB_VIEW_MODE_ === 'byDsr') {
+      var selDsrName = (dsrPicker && dsrPicker.value) || dsrNames[0];
+      var ds = idx.byDsr[selDsrName];
+      headEl.innerHTML = '<tr><th>Item Group</th><th>Alt Qty (Ltr)</th><th>% of DSR total</th></tr>';
+      if (!ds) {
+        bodyEl.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--ink-muted);">No Petronas item-group sales matched for this DSR Group this month.</td></tr>';
+      } else {
+        var gNamesDsr = Object.keys(ds.byGroup).sort(function (a, b) { return ds.byGroup[b] - ds.byGroup[a]; });
+        bodyEl.innerHTML = gNamesDsr.map(function (g) {
+          var ltr = ds.byGroup[g];
+          var pct = ds.total > 0 ? Math.round((ltr / ds.total) * 100) : 0;
+          return '<tr><td>' + mfEscapeHtml_(g) + '</td><td class="num">' + fmt(ltr) + '</td><td class="num">' + pct + '%</td></tr>';
+        }).join('') + '<tr class="age-table-total"><td>Total</td><td class="num">' + fmt(ds.total) + '</td><td></td></tr>';
+      }
+      if (footEl) footEl.textContent = 'DSR Group: ' + (selDsrName || '—');
+      return;
+    }
+
+    if (MFDB_VIEW_MODE_ === 'byDealer') {
+      var selNorm = (dealerPicker && dealerPicker.value) || dealerNorms[0];
+      var dd = idx.byDealer[selNorm];
+      headEl.innerHTML = '<tr><th>Item Group</th><th>Alt Qty (Ltr)</th><th>% of dealer total</th></tr>';
+      if (!dd) {
+        bodyEl.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--ink-muted);">No Petronas item-group sales matched for this dealer this month.</td></tr>';
+      } else {
+        var gNames = Object.keys(dd.byGroup).sort(function (a, b) { return dd.byGroup[b] - dd.byGroup[a]; });
+        bodyEl.innerHTML = gNames.map(function (g) {
+          var ltr = dd.byGroup[g];
+          var pct = dd.total > 0 ? Math.round((ltr / dd.total) * 100) : 0;
+          return '<tr><td>' + mfEscapeHtml_(g) + '</td><td class="num">' + fmt(ltr) + '</td><td class="num">' + pct + '%</td></tr>';
+        }).join('') + '<tr class="age-table-total"><td>Total</td><td class="num">' + fmt(dd.total) + '</td><td></td></tr>';
+      }
+      var mfSel = idx.mfByNorm[selNorm];
+      if (footEl) footEl.textContent = mfSel
+        ? ('Dealer: ' + mfSel.dealer + ' · DSR: ' + (mfSel.dsrName || '—') + ' · Beat Day: ' + (mfSel.beatDay || '—'))
+        : (dd ? (dd.label + ' — not found in the Sales & Collection Plan (name mismatch?).') : '');
+      return;
+    }
+
+    // byGroup (default view)
+    var selGroup = (groupPicker && groupPicker.value) || groupNames[0];
+    var g = idx.byGroup[selGroup];
+    headEl.innerHTML = '<tr><th>Dealer</th><th>DSR</th><th>Beat Day</th><th>DT</th><th>' + mfEscapeHtml_(selGroup || '') + ' (Ltr)</th></tr>';
+    if (!g) {
+      bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--ink-muted);">No data for this item group.</td></tr>';
+      if (footEl) footEl.textContent = '';
+      return;
+    }
+    // DSR filter, added 11 Oct 2026 ("by item group - dsr also needed") -
+    // narrows this item group's dealer list down to one DSR Group when
+    // the owner picks one; "" (All DSR Groups) shows every dealer, same
+    // as before this filter existed.
+    var selGroupDsr = (groupDsrFilter && groupDsrFilter.value) || '';
+    var dealerNormsForGroup = Object.keys(g.byDealer)
+      .filter(function (norm) { return !selGroupDsr || g.byDealer[norm].dsrName === selGroupDsr; })
+      .sort(function (a, b) { return g.byDealer[b].ltr - g.byDealer[a].ltr; });
+    if (!dealerNormsForGroup.length) {
+      bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--ink-muted);">No dealers for this item group under ' + mfEscapeHtml_(selGroupDsr) + '.</td></tr>';
+      if (footEl) footEl.textContent = '';
+      return;
+    }
+    var filteredTotal = dealerNormsForGroup.reduce(function (sum, norm) { return sum + g.byDealer[norm].ltr; }, 0);
+    bodyEl.innerHTML = dealerNormsForGroup.map(function (norm) {
+      var rec = g.byDealer[norm];
+      return '<tr>' + mfdbDealerCellsHtml_(rec.label, idx.mfByNorm, norm) + '<td class="num">' + fmt(rec.ltr) + '</td></tr>';
+    }).join('') + '<tr class="age-table-total"><td colspan="4">Grand Total</td><td class="num">' + fmt(filteredTotal) + '</td></tr>';
+    var unmatchedCount = dealerNormsForGroup.filter(function (n) { return !idx.mfByNorm[n]; }).length;
+    if (footEl) footEl.textContent = unmatchedCount
+      ? (unmatchedCount + ' dealer name(s) above didn’t match the Plan — likely a spelling/short-form difference; use the exact Tally ledger name in the Plan to fix.')
+      : '';
+  }
+
   // Static catalog baseline - identical to claude/item-catalog.json /
   // every DSR app's own DEFAULT_ITEMS: {id, name, unit, nosPerUnit,
   // sizeLtr, rate, mrp, stock, group, schemePaid?, schemeFree?, imgUrl?}.
@@ -5527,9 +6036,9 @@
     renderSummary(); renderSummaryMoney(); renderNeedsAttention(); renderDormant();
     renderInactiveVsBilled_(); renderCoverage_(); renderCards(); renderLeaderboard();
     renderTop5(); renderTopSkuByDsr_(); renderTrend(); renderTrendBars();
-    renderCollectionRatio_(); renderLookupCard_();
+    renderCollectionRatio_(); renderLookupCard_(); renderSalesCollectionHeatmap_();
     renderPetronasAreaTable_(); renderPetronasCollectionAreaTable_(); renderStockCatalog_();
-    renderGroupSummaryTable_(); renderDaybookItemGroupSummary_();
+    renderGroupSummaryTable_(); renderDaybookItemGroupSummary_(); renderMfDaybookSummary_();
     // Jan-Aug is a static snapshot (PETRONAS_SUMMARY_DATA_ never changes
     // at runtime) but Sep 2026 onward is live (petronasSummaryLive, synced
     // separately inside fetchLive() - see its own comment there) - this
@@ -8061,10 +8570,17 @@
     fetch(ORDERS_API_URL + "?type=masterFile&month=" + encodeURIComponent(month) + "&_ts=" + Date.now(), { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        if (!data || !data.ok) { bodyEl.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--ink-muted);">Could not load the Master File.</td></tr>'; return; }
+        if (!data || !data.ok) { bodyEl.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--ink-muted);">Could not load the Sales &amp; Collection Plan.</td></tr>'; return; }
         MASTER_FILE_DATA_ = data.dealers || [];
         populateMasterFileFilterOptions_();
         renderMasterFileTable_();
+        // Keeps the Plan+Day Book summary panel's dealer-match table in
+        // sync the moment MASTER_FILE_DATA_ itself (re)loads, rather than
+        // waiting for the next unrelated render() pass - same "re-render
+        // immediately when this fetch's own data lands" convention used
+        // elsewhere on this dashboard (see renderPetronasSummary_()'s own
+        // comment near render()).
+        renderMfDaybookSummary_();
         // Task Manager's "Dealer" dropdown used to re-populate from THIS
         // fetch (MASTER_FILE_DATA_) - removed 9 Oct 2026 (see the Dealer
         // field's markup comment above) and re-added 10 Oct 2026 sourced
@@ -8324,6 +8840,121 @@
     var el = document.getElementById(id);
     if (el) el.addEventListener("change", renderMasterFileTable_);
   });
+
+  // Plan + Day Book summary panel wiring, added 11 Oct 2026 - view-mode
+  // toggle swaps which picker is visible (byGroup shows the Item Group
+  // picker, byDealer shows the Dealer picker, byDsr shows the new DSR
+  // Group picker) and re-renders; either picker changing just re-renders
+  // against the already-built indexes.
+  (function () {
+    var viewModeEl = document.getElementById("mfdbViewMode");
+    var groupPickerWrap = document.getElementById("mfdbGroupPickerWrap");
+    var groupDsrFilterWrap = document.getElementById("mfdbGroupDsrFilterWrap");
+    var dealerPickerWrap = document.getElementById("mfdbDealerPickerWrap");
+    var dsrPickerWrap = document.getElementById("mfdbDsrPickerWrap");
+    var groupPickerEl = document.getElementById("mfdbGroupPicker");
+    var groupDsrFilterEl = document.getElementById("mfdbGroupDsrFilter");
+    var dealerPickerEl = document.getElementById("mfdbDealerPicker");
+    var dsrPickerEl = document.getElementById("mfdbDsrPicker");
+    if (viewModeEl) viewModeEl.addEventListener("change", function () {
+      MFDB_VIEW_MODE_ = viewModeEl.value === "byDealer" ? "byDealer" : (viewModeEl.value === "byDsr" ? "byDsr" : "byGroup");
+      if (groupPickerWrap) groupPickerWrap.hidden = MFDB_VIEW_MODE_ !== "byGroup";
+      // DSR filter travels with the Item Group picker - only meaningful in
+      // byGroup mode (added 11 Oct 2026, "by item group - dsr also needed").
+      if (groupDsrFilterWrap) groupDsrFilterWrap.hidden = MFDB_VIEW_MODE_ !== "byGroup";
+      if (dealerPickerWrap) dealerPickerWrap.hidden = MFDB_VIEW_MODE_ !== "byDealer";
+      if (dsrPickerWrap) dsrPickerWrap.hidden = MFDB_VIEW_MODE_ !== "byDsr";
+      renderMfDaybookSummary_();
+    });
+    if (groupPickerEl) groupPickerEl.addEventListener("change", renderMfDaybookSummary_);
+    if (groupDsrFilterEl) groupDsrFilterEl.addEventListener("change", renderMfDaybookSummary_);
+    if (dealerPickerEl) dealerPickerEl.addEventListener("change", renderMfDaybookSummary_);
+    if (dsrPickerEl) dsrPickerEl.addEventListener("change", renderMfDaybookSummary_);
+  })();
+  // WhatsApp share + Excel download for the Item-wise & Dealer-wise
+  // Summary panel, added 11 Oct 2026 ("need share or download button is
+  // here both also no problem") - share needs preventDefault/
+  // stopPropagation since it sits inside this panel's <summary>, same
+  // reason as shareDaybookItemGroupBtn/shareMasterFileBtn elsewhere.
+  function buildShareTextMfdb_() {
+    return 'Item-wise & Dealer-wise Summary — ' + reportMonthLabelFor_(currentViewMonthKey_()) + ' — ' + dateHeaderLine_();
+  }
+  document.getElementById('shareMfdbBtn').addEventListener('click', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    openShareSheet_('Share Item-wise & Dealer-wise Summary', document.getElementById('captureMfDaybookSummary'),
+      'Item-wise & Dealer-wise Summary — ' + dateHeaderLine_(), buildShareTextMfdb_());
+  });
+  (function () {
+    var btn = document.getElementById('exportMfdbXlsxBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof XLSX === 'undefined') {
+        alert('Excel export isn\'t available right now — the export library didn\'t load. Check your connection and try again.');
+        return;
+      }
+      if (daybookItemGroupRows === null || !MASTER_FILE_DATA_ || !MASTER_FILE_DATA_.length) {
+        alert('Still loading — try again in a moment.');
+        return;
+      }
+      var idx = mfdbBuildIndexes_();
+      var groupNames = Object.keys(idx.byGroup).sort(function (a, b) { return idx.byGroup[b].total - idx.byGroup[a].total; });
+      if (!groupNames.length) {
+        alert('No Petronas item-group sales synced for ' + currentViewMonthKey_() + ' yet.');
+        return;
+      }
+      var monthKey = currentViewMonthKey_();
+      var rows = [['Item Group', 'Dealer', 'DSR', 'Beat Day', 'DT', 'Alt Qty (Ltr)']];
+      var grandTotal = 0;
+      groupNames.forEach(function (mainGroup) {
+        var g = idx.byGroup[mainGroup];
+        grandTotal += g.total;
+        var dealerNormsForGroup = Object.keys(g.byDealer).sort(function (a, b) { return g.byDealer[b].ltr - g.byDealer[a].ltr; });
+        dealerNormsForGroup.forEach(function (norm) {
+          var rec = g.byDealer[norm];
+          var mf = idx.mfByNorm[norm];
+          rows.push([mainGroup, mf ? mf.dealer : (rec.label + ' (Not in Plan)'), mf ? (mf.dsrName || '') : '', mf ? (mf.beatDay || '') : '', mf ? (mf.district || '') : '', rec.ltr]);
+        });
+        rows.push([mainGroup + ' - Grand Total', '', '', '', '', g.total]);
+      });
+      rows.push(['GRAND TOTAL', '', '', '', '', grandTotal]);
+      var ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 26 }, { wch: 30 }, { wch: 20 }, { wch: 12 }, { wch: 16 }, { wch: 14 }];
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'ItemDealer_' + monthKey.replace('-', '_'));
+      XLSX.writeFile(wb, 'AAA_ItemWise_DealerWise_Summary_' + monthKey + '.xlsx');
+    });
+  })();
+
+  // Sales/Collection heatmap wiring, added 11 Oct 2026 - tab click swaps
+  // HEATMAP_TAB_ and re-renders; DSR picker change just re-renders.
+  (function () {
+    var dsrSel = document.getElementById("heatmapDsrFilter");
+    if (dsrSel) dsrSel.addEventListener("change", renderSalesCollectionHeatmap_);
+    document.querySelectorAll(".heatmap-tab").forEach(function (tabEl) {
+      tabEl.addEventListener("click", function () {
+        HEATMAP_TAB_ = tabEl.getAttribute("data-heatmap-tab") === "collection" ? "collection" : "sales";
+        document.querySelectorAll(".heatmap-tab").forEach(function (t) { t.classList.toggle("active", t === tabEl); });
+        renderSalesCollectionHeatmap_();
+      });
+    });
+  })();
+  // WhatsApp share for the heatmap, added 11 Oct 2026 ("make it as
+  // sharable in whatsapp"). Text names whichever tab/DSR is currently
+  // selected so it still makes sense out of context in a WhatsApp chat.
+  function buildShareTextHeatmap_() {
+    var tabLabel = HEATMAP_TAB_ === 'collection' ? 'Collection' : 'Sales';
+    var dsrSel = document.getElementById('heatmapDsrFilter');
+    var dsrLabel = (dsrSel && dsrSel.selectedOptions && dsrSel.selectedOptions[0]) ? dsrSel.selectedOptions[0].textContent : 'Total (all DSRs)';
+    return 'Sales / Collection — by weekday — ' + tabLabel + ' · ' + dsrLabel + ' — ' + dateHeaderLine_();
+  }
+  document.getElementById('shareHeatmapBtn').addEventListener('click', function () {
+    openShareSheet_('Share Sales / Collection — by weekday', document.getElementById('captureHeatmap'),
+      'Sales / Collection — by weekday — ' + dateHeaderLine_(), buildShareTextHeatmap_());
+  });
+
   var mfTableBodyEl = document.getElementById("mfCurrentTableBody");
   if (mfTableBodyEl) {
     mfTableBodyEl.addEventListener("change", function (e) {
@@ -8344,6 +8975,22 @@
       var taskBtn = e.target.closest(".mf-task-btn");
       if (!taskBtn) return;
       openTaskFormForMasterFileRow_(taskBtn.getAttribute("data-dealer"), taskBtn.getAttribute("data-dsr"));
+    });
+  }
+  // WhatsApp share for the Plan panel, added 11 Oct 2026 ("need share
+  // button near the download") - preventDefault/stopPropagation since it
+  // sits inside this panel's <summary>, same reason as
+  // shareDaybookItemGroupBtn elsewhere.
+  function buildShareTextMasterFile_() {
+    return 'DSR / Dealer / Beat — Sales & Collection Plan — ' + dateHeaderLine_();
+  }
+  var shareMfBtnEl = document.getElementById("shareMasterFileBtn");
+  if (shareMfBtnEl) {
+    shareMfBtnEl.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      openShareSheet_('Share DSR / Dealer / Beat — Sales & Collection Plan', document.getElementById('captureMasterFile'),
+        'DSR / Dealer / Beat — Sales & Collection Plan — ' + dateHeaderLine_(), buildShareTextMasterFile_());
     });
   }
   var exportMfBtnEl = document.getElementById("exportMasterFileXlsxBtn");
@@ -9764,6 +10411,16 @@
       trendError = false;
     } else {
       trendError = true;
+    }
+    // Per-DSR trend, added 11 Oct 2026 - see salesTrendByDsrList's own
+    // comment near the var declaration above. Re-renders the heatmap
+    // immediately (same "don't wait for the next unrelated render() pass"
+    // convention as renderPetronasSummary_() just above) since it's not
+    // currently part of render()'s own fixed call list.
+    if (res && res.ok) {
+      salesTrendByDsrList = res.salesTrendByDsr || [];
+      collectionTrendByDsrList = res.collectionTrendByDsr || [];
+      renderSalesCollectionHeatmap_();
     }
   }
 
