@@ -1046,6 +1046,21 @@
   .task-dealer-line b { color:#2b2419; }
   .task-due-line { font-size:11.5px; color:#9a8f7c; margin-top:8px; }
   .task-due-line.overdue { color:#b23b3b; font-weight:600; }
+  /* Shop visit remarks (Visit follow-ups panel + last-visit note under
+     Dealer Name), added 14 Oct 2026 - pilot on Arun's app. */
+  .visit-row { padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .visit-row:last-child { border-bottom: none; }
+  .visit-row-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .visit-row-top .manage-row-name { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+  .visit-remark { font-size: 13.5px; color: var(--text); margin-top: 3px; overflow-wrap: anywhere; }
+  .visit-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+  .visit-tag { display: inline-block; font-size: 10.5px; font-weight: 700; border-radius: 5px; padding: 2px 6px; white-space: nowrap; color: var(--text-muted); background: var(--surface-2); }
+  .visit-tag-due { color: var(--danger); background: var(--danger-soft); }
+  .visit-tag-payment { color: var(--qty); background: var(--qty-soft); }
+  .visit-tag-order { color: var(--accent-strong); background: var(--accent-soft); }
+  .visit-tag-not-checked-out { color: var(--danger); background: var(--danger-soft); }
+  .visit-note-box { margin-top: 6px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+  .visit-note-row + .visit-note-row { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a4a44">
@@ -1169,6 +1184,20 @@
       <div class="manage-body">
         <p class="hint">Cash collected vs. sales billed, this month so far in your own area — live from Tally, nothing to enter here.</p>
         <div class="target-strip" id="collectionHealthStrip"></div>
+      </div>
+    </details>
+  </section>
+
+  <!-- Visit follow-ups, added 14 Oct 2026 (pilot on Arun's app) - open
+       follow-ups from this DSR's own Shop Visit Summary remarks, read from
+       the owner's "DSR Shop Visit Remarks" Google Sheet. See
+       fetchVisitRemarks_() below. -->
+  <section style="padding-bottom:0;">
+    <details class="manage" id="visitFollowupsDetails">
+      <summary>Visit follow-ups <span id="visitFollowupsCount" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">Shops where your last visit (past 14 days) still needs action: payment promised, order pending, price/scheme asked, shop closed or not checked out. From your daily Shop Visit Summary, updated every night.</p>
+        <div id="visitFollowupsList"></div>
       </div>
     </details>
   </section>
@@ -1411,6 +1440,7 @@
             <div class="combo-list" id="dealerDropdown" hidden></div>
           </div>
           <div class="dealer-note" id="dealerNote"></div>
+          <div class="dealer-note" id="dealerVisitNote"></div>
           <div class="dealer-note" id="dealerLastOrderNote"></div>
         </div>
         <div class="field">
@@ -2346,6 +2376,7 @@
       noteEl.innerHTML = match ? outstandingBadgeHtml(match) : "";
     }
     fetchDealerHistoryNote_(match ? match.name : null);
+    if (typeof renderDealerVisitNote_ === "function") renderDealerVisitNote_();
   }
 
   // Faster order-taking, added 18 Sep 2026 (owner picked this from a menu
@@ -3959,6 +3990,470 @@
     selectDealerForOrder_(nameEl.getAttribute("data-dealer-name"));
   });
 
+  // ----- Shop visit remarks, added 14 Oct 2026 (pilot on Arun's app). -----
+  // Reads the owner's "DSR Shop Visit Remarks" Google Sheet ('All Visits'
+  // tab, filled nightly at 9:15 PM from the Daily Shop Visit Summary mail)
+  // through its published-CSV link - no login, read-only. In that sheet
+  // this DSR's visits are logged under VISIT_STAFF_NAME (order-app name). Two uses:
+  //   1. "Visit follow-ups" panel - each shop's LATEST visit in the last
+  //      VISIT_FOLLOWUP_DAYS days whose remark still needs action (payment
+  //      promise, order follow-up, price/scheme ask, shop closed, not
+  //      checked out...). "Due" first: a "tomorrow" remark from an earlier
+  //      day, or a "next week" remark 5+ days old.
+  //   2. Under Dealer Name - the last VISIT_NOTE_LIMIT visit remarks for the
+  //      selected dealer.
+  // Shop names in the visit app and dealer names in Tally don't match
+  // exactly ("BAVANI SRI AUTO STORE" vs "BAVANI SRI AUTO STORES, NILAKOTTAI
+  // (OIL)"), so visitMatchDealer_() matches on the distinctive words of the
+  // name plus the town - see the comments there.
+  var VISIT_REMARKS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTy5COix9ZeMfukuBmiYYo47xgPDK2DNw2cy48TvH5qU0chHL-uBr0X5XX-_1BaVvl0yggXkEVw9DTr/pub?gid=0&single=true&output=csv";
+  // Visit Remarks Apps Script web app (/exec URL) - preferred source; the
+  // published CSV above is only the fallback.
+  var VISIT_REMARKS_API_URL = "https://script.google.com/macros/s/AKfycbyE1RpTKoTikZL-8Zk8VUDM1pk3okLnQ0LpYRQDT66mF-9Ix67Dzxc7Sx7YEwvmZycs/exec";
+  // Staff column holds the order-app DSR name (renamed 14 Oct 2026 at the
+  // owner's request); the visit-app name is kept as an alias so older or
+  // unrenamed rows still count.
+  var VISIT_STAFF_NAME = "Anandh";
+  var VISIT_STAFF_ALIASES_ = ["anandh", "ananthasankar"];
+  var VISIT_FOLLOWUP_DAYS = 14;
+  var VISIT_NOTE_LIMIT = 3;
+  var VISIT_FOLLOWUP_CATS_ = {
+    "Payment follow-up / promise": "Payment",
+    "Order follow-up": "Order",
+    "Price / scheme / promotion support asked": "Price/Scheme",
+    "Supply / availability issue": "Supply",
+    "Billing / GST change": "Billing",
+    "Shop closed / owner or mechanic not available": "Revisit",
+    "Not checked out (system / TM released)": "Not checked out"
+  };
+  var visitRows_ = null;        // this DSR's visits, oldest first; null = not loaded yet
+  var visitLoadError_ = false;
+  var visitDealerCache_ = {};   // shop|location -> matched dealer name ("" = none)
+  var visitShownRows_ = [];     // rows currently listed in Visit follow-ups (index = data-visit-idx)
+
+  var visitFollowupsListEl = document.getElementById("visitFollowupsList");
+  var visitFollowupsCountEl = document.getElementById("visitFollowupsCount");
+
+  function visitParseCsv_(text) {
+    var rows = [], row = [], field = "", inQ = false, i, c;
+    for (i = 0; i < text.length; i++) {
+      c = text.charAt(i);
+      if (inQ) {
+        if (c === '"') {
+          if (text.charAt(i + 1) === '"') { field += '"'; i++; } else { inQ = false; }
+        } else { field += c; }
+      } else if (c === '"') { inQ = true; }
+      else if (c === ",") { row.push(field); field = ""; }
+      else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+      else if (c !== "\r") { field += c; }
+    }
+    if (field !== "" || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  // Sheet dates come back as dd-mm-yyyy (the sheet's display format) or
+  // yyyy-mm-dd - either way returns "yyyy-mm-dd", or "" if unreadable.
+  function visitIsoDate_(s) {
+    s = String(s || "").trim();
+    var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return m[1] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[3]).slice(-2);
+    m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/);
+    if (m) return m[3] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[1]).slice(-2);
+    return "";
+  }
+
+  // Load order (added 14 Oct 2026 after the first build couldn't read the
+  // published CSV on the phone): 1) the Visit Remarks Apps Script web app
+  // via fetch - same kind of script.google.com call this app already makes
+  // for orders, so it works wherever those do; 2) the same URL as JSONP
+  // (<script> tag), in case a plain fetch is blocked; 3) the published CSV.
+  // visitLoadErrorText_ keeps the last failure reason for the empty-state note.
+  var visitLoadErrorText_ = "";
+  function visitRowsFromTable_(rows) {
+    if (!rows || !rows.length) throw new Error("no rows");
+    var head = rows[0].map(function (h) { return String(h).trim().toLowerCase(); });
+    function col(name) { return head.indexOf(name); }
+    var ix = {
+      date: col("date"), staff: col("staff"), shop: col("shop"), remarks: col("remarks"),
+      cat: col("remark category"), spent: col("time spent"), loc: col("location"),
+      orders: col("orders (ltrs)"), coll: col("collection (rs)")
+    };
+    if (ix.date < 0 || ix.staff < 0 || ix.shop < 0) throw new Error("unexpected columns");
+    var list = [];
+    for (var i = 1; i < rows.length; i++) {
+      var r = rows[i];
+      if (VISIT_STAFF_ALIASES_.indexOf(String(r[ix.staff] || "").trim().toLowerCase()) < 0) continue;
+      var iso = visitIsoDate_(r[ix.date]);
+      if (!iso || !String(r[ix.shop] || "").trim()) continue;
+      list.push({
+        order: i, date: iso,
+        shop: String(r[ix.shop]).trim(),
+        remarks: ix.remarks >= 0 ? String(r[ix.remarks] || "").trim() : "",
+        cat: ix.cat >= 0 ? String(r[ix.cat] || "").trim() : "",
+        spent: ix.spent >= 0 ? String(r[ix.spent] || "").trim() : "",
+        loc: ix.loc >= 0 ? String(r[ix.loc] || "").trim() : "",
+        orders: ix.orders >= 0 ? String(r[ix.orders] || "").trim() : "",
+        coll: ix.coll >= 0 ? String(r[ix.coll] || "").trim() : ""
+      });
+    }
+    // Oldest first; same-day rows keep the sheet's own (visit-time) order.
+    list.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.order - b.order; });
+    return list;
+  }
+  function visitApiUrl_() {
+    return VISIT_REMARKS_API_URL + "?staff=" + encodeURIComponent(VISIT_STAFF_NAME) + "&days=90&_ts=" + Date.now();
+  }
+  function visitLoadViaApiFetch_() {
+    return fetch(visitApiUrl_(), { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error("API HTTP " + r.status); return r.json(); })
+      .then(function (res) { if (!res || !res.ok) throw new Error("API: " + ((res && res.error) || "bad reply")); return res.rows; });
+  }
+  function visitLoadViaApiJsonp_() {
+    return new Promise(function (resolve, reject) {
+      var cbName = "__visitRemarksCb" + Date.now();
+      var s = document.createElement("script");
+      var timer = setTimeout(function () { cleanup(); reject(new Error("API JSONP timeout")); }, 20000);
+      function cleanup() { clearTimeout(timer); try { delete window[cbName]; } catch (e) { window[cbName] = undefined; } if (s.parentNode) s.parentNode.removeChild(s); }
+      window[cbName] = function (res) {
+        cleanup();
+        if (!res || !res.ok) { reject(new Error("API: " + ((res && res.error) || "bad reply"))); return; }
+        resolve(res.rows);
+      };
+      s.onerror = function () { cleanup(); reject(new Error("API JSONP load failed")); };
+      s.src = visitApiUrl_() + "&callback=" + cbName;
+      document.head.appendChild(s);
+    });
+  }
+  function visitLoadViaCsv_() {
+    return fetch(VISIT_REMARKS_CSV_URL + "&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error("CSV HTTP " + r.status); return r.text(); })
+      .then(function (text) { return visitParseCsv_(text); });
+  }
+  function fetchVisitRemarks_() {
+    if (!visitFollowupsListEl) return;
+    var attempts = [];
+    if (VISIT_REMARKS_API_URL) { attempts.push(visitLoadViaApiFetch_); attempts.push(visitLoadViaApiJsonp_); }
+    if (VISIT_REMARKS_CSV_URL) attempts.push(visitLoadViaCsv_);
+    var errors = [];
+    (function next(i) {
+      if (i >= attempts.length) {
+        visitLoadError_ = true;
+        visitLoadErrorText_ = errors.join("; ");
+        renderVisitFollowups_();
+        return;
+      }
+      var p;
+      try { p = attempts[i](); } catch (e) { p = Promise.reject(e); }
+      p.then(function (rows) {
+        visitRows_ = visitRowsFromTable_(rows);
+        visitLoadError_ = false;
+        visitLoadErrorText_ = "";
+        visitDealerCache_ = {};
+        renderVisitFollowups_();
+        renderDealerVisitNote_();
+      }).catch(function (err) {
+        errors.push(String((err && err.message) || err));
+        next(i + 1);
+      });
+    })(0);
+  }
+
+  // --- Name/town matching between visit-app shop names and Tally dealers ---
+  var VISIT_GENERIC_WORDS_ = {};
+  ("AUTO AUTOS SPARE SPARES PART PARTS STORE AGENCY AGENCIE TRADER MOTOR AUTOMOBILE MOBILE " +
+   "WORK WORKSHOP SHOP OIL SRI SHRI SREE THE AND CARE GARAGE CARAGE TWO WHEELER CENTRE CENTER SERVICE NEW BIKE POINT CAR")
+    .split(" ").forEach(function (w) { VISIT_GENERIC_WORDS_[w] = true; });
+  // Town spellings/abbreviations seen in Tally dealer names vs the visit
+  // app's Location field, folded to one key each (all DSR areas).
+  var VISIT_TOWN_ALIASES_ = {};
+  [
+    // Dindigul (Arun)
+    "DINDIGUL DGL", "ODC ODANCHATRAM ODDANCHATRAM ODDANCHATHRAM ODANCHATHRAM", "NKT NILAKOTTAI NILAKKOTTAI",
+    "VDS VEDASANDUR VEDACHADUR VEDASNDUR VEDASENDUR VEDACHANDUR", "BGU BATHALAGUNDU BATLAGUNDU BATHLAGUNDU BATALAGUNDU",
+    "PALANI PLN", "GOPALPATTI GOPALPATTY", "DPM DHARAPURAM", "CHINNALAPATTI GANDHIGRAM CINNALAPATTY CHINNALAPATTY",
+    "UDUMALPET UDUMALAIPETTAI UDT", "VADAMADURAI VDM",
+    // Theni (Prabha)
+    "THENI TNI", "CUMBUM CUMBAM CBM KAMBAM", "APT AUNDIPATTI AUNDIPATTY ANDIPATTI ANDIPATTY", "PKM PERIYAKULAM PERIY",
+    "CNMR CHINNAMANUR CHINNAMANNUR CNMNR CMR", "BODI BODINAYAKANUR BODINAYAKKANUR", "UPLM UPLYM UTHAMAPALAYAM UTHAMAPALAYAM",
+    // Tirunelveli / Tenkasi (Anandh)
+    "TVL TIRUNELVELI THIRUNELVELI", "SKL SANKARANKOVIL SANKARANKOIL SANKARANKOVIL", "TENKASI THENKASI TSI",
+    "SKT SHENCOTTAI SHENKOTTAI SHENGKOTTAI SENGOTTAI", "AMBAI AMBASAMUDRAM", "PAVOORCHATHRAM PAVOORCHADRAM PAVOORCHATRAM",
+    "KNLR KADAYANALLUR", "AGLM ALANGULAM", "PKT PLY PALAYAMKOTTAI PALAYAMKOTTAIOIL", "VANNIKONENDAL VANNIKONATHAL",
+    "UDAIYARPATTI UDAYARPATTI", "REDDIARPATTI REDDIYARPATTI", "VKPURAM VIKRAMASINGAPURAM",
+    // Virudhunagar (Nagaraj)
+    "SVK SIVAKASI SVKS", "RJPM RAJAPALAYAM", "VNR VIRUDHUNAGAR", "APK ARUPPUKOTTAI", "KVP KVPT KOVILPATTI",
+    "SVPR SVPTR SRIVI SRIVILLIPUTTUR SRIVILLIPUTHUR SRIVILLIPUTHUROIL", "DVPM DHALAVAIPURAM",
+    "KKOIL KKOVIL KRISHNANKOVIL", "WATRAP WATRAB", "NAHALAPURAM NAHALAPAURAM", "THIRUTHANGAL THRUTHANGAL",
+    "SUNDARANACHIYARPURAM SUNDHARNACHIYARPURAM",
+    // Nagercoil (Madhu)
+    "NKL NGL NAGERCOIL NAGERCOVIL", "VLR VALLIYUR VALLIOOR VALLIYOOR VALIYUR", "MDM MARTHANDAM",
+    "KKRI KKMRI KANYAKUMARI KANNIYAKUMARI KANAYAKUMARI KANYAKUMARIOIL", "EATHAMOZHI EATHAMOZHY",
+    "MULAGUMODU MULUGUMOODU", "ATTOOR ATOOR", "KAVALKINARU KAVALKINARAU", "SUCHINDRUM SUDHINDRAM SUCHINDRAM",
+    // Madurai (Chellamani)
+    "MDU MADURAI", "USILAI USILAMPATTI USPT", "TMLM TIRUMANGALAM THIRUMANGALAM", "MLR MELUR", "KKDI KKD KARAIKUDI",
+    "SVG SIVAGANGAI SIVGANGAI", "MNM MANAMADURAI", "PYR PERAIYUR", "TPVNM TIRUPPUVANAM", "CHEKKANURANI CHECKANURANI"
+  ].forEach(function (grp) {
+    var w = grp.split(" ");
+    w.forEach(function (x) { VISIT_TOWN_ALIASES_[x] = w[0]; });
+  });
+  function visitTownKey_(s) {
+    var k = String(s || "").toUpperCase().replace(/[^A-Z]/g, "");
+    return VISIT_TOWN_ALIASES_[k] || k;
+  }
+  // Every town key a free-text Location could mean: the whole value plus
+  // each word/part ("OZHUGINASERY NAGERCOIL" -> also NKL).
+  function visitTownKeys_(loc) {
+    var keys = {}, raw = String(loc || "").toUpperCase();
+    var whole = visitTownKey_(raw);
+    if (whole) keys[whole] = true;
+    raw.split(/[\s,\/.\-]+/).forEach(function (p) { var k = visitTownKey_(p); if (k.length >= 3) keys[k] = true; });
+    return keys;
+  }
+  function visitTownMatch_(locKeys, dealerTown) {
+    if (!dealerTown) return false;
+    if (locKeys[dealerTown]) return true;
+    // "PERIY" vs "PERIYAKULAM", "SRIVI" vs ... - a 4+ letter prefix of one another
+    return Object.keys(locKeys).some(function (k) {
+      return k.length >= 4 && dealerTown.length >= 4 && (k.indexOf(dealerTown) === 0 || dealerTown.indexOf(k) === 0);
+    });
+  }
+  function visitNameTokens_(s) {
+    var x = String(s || "").toUpperCase().split(",")[0].replace(/\(.*?\)/g, " ");
+    x = x.replace(/&/g, " AND ").replace(/[^A-Z0-9 ]/g, " ");
+    var out = x.split(/\s+/).filter(Boolean).map(function (w) {
+      return (w.length > 3 && /S$/.test(w) && !/SS$/.test(w)) ? w.slice(0, -1) : w;   // STORES -> STORE
+    });
+    // Join runs of single letters: "A M S" / "A.M.S." -> "AMS", "K K" -> "KK"
+    var joined = [], run = "";
+    out.forEach(function (w) {
+      if (w.length === 1 && /[A-Z]/.test(w)) { run += w; return; }
+      if (run) { joined.push(run); run = ""; }
+      joined.push(w);
+    });
+    if (run) joined.push(run);
+    return joined.join(" ").replace(/\bAUTO MOBILE\b/g, "AUTOMOBILE").split(" ").filter(Boolean);
+  }
+  function visitKeyTokens_(s) {
+    var t = visitNameTokens_(s);
+    var k = t.filter(function (w) { return !VISIT_GENERIC_WORDS_[w]; });
+    return k.length ? k : t;
+  }
+  function visitDealerTown_(dealerName) {
+    var parts = String(dealerName || "").split(/[,.]/);
+    var tail = parts.length > 1 ? parts[parts.length - 1] : "";
+    return visitTownKey_(tail.replace(/\(.*?\)/g, "").replace(/OIL\s*$/i, ""));
+  }
+  function visitSameSet_(a, b) {
+    if (a.length !== b.length) return false;
+    var s = {}; a.forEach(function (w) { s[w] = true; });
+    return b.every(function (w) { return s[w]; });
+  }
+  function visitContains_(small, big) {
+    var s = {}; big.forEach(function (w) { s[w] = true; });
+    return small.length > 0 && small.every(function (w) { return s[w]; });
+  }
+  // Generic words that say what KIND of shop it is (AUTO, SPARES, MOTORS,
+  // WORKS...) - used to stop "VINAYAGA MOTORS" matching "SRI VINAYAGA AUTO
+  // STORE" on the single shared word VINAYAGA.
+  var VISIT_WEAK_WORDS_ = { SRI: 1, SHRI: 1, SREE: 1, THE: 1, AND: 1, NEW: 1 };
+  var VISIT_KIND_SAME_ = { AUTOMOBILE: "AUTO", MOBILE: "AUTO", AUTOS: "AUTO", WORKSHOP: "WORK" };
+  function visitKindOverlap_(allA, allB) {
+    var s = {};
+    function kind(w) { return VISIT_KIND_SAME_[w] || w; }
+    allB.forEach(function (w) { if (VISIT_GENERIC_WORDS_[w] && !VISIT_WEAK_WORDS_[w]) s[kind(w)] = true; });
+    return allA.some(function (w) { return VISIT_GENERIC_WORDS_[w] && !VISIT_WEAK_WORDS_[w] && s[kind(w)]; });
+  }
+  var visitKnownTowns_ = null;   // every town key this app knows: alias table + its own dealers' towns
+  function visitIsKnownTown_(k) {
+    if (!visitKnownTowns_) {
+      visitKnownTowns_ = {};
+      Object.keys(VISIT_TOWN_ALIASES_).forEach(function (a) { visitKnownTowns_[VISIT_TOWN_ALIASES_[a]] = true; });
+      dealers.forEach(function (d) { var t = visitDealerTown_(d.name); if (t.length >= 3) visitKnownTowns_[t] = true; });
+    }
+    return !!visitKnownTowns_[k];
+  }
+  // Rules (checked against every DSR's visits vs their own dealer list):
+  //  1. every word the same (ignoring punctuation/plurals) -> match, any town
+  //  2. same town AND at least half of the distinctive words (not AUTO/
+  //     SPARES/STORE/SRI...) overlap
+  //  3. town unknown on one side (Madurai visits log the neighbourhood, e.g.
+  //     "ANNA NAGAR", not "MDU"): all distinctive words of one name appear in
+  //     the other, and only ONE dealer in this app fits that way
+  // For 2 and 3, if only one distinctive word is shared, the shop-kind
+  // words must also overlap (AUTO, SPARES, MOTORS...). Best score wins;
+  // anything weaker is left unmatched rather than risk showing another
+  // dealer's remarks.
+  function visitMatchDealer_(shop, loc) {
+    var cacheKey = shop + "|" + loc;
+    if (Object.prototype.hasOwnProperty.call(visitDealerCache_, cacheKey)) return visitDealerCache_[cacheKey];
+    var allS = visitNameTokens_(shop), keyS = visitKeyTokens_(shop), locKeys = visitTownKeys_(loc);
+    var keySLen = keyS.join("").length;
+    var locKnown = Object.keys(locKeys).some(visitIsKnownTown_);
+    var best = "", bestScore = 0, containHits = [];
+    dealers.forEach(function (d) {
+      var allD = visitNameTokens_(d.name);
+      var keyD = visitKeyTokens_(d.name);
+      var townD = visitDealerTown_(d.name);
+      var score = 0;
+      if (allS.length && visitSameSet_(allS, allD)) {
+        score = 3;
+      } else {
+        var setD = {}, inter = 0, union = {};
+        keyD.forEach(function (w) { setD[w] = true; union[w] = true; });
+        keyS.forEach(function (w) { if (setD[w]) inter++; union[w] = true; });
+        var kindOk = inter >= 2 || visitKindOverlap_(allS, allD);
+        if (inter && kindOk) {
+          var j = inter / Object.keys(union).length;
+          if (visitTownMatch_(locKeys, townD)) {
+            if (j >= 0.5) score = 1 + j;
+          } else if (!(locKnown && visitIsKnownTown_(townD)) && keySLen >= 5 && keyD.join("").length >= 5 &&
+                     (visitContains_(keyS, keyD) || visitContains_(keyD, keyS))) {
+            containHits.push(d.name);
+          }
+        }
+      }
+      if (score > bestScore) { bestScore = score; best = d.name; }
+    });
+    if (!best && containHits.length === 1) best = containHits[0];
+    visitDealerCache_[cacheKey] = best;
+    return best;
+  }
+
+  function visitDueLabel_(v) {
+    var age = daysBetweenISO(v.date, todayISO());
+    var t = v.remarks.toLowerCase();
+    if (age >= 1 && /\b(tomorrow|tmrw|tmr|tomarrow|tommorow)\b/.test(t)) return "Due";
+    if (age >= 5 && /next\s*week/.test(t)) return "Due";
+    if (age >= 1 && /\b(today|evening)\b/.test(t) && v.cat === "Payment follow-up / promise") return "Due";
+    return "";
+  }
+
+  function visitMetaText_(v) {
+    var bits = [];
+    try { bits.push(formatDateDisplay(v.date)); } catch (e) { bits.push(v.date); }
+    if (v.loc) bits.push(v.loc);
+    if (v.spent) bits.push(v.spent.toUpperCase() + " (Timespent - last visit)");
+    var o = Number(v.orders), c = Number(v.coll);
+    if (v.orders !== "" && !isNaN(o) && o > 0) bits.push(formatNum(o) + " L");
+    if (v.coll !== "" && !isNaN(c) && c > 1) bits.push("₹" + formatNum(c));
+    return bits.join(" · ");
+  }
+
+  function renderVisitFollowups_() {
+    if (!visitFollowupsListEl) return;
+    if (visitRows_ === null) {
+      visitFollowupsListEl.innerHTML = visitLoadError_
+        ? '<p class="empty-note" style="padding:10px 0;">Could not load visit remarks right now. Tap refresh to try again.' +
+            (visitLoadErrorText_ ? '<br><span style="font-size:11px;opacity:0.7;">' + escapeHtml(visitLoadErrorText_) + '</span>' : '') + '</p>'
+        : '<p class="empty-note" style="padding:10px 0;">Loading…</p>';
+      visitFollowupsCountEl.textContent = "";
+      return;
+    }
+    // Latest visit per shop (rows are oldest-first, so later ones overwrite).
+    var latest = {};
+    visitRows_.forEach(function (v) { latest[v.shop.toUpperCase() + "|" + visitTownKey_(v.loc)] = v; });
+    var today = todayISO();
+    var list = Object.keys(latest).map(function (k) { return latest[k]; }).filter(function (v) {
+      var age = daysBetweenISO(v.date, today);
+      return age >= 0 && age <= VISIT_FOLLOWUP_DAYS && VISIT_FOLLOWUP_CATS_[v.cat];
+    });
+    list.forEach(function (v) { v._due = visitDueLabel_(v); });
+    list.sort(function (a, b) {
+      if (!!a._due !== !!b._due) return a._due ? -1 : 1;
+      return a.date < b.date ? 1 : a.date > b.date ? -1 : b.order - a.order;   // newest first
+    });
+    var dueCount = list.filter(function (v) { return v._due; }).length;
+    visitFollowupsCountEl.textContent = list.length ? "(" + list.length + (dueCount ? " · " + dueCount + " due" : "") + ")" : "";
+    if (!list.length) {
+      visitFollowupsListEl.innerHTML = '<p class="empty-note" style="padding:10px 0;">No open follow-ups from the last ' + VISIT_FOLLOWUP_DAYS + ' days.</p>';
+      return;
+    }
+    visitShownRows_ = [];
+    visitFollowupsListEl.innerHTML = list.map(function (v) {
+      var nameHtml = '<span class="manage-row-name clickable" data-visit-idx="' + visitShownRows_.length + '">' + escapeHtml(v.shop) + '</span>';
+      visitShownRows_.push(v);
+      var tag = VISIT_FOLLOWUP_CATS_[v.cat] || "";
+      return '<div class="visit-row">' +
+        '<div class="visit-row-top">' + nameHtml +
+          (v._due ? '<span class="visit-tag visit-tag-due">Due</span>' : '') +
+          '<span class="visit-tag visit-tag-' + tag.toLowerCase().replace(/[^a-z]+/g, "-") + '">' + escapeHtml(tag) + '</span>' +
+        '</div>' +
+        '<div class="visit-remark">' + escapeHtml(v.remarks || "(no remark)") + '</div>' +
+        '<div class="visit-meta">' + escapeHtml(visitMetaText_(v)) + '</div>' +
+      '</div>';
+    }).join("");
+  }
+  if (visitFollowupsListEl) {
+    visitFollowupsListEl.addEventListener("click", function (e) {
+      var nameEl = e.target.closest(".manage-row-name.clickable[data-visit-idx]");
+      if (!nameEl) return;
+      var v = visitShownRows_[Number(nameEl.getAttribute("data-visit-idx"))];
+      if (v) openTaskFromVisit_(v);
+    });
+  }
+
+  // Tap a shop in Visit follow-ups -> straight into My Tasks' "+ New" form,
+  // pre-filled from that visit (14 Oct 2026, owner's request: "if the dealer
+  // clicked it should bypass to task create"). Nothing is saved until the
+  // DSR taps "Create task" - they can still edit any field first.
+  var VISIT_TASK_TYPE_ = { "Payment": "Payment", "Order": "Sales", "Price/Scheme": "Sales", "Supply": "Stock" };
+  function openTaskFromVisit_(v) {
+    var form = document.getElementById("myTaskCreateForm");
+    var det = document.getElementById("myTasksDetails");
+    if (!form || !det) return;
+    var tag = VISIT_FOLLOWUP_CATS_[v.cat] || "Visit";
+    var dealerName = visitMatchDealer_(v.shop, v.loc);
+    // Fill the Dealer picker the same way the "+ New" button does
+    // (populateMtDealerOptions_ lives in the login block's own scope, so
+    // it isn't reachable from here).
+    var dealerSel = document.getElementById("mtDealer");
+    if (dealerSel) {
+      var names = dealers.map(function (d) { return d.name; }).slice().sort();
+      dealerSel.innerHTML = '<option value="">Not set</option>' + names.map(function (n) {
+        return '<option>' + escapeHtml(n) + '</option>';
+      }).join("");
+    }
+    var dateLabel = v.date;
+    try { dateLabel = formatDateDisplay(v.date); } catch (e) { /* keep iso */ }
+    function setVal(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
+    setVal("mtName", tag + " follow-up - " + v.shop);
+    setVal("mtType", VISIT_TASK_TYPE_[tag] || "General");
+    setVal("mtDueDate", todayISO());
+    setVal("mtAssignedTo", "");
+    setVal("mtDealer", dealerName || "");
+    setVal("mtRemarks", "Last visit " + dateLabel + (v.loc ? " (" + v.loc + ")" : "") + ": " + (v.remarks || "(no remark)"));
+    var visitDet = document.getElementById("visitFollowupsDetails");
+    if (visitDet) visitDet.open = false;
+    det.open = true;
+    form.hidden = false;
+    if (typeof form.scrollIntoView === "function") form.scrollIntoView({ behavior: "smooth", block: "center" });
+    showToast("Task form filled - check and tap Create task", 2400);
+  }
+
+  function renderDealerVisitNote_() {
+    var noteEl = document.getElementById("dealerVisitNote");
+    if (!noteEl) return;
+    var name = (dealerInput.value || "").trim();
+    var match = dealers.filter(function (d) { return d.name.trim().toLowerCase() === name.toLowerCase(); })[0];
+    if (!match || !visitRows_) { noteEl.innerHTML = ""; return; }
+    var hits = visitRows_.filter(function (v) { return visitMatchDealer_(v.shop, v.loc) === match.name; });
+    if (!hits.length) {
+      noteEl.innerHTML = '<p class="hint" style="margin:6px 0 0;">No shop visits logged for this dealer yet.</p>';
+      return;
+    }
+    var shown = hits.slice(-VISIT_NOTE_LIMIT).reverse();
+    noteEl.innerHTML = '<div class="visit-note-box"><p class="hint" style="margin:0 0 4px;">Last visit remarks:</p>' +
+      shown.map(function (v) {
+        var tag = VISIT_FOLLOWUP_CATS_[v.cat];
+        return '<div class="visit-note-row">' +
+          '<div class="visit-remark">' + escapeHtml(v.remarks || "(no remark)") +
+            (tag ? ' <span class="visit-tag visit-tag-' + tag.toLowerCase().replace(/[^a-z]+/g, "-") + '">' + escapeHtml(tag) + '</span>' : '') +
+          '</div>' +
+          '<div class="visit-meta">' + escapeHtml(visitMetaText_(v)) + '</div></div>';
+      }).join("") + '</div>';
+  }
+  renderVisitFollowups_();
+
   // Dealer review list rendering, added 23 Sep 2026 - see the computation
   // in applyLiveOverlay_() above. DEALER_REVIEW_WARN_PCT matches the
   // threshold proven on this same panel before, now also used by the
@@ -5275,6 +5770,7 @@
       fetchLiveOverlay_();
       checkLastMonthReport_();
       setInterval(fetchLiveOverlay_, LIVE_OVERLAY_POLL_MS);
+      fetchVisitRemarks_(); // Visit follow-ups - added 14 Oct 2026; sheet updates nightly, so once per app open is enough
       // My Tasks - ported from AAA Direct's app 6 Oct 2026, so a reminder
       // can fire even if this DSR never opens the My Tasks panel
       // themselves. 60s cadence matches this app's other "while the page

@@ -882,6 +882,23 @@
      globally (safe for every other already-correct hidden element on this
      page, none of which relied on being shown despite [hidden]). */
   [hidden] { display: none !important; }
+
+  /* DSR Visit Remarks card, added 14 Oct 2026 - see the comment above the
+     card's markup. */
+  .vr-filters input[type="search"] { font-size: 12.5px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); min-width: 0; flex: 1 1 180px; }
+  #vrList { padding: 4px 18px 8px; }
+  .vr-row { padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .vr-row:last-child { border-bottom: none; }
+  .vr-row-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .vr-shop { flex: 1 1 auto; min-width: 0; font-weight: 700; font-size: 13.5px; overflow-wrap: anywhere; }
+  .vr-remark { font-size: 13px; margin-top: 3px; overflow-wrap: anywhere; }
+  .vr-meta { font-size: 11.5px; color: var(--ink-muted); margin-top: 2px; }
+  .vr-tag { display: inline-block; font-size: 10.5px; font-weight: 700; border-radius: 5px; padding: 2px 6px; white-space: nowrap; color: var(--ink-muted); background: var(--accent-soft); }
+  .vr-tag-dsr { color: var(--accent); background: var(--accent-soft); }
+  .vr-tag-due, .vr-tag-not-checked-out { color: #b4432f; background: rgba(180,67,47,0.12); }
+  .vr-tag-payment { color: #a0531f; background: rgba(180,113,31,0.14); }
+  .vr-tag-order { color: var(--accent); background: var(--accent-soft); }
+  .vr-empty { padding: 10px 0; color: var(--ink-muted); font-size: 12.5px; margin: 0; }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a4a44">
@@ -2089,19 +2106,23 @@
   <!-- Wrapped in one capture* div, added 30 Sep 2026, for the same reason
        as captureTrend/captureThisMonthSection/captureDayBookSection above -
        lets "Run Full Archive" screenshot the Stocks heading together with
-       the catalog table in one shot, matching what monthly_archive.py
-       already does server-side with two unioned selectors
-       ("#stockSectionLabel", "#stocksMasterDetails"). -->
+       the catalog table in one shot. The external "#stockSectionLabel"
+       heading above the box is GONE as of 12 Oct 2026 (see the card-name
+       comment just below) - monthly_archive.py's own COMPANY_SECTIONS
+       selector list was updated to match (now just "#stocksMasterDetails"
+       alone, since the name is back inside that element). -->
   <div id="captureStocksSection">
-  <p class="section-label" id="stockSectionLabel">Current Stock, MRP &amp; Nett Price</p>
   <details class="dsr-row" id="stocksMasterDetails">
     <summary class="dsr-row-summary">
       <span class="dsr-row-toggle" aria-hidden="true"></span>
-      <!-- card-name dropped 11 Oct 2026 ("remove the additional name in
-           background for all") - it exactly duplicated the section-label
-           ("Current Stock, MRP & Nett Price") right above this row; the
-           status text below is now the row's only visible line. -->
-      <span class="dsr-row-headtext">
+      <!-- card-name RESTORED 12 Oct 2026 - 11 Oct 2026 had dropped it as a
+           duplicate of the external "Current Stock, MRP & Nett Price"
+           section-label above this row; the owner's follow-up asked for
+           the name to live INSIDE the box next to the "+" toggle instead
+           (same layout "Sales by Item Group (Alt Qty)" already uses), so
+           the external label above is removed instead and the name moved
+           back in here. -->
+      <span class="dsr-row-headtext"><span class="card-name">Current Stock, MRP &amp; Nett Price</span>
         <span class="card-territory" id="stocksMasterTotal">Loading…</span></span>
       <span class="dsr-row-headright">
         <button type="button" class="share-icon-btn small" id="exportStockXlsxBtn" title="Export as Excel" style="margin-left:6px;">
@@ -2179,13 +2200,14 @@
      than any of those three, not less. Export as Excel reuses the same
      client-side SheetJS pattern as exportStockXlsxBtn just above. -->
 <div id="capturePetronasSummary">
-  <p class="section-label" id="petronasSummaryLabel">Petronas Business Summary</p>
   <details class="dsr-row" id="petronasSummaryDetails">
     <summary class="dsr-row-summary">
       <span class="dsr-row-toggle" aria-hidden="true"></span>
-      <!-- card-name dropped 11 Oct 2026, same dedup as Stocks above -
-           exact duplicate of the "Petronas Business Summary" section-label. -->
-      <span class="dsr-row-headtext">
+      <!-- card-name RESTORED 12 Oct 2026 - see Stocks' own comment above
+           for the full story (external section-label removed, name moved
+           back inside next to the "+" toggle, matching "Sales by Item
+           Group (Alt Qty)"'s layout). -->
+      <span class="dsr-row-headtext"><span class="card-name">Petronas Business Summary</span>
         <span class="card-territory">Jan 2026 – present · company-wide · Sep 2026 onward live</span></span>
       <span class="dsr-row-headright">
         <button type="button" class="share-icon-btn small" id="exportPetronasSummaryXlsxBtn" title="Export as Excel" style="margin-left:6px;">
@@ -2203,18 +2225,18 @@
   <!-- Renamed 11 Oct 2026 at the owner's request ("Master File rename -
        rename as DSR/DEALER/BEAT SALES & COLLECTION PLAN") - display text
        only, same as the 10 Oct 2026 DSR-app panel renames: every internal
-       id/function name (masterFileLabel, masterFileDetails, fetchMasterFile_,
-       MASTER_FILE_DATA_, mfCurrentTable, etc.) is left exactly as-is so
-       nothing downstream breaks - only the two user-visible labels and the
+       id/function name (masterFileLabel id removed 12 Oct 2026 - see
+       below - but masterFileDetails, fetchMasterFile_, MASTER_FILE_DATA_,
+       mfCurrentTable, etc. are all left exactly as-is) so nothing
+       downstream breaks - only the two user-visible labels and the
        "could not load" error text below change. -->
-  <p class="section-label" id="masterFileLabel">DSR / Dealer / Beat — Sales &amp; Collection Plan</p>
   <details class="dsr-row" id="masterFileDetails">
     <summary class="dsr-row-summary">
       <span class="dsr-row-toggle" aria-hidden="true"></span>
-      <!-- card-name dropped 11 Oct 2026, same dedup as Stocks above -
-           exact duplicate of the "DSR / Dealer / Beat — Sales &
-           Collection Plan" section-label. -->
-      <span class="dsr-row-headtext">
+      <!-- card-name RESTORED 12 Oct 2026 - see Stocks' own comment above
+           for the full story (external #masterFileLabel section-label
+           removed, name moved back inside next to the "+" toggle). -->
+      <span class="dsr-row-headtext"><span class="card-name">DSR / Dealer / Beat — Sales &amp; Collection Plan</span>
         <span class="card-territory" id="masterFileTerritory">This month · fill/edit each dealer's target below</span></span>
       <span class="dsr-row-headright">
         <!-- WhatsApp share, added 11 Oct 2026 ("need share button near the
@@ -2280,19 +2302,21 @@
      renderMfDaybookSummary_()/mfdbBuildIndexes_() below for the dealer-
      name matching ("MATCH DEALER NAME") logic. -->
 <div id="captureMfDaybookSummary">
-  <p class="section-label" id="mfdbSummaryLabel">Item-wise &amp; Dealer-wise Summary (Plan + Day Book)</p>
   <details class="dsr-row" id="mfdbSummaryDetails">
     <summary class="dsr-row-summary">
       <span class="dsr-row-toggle" aria-hidden="true"></span>
-      <!-- card-name dropped 11 Oct 2026, same dedup as Stocks above - was
-           an exact duplicate of the "Item-wise & Dealer-wise Summary"
-           section-label. Subtitle given an id 11 Oct 2026 too (it used to
-           be static markup) so renderMfDaybookSummary_() can fill in the
-           real, dynamic month name on every render - the owner's own
-           "is this this month data or give a clarity on the heading"
-           question, answered by just naming the month instead of the
-           ambiguous word "This month". -->
-      <span class="dsr-row-headtext">
+      <!-- card-name RESTORED 12 Oct 2026 - see Stocks' own comment far
+           above for the full story (external #mfdbSummaryLabel
+           section-label removed, name moved back inside next to the "+"
+           toggle, matching "Sales by Item Group (Alt Qty)"'s layout).
+           Carries the FULL name including "(Plan + Day Book)" now that
+           it's the only heading left (the dropped section-label used to
+           say that part, the dropped card-name didn't). Subtitle keeps
+           its id from 11 Oct 2026 so renderMfDaybookSummary_() can still
+           fill in the real, dynamic month name on every render - the
+           owner's own "is this this month data" question, answered by
+           naming the month instead of the ambiguous "This month". -->
+      <span class="dsr-row-headtext"><span class="card-name">Item-wise &amp; Dealer-wise Summary (Plan + Day Book)</span>
         <span class="card-territory" id="mfdbSummaryTerritory">This month · Day Book sales matched against the Sales &amp; Collection Plan dealer list</span></span>
       <span class="dsr-row-headright">
         <!-- Share + download, added 11 Oct 2026 ("need share or download
@@ -2339,13 +2363,14 @@
 </div>
 
 <div id="captureTaskManager">
-  <p class="section-label" id="taskManagerLabel">Task Manager</p>
   <details class="dsr-row" id="taskManagerDetails">
     <summary class="dsr-row-summary">
       <span class="dsr-row-toggle" aria-hidden="true"></span>
-      <!-- card-name dropped 11 Oct 2026, same dedup as Stocks above -
-           exact duplicate of the "Task Manager" section-label. -->
-      <span class="dsr-row-headtext">
+      <!-- card-name RESTORED 12 Oct 2026 - see Stocks' own comment far
+           above for the full story (external #taskManagerLabel
+           section-label removed, name moved back inside next to the "+"
+           toggle, matching "Sales by Item Group (Alt Qty)"'s layout). -->
+      <span class="dsr-row-headtext"><span class="card-name">Task Manager</span>
         <span class="card-territory" id="taskManagerTerritory">Visible here, in the Area Manager login and in each DSR's own app</span></span>
       <span class="dsr-row-headright">
         <!-- Open-task count, added 6 Oct 2026 ("near the new button show
@@ -2440,6 +2465,35 @@
         <span><label>Show</label><select id="tmFilter"><option value="all">All tasks</option><option value="open" selected>Open / In Progress / On Hold</option><option value="done">Completed</option></select></span>
       </div>
       <div id="taskManagerList"><p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">Loading…</p></div>
+    </div>
+  </details>
+</div>
+<!-- DSR Visit Remarks, added 14 Oct 2026 - the field-visit remarks from the
+     daily "Daily Shop Visit Summary" mail, kept in the owner's "DSR Shop
+     Visit Remarks" Google Sheet (updated nightly 9:15 PM IST). DSR names are
+     the order-app names. Download = the sheet's 'All Visits' tab as .xlsx. -->
+<div id="captureVisitRemarks">
+  <details class="dsr-row" id="visitRemarksDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">DSR Visit Remarks</span>
+        <span class="card-territory">From the daily Shop Visit Summary · updated every night 9:15 PM</span></span>
+      <span class="dsr-row-headright">
+        <span id="vrCount" class="card-territory" style="margin-right:4px;"></span>
+        <button type="button" class="share-icon-btn small" id="exportVisitRemarksXlsxBtn" title="Download the DSR Shop Visit Remarks sheet (Excel)" style="margin-left:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        </button>
+      </span>
+    </summary>
+    <div class="dsr-row-body" style="padding:0;gap:0;">
+      <div class="master-file-filters vr-filters">
+        <span><label>DSR</label><select id="vrDsr"><option value="">All DSRs</option></select></span>
+        <span><label>Show</label><select id="vrView"><option value="followups" selected>Open follow-ups</option><option value="all">All visits</option></select></span>
+        <span><label>Period</label><select id="vrDays"><option value="1">Today &amp; yesterday</option><option value="7">Last 7 days</option><option value="14" selected>Last 14 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></select></span>
+        <input type="search" id="vrSearch" placeholder="Search shop, remark, town…" aria-label="Search visit remarks">
+      </div>
+      <div id="vrList"><p class="vr-empty">Open this card to load visit remarks.</p></div>
+      <p style="font-size:11px;color:var(--ink-muted);margin:4px 18px 12px;">Open follow-ups = each shop's latest visit where payment was promised, an order is pending, price/scheme was asked, the shop was closed or the DSR didn't check out. <a id="vrOpenSheetLink" href="#" target="_blank" rel="noopener" style="color:inherit;">Open the Google Sheet</a></p>
     </div>
   </details>
 </div>
@@ -9862,8 +9916,10 @@
     if (groupSummaryBlock) groupSummaryBlock.hidden = sectionHidden_('groupSummary');
     var daybookItemGroupBlock = document.getElementById('captureDaybookItemGroup');
     if (daybookItemGroupBlock) daybookItemGroupBlock.hidden = sectionHidden_('dayBook');
-    var stockLabel = document.getElementById('stockSectionLabel');
-    if (stockLabel) stockLabel.hidden = sectionHidden_('stocks');
+    // stockSectionLabel itself is gone as of 12 Oct 2026 (the name moved
+    // back inside #stocksMasterDetails's own row) - hiding that one
+    // element now covers the whole section, same as every other
+    // sectionHidden_() toggle below.
     var stockDetails = document.getElementById('stocksMasterDetails');
     if (stockDetails) stockDetails.hidden = sectionHidden_('stocks');
     var petronasSummaryBlock = document.getElementById('capturePetronasSummary');
@@ -9878,8 +9934,9 @@
     // turn it on from the Admin panel per role rather than needing a code
     // change. isManagerRole_() covers exactly 'Manager' and 'Area Manager'.
     var masterFileHideForRole = isManagerRole_(role);
-    var masterFileLabelEl = document.getElementById('masterFileLabel');
-    if (masterFileLabelEl) masterFileLabelEl.hidden = masterFileHideForRole;
+    // masterFileLabel itself is gone as of 12 Oct 2026 (name moved back
+    // inside #masterFileDetails's own row) - hiding that one element now
+    // covers the whole section.
     var masterFileDetailsEl = document.getElementById('masterFileDetails');
     if (masterFileDetailsEl) masterFileDetailsEl.hidden = masterFileHideForRole;
     // Simplified 2 Oct 2026 when the picker became one foldable
@@ -11623,6 +11680,270 @@
     quarterSel.addEventListener('change', function () { applyReportPeriodSelection_('quarter'); });
     quarterYearSel.addEventListener('change', function () { applyReportPeriodSelection_('quarter'); });
     yearSel.addEventListener('change', function () { applyReportPeriodSelection_('year'); });
+  })();
+
+  // ----- DSR Visit Remarks card, added 14 Oct 2026 -----
+  // Reads the "DSR Shop Visit Remarks" Google Sheet ('All Visits' tab, filled
+  // nightly at 9:15 PM IST from the Daily Shop Visit Summary mail) through
+  // the Visit Remarks Apps Script web app - same kind of script.google.com
+  // call this dashboard already makes for orders. Staff names in the sheet
+  // are the order-app DSR names (Arun, Prabha, Anandh...). Loads only when
+  // the card is first opened. Download builds a real .xlsx of every row of
+  // the sheet client-side via SheetJS, same as the other Export buttons.
+  (function () {
+    var VR_API_URL = "https://script.google.com/macros/s/AKfycbyE1RpTKoTikZL-8Zk8VUDM1pk3okLnQ0LpYRQDT66mF-9Ix67Dzxc7Sx7YEwvmZycs/exec";
+    var VR_SHEET_URL = "https://docs.google.com/spreadsheets/d/1NCWstQV2BOM6n4hiYb0IJuBQM6zhjqVhoDMv4sILRcM/edit";
+    // Dropdown order: same DSRs as the cards above, then the two field staff
+    // who aren't order-app DSRs. Any other name found in the sheet is added
+    // after these automatically.
+    var VR_DSR_ORDER = ["Prabha", "Arun", "Nagaraj", "Chellamani", "Anandh", "Madhu", "Prakash", "Vimal"];
+    var VR_DSR_LABEL = { "Prakash": "Prakash (CBE rep)", "Vimal": "Vimal (FMR)" };
+    var VR_FOLLOWUP_CATS = {
+      "Payment follow-up / promise": "Payment",
+      "Order follow-up": "Order",
+      "Price / scheme / promotion support asked": "Price/Scheme",
+      "Supply / availability issue": "Supply",
+      "Billing / GST change": "Billing",
+      "Shop closed / owner or mechanic not available": "Revisit",
+      "Not checked out (system / TM released)": "Not checked out"
+    };
+    var VR_MAX_ROWS = 300;
+
+    var detailsEl = document.getElementById("visitRemarksDetails");
+    var listEl = document.getElementById("vrList");
+    var countEl = document.getElementById("vrCount");
+    var dsrSel = document.getElementById("vrDsr");
+    var viewSel = document.getElementById("vrView");
+    var daysSel = document.getElementById("vrDays");
+    var searchEl = document.getElementById("vrSearch");
+    var dlBtn = document.getElementById("exportVisitRemarksXlsxBtn");
+    if (!detailsEl || !listEl) return;
+
+    var rows = null;      // parsed visits, oldest first
+    var loading = false;
+
+    function esc(s) {
+      return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    }
+    function todayIso() {
+      var d = new Date();
+      return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+    }
+    function isoDate(s) {
+      s = String(s || "").trim();
+      var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (m) return m[1] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[3]).slice(-2);
+      m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/);
+      if (m) return m[3] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[1]).slice(-2);
+      return "";
+    }
+    function daysBetween(a, b) {
+      function t(x) { var p = x.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]).getTime(); }
+      return Math.round((t(b) - t(a)) / 86400000);
+    }
+    function showDate(iso) {
+      var p = iso.split("-");
+      return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    }
+
+    function apiUrl(query) {
+      return VR_API_URL + "?" + query + "&_ts=" + Date.now();
+    }
+    function loadTable(days) {
+      return loadJson("days=" + days).then(function (res) { return res.rows; });
+    }
+    function loadJson(query) {
+      return fetch(apiUrl(query), { cache: "no-store" })
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function (res) { if (!res || !res.ok) throw new Error((res && res.error) || "bad reply"); return res; })
+        .catch(function (fetchErr) {
+          // JSONP fallback - a plain <script> tag, in case fetch is blocked.
+          return new Promise(function (resolve, reject) {
+            var cb = "__vrCb" + Date.now();
+            var s = document.createElement("script");
+            var timer = setTimeout(function () { done(); reject(new Error("timeout (" + fetchErr.message + ")")); }, 25000);
+            function done() { clearTimeout(timer); try { delete window[cb]; } catch (e) { window[cb] = undefined; } if (s.parentNode) s.parentNode.removeChild(s); }
+            window[cb] = function (res) {
+              done();
+              if (!res || !res.ok) { reject(new Error((res && res.error) || "bad reply")); return; }
+              resolve(res);
+            };
+            s.onerror = function () { done(); reject(new Error("could not reach the Visit Remarks script (" + fetchErr.message + ")")); };
+            s.src = apiUrl(query) + "&callback=" + cb;
+            document.head.appendChild(s);
+          });
+        });
+    }
+    function parseTable(table) {
+      var head = table[0].map(function (h) { return String(h).trim().toLowerCase(); });
+      function col(n) { return head.indexOf(n); }
+      var ix = { date: col("date"), staff: col("staff"), shop: col("shop"), remarks: col("remarks"), cat: col("remark category"),
+        spent: col("time spent"), loc: col("location"), orders: col("orders (ltrs)"), coll: col("collection (rs)"), contact: col("contact") };
+      var out = [];
+      for (var i = 1; i < table.length; i++) {
+        var r = table[i], iso = isoDate(r[ix.date]);
+        if (!iso || !String(r[ix.shop] || "").trim()) continue;
+        var g = function (k) { return ix[k] >= 0 ? String(r[ix[k]] == null ? "" : r[ix[k]]).trim() : ""; }
+        out.push({ order: i, date: iso, staff: g("staff"), shop: g("shop"), remarks: g("remarks"), cat: g("cat"),
+          spent: g("spent"), loc: g("loc"), orders: g("orders"), coll: g("coll"), contact: g("contact") });
+      }
+      out.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.order - b.order; });
+      return out;
+    }
+
+    function fillDsrOptions() {
+      var seen = {};
+      rows.forEach(function (v) { if (v.staff) seen[v.staff] = true; });
+      var names = VR_DSR_ORDER.filter(function (n) { return seen[n]; });
+      Object.keys(seen).sort().forEach(function (n) { if (names.indexOf(n) < 0) names.push(n); });
+      var cur = dsrSel.value;
+      dsrSel.innerHTML = '<option value="">All DSRs</option>' + names.map(function (n) {
+        return '<option value="' + esc(n) + '">' + esc(VR_DSR_LABEL[n] || n) + '</option>';
+      }).join("");
+      if (cur && names.indexOf(cur) >= 0) dsrSel.value = cur;
+    }
+
+    function dueLabel(v) {
+      var age = daysBetween(v.date, todayIso()), t = v.remarks.toLowerCase();
+      if (age >= 1 && /\b(tomorrow|tmrw|tmr|tomarrow|tommorow)\b/.test(t)) return true;
+      if (age >= 5 && /next\s*week/.test(t)) return true;
+      if (age >= 1 && /\b(today|evening)\b/.test(t) && v.cat === "Payment follow-up / promise") return true;
+      return false;
+    }
+    function metaText(v) {
+      var bits = [showDate(v.date)];
+      if (v.loc) bits.push(v.loc);
+      if (v.spent) bits.push(v.spent.toUpperCase() + " (Timespent - last visit)");
+      var o = Number(v.orders), c = Number(v.coll);
+      if (v.orders !== "" && !isNaN(o) && o > 1) bits.push(o.toLocaleString("en-IN") + " L");
+      if (v.coll !== "" && !isNaN(c) && c > 1) bits.push("₹" + c.toLocaleString("en-IN"));
+      return bits.join(" · ");
+    }
+    function tagClass(tag) { return "vr-tag vr-tag-" + tag.toLowerCase().replace(/[^a-z]+/g, "-"); }
+
+    function render() {
+      if (rows === null) return;
+      var dsr = dsrSel.value, view = viewSel.value, days = Number(daysSel.value) || 14;
+      var q = (searchEl.value || "").trim().toLowerCase();
+      var today = todayIso();
+      var list = rows.filter(function (v) {
+        if (dsr && v.staff !== dsr) return false;
+        var age = daysBetween(v.date, today);
+        return age >= 0 && age <= days;
+      });
+      if (view === "followups") {
+        var latest = {};
+        rows.forEach(function (v) { if (!dsr || v.staff === dsr) latest[v.staff + "|" + v.shop.toUpperCase() + "|" + v.loc.toUpperCase()] = v; });
+        list = list.filter(function (v) {
+          return VR_FOLLOWUP_CATS[v.cat] && latest[v.staff + "|" + v.shop.toUpperCase() + "|" + v.loc.toUpperCase()] === v;
+        });
+      }
+      if (q) {
+        list = list.filter(function (v) {
+          return (v.shop + " " + v.remarks + " " + v.loc + " " + v.staff + " " + v.cat).toLowerCase().indexOf(q) >= 0;
+        });
+      }
+      list.forEach(function (v) { v._due = view === "followups" && !!VR_FOLLOWUP_CATS[v.cat] && dueLabel(v); });
+      list.sort(function (a, b) {
+        if (a._due !== b._due) return a._due ? -1 : 1;
+        return a.date < b.date ? 1 : a.date > b.date ? -1 : b.order - a.order;
+      });
+      var due = list.filter(function (v) { return v._due; }).length;
+      countEl.textContent = list.length + (view === "followups" ? " open" : " visits") + (due ? " · " + due + " due" : "");
+      if (!list.length) {
+        listEl.innerHTML = '<p class="vr-empty">' + (view === "followups" ? "No open follow-ups" : "No visits") + ' for this selection.</p>';
+        return;
+      }
+      var shown = list.slice(0, VR_MAX_ROWS);
+      listEl.innerHTML = shown.map(function (v) {
+        var tag = VR_FOLLOWUP_CATS[v.cat];
+        return '<div class="vr-row">' +
+          '<div class="vr-row-top"><span class="vr-shop">' + esc(v.shop) + '</span>' +
+            '<span class="vr-tag vr-tag-dsr">' + esc(VR_DSR_LABEL[v.staff] || v.staff) + '</span>' +
+            (v._due ? '<span class="vr-tag vr-tag-due">Due</span>' : '') +
+            (tag ? '<span class="' + tagClass(tag) + '">' + esc(tag) + '</span>' : (v.cat ? '<span class="vr-tag">' + esc(v.cat) + '</span>' : '')) +
+          '</div>' +
+          '<div class="vr-remark">' + esc(v.remarks || "(no remark)") + '</div>' +
+          '<div class="vr-meta">' + esc(metaText(v)) + '</div>' +
+        '</div>';
+      }).join("") + (list.length > VR_MAX_ROWS
+        ? '<p class="vr-empty">Showing the latest ' + VR_MAX_ROWS + ' of ' + list.length + '. Pick a DSR, fewer days or search to narrow it - or Download for everything.</p>'
+        : '');
+    }
+
+    function ensureLoaded() {
+      if (rows !== null || loading) return;
+      loading = true;
+      listEl.innerHTML = '<p class="vr-empty">Loading visit remarks…</p>';
+      loadTable(90).then(function (table) {
+        rows = parseTable(table);
+        loading = false;
+        fillDsrOptions();
+        render();
+      }).catch(function (err) {
+        loading = false;
+        listEl.innerHTML = '<p class="vr-empty">Could not load visit remarks right now. Close and reopen this card to try again.<br><span style="font-size:11px;opacity:0.75;">' + esc(err && err.message || err) + '</span></p>';
+      });
+    }
+
+    detailsEl.addEventListener("toggle", function () { if (detailsEl.open) ensureLoaded(); });
+    [dsrSel, viewSel, daysSel].forEach(function (el) { el.addEventListener("change", render); });
+    searchEl.addEventListener("input", render);
+
+    if (dlBtn) {
+      dlBtn.addEventListener("click", function (e) {
+        // Button sits inside the card's <summary> - stop it toggling the card.
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof XLSX === "undefined") {
+          alert("Excel export isn't available right now — the export library didn't load. Check your connection and try again.");
+          return;
+        }
+        if (dlBtn.disabled) return;
+        dlBtn.disabled = true;
+        dlBtn.style.opacity = "0.5";
+        // Full workbook: every tab of the Google Sheet (All Visits, Remarks
+        // by Category, Remarks Grouped, Category Rules, Visit Check, DSR
+        // Daily Scorecard, Payment Promises, Calc) as shown in the sheet.
+        // An older copy of the Apps Script without the all=1 mode just
+        // returns All Visits - that still downloads, as one tab.
+        loadJson("all=1").then(function (res) {
+          var tabs = (res.sheets && res.sheets.length) ? res.sheets : null;
+          if (!tabs) {
+            return loadTable(3650).then(function (table) {
+              tabs = [{ name: "All Visits", rows: table }];
+              return tabs;
+            });
+          }
+          return tabs;
+        }).then(function (tabs) {
+          var wb = XLSX.utils.book_new();
+          tabs.forEach(function (t) {
+            var rowsT = (t.rows || []).map(function (r) {
+              return r.map(function (c) {
+                // keep numbers as numbers so Excel can sum them
+                return (typeof c === "string" && /^-?\d+(\.\d+)?$/.test(c) && c.length < 10 && !/^0\d/.test(c)) ? Number(c) : c;
+              });
+            });
+            var ws = XLSX.utils.aoa_to_sheet(rowsT.length ? rowsT : [[""]]);
+            if (t.name === "All Visits") {
+              ws["!cols"] = [12, 12, 32, 40, 30, 10, 11, 10, 9, 13, 18, 11, 11, 9, 11, 12].map(function (w) { return { wch: w }; });
+            }
+            XLSX.utils.book_append_sheet(wb, ws, String(t.name || "Sheet").slice(0, 31));
+          });
+          XLSX.writeFile(wb, "DSR_Shop_Visit_Remarks_" + todayIso() + ".xlsx");
+        }).catch(function (err) {
+          alert("Could not download the visit remarks sheet: " + (err && err.message || err));
+        }).then(function () {
+          dlBtn.disabled = false;
+          dlBtn.style.opacity = "";
+        });
+      });
+    }
+    var openLink = document.getElementById("vrOpenSheetLink");
+    if (openLink) openLink.href = VR_SHEET_URL;
   })();
 </script>
 <script>
