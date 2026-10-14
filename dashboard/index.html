@@ -898,6 +898,8 @@
   .vr-tag-due, .vr-tag-not-checked-out { color: #b4432f; background: rgba(180,67,47,0.12); }
   .vr-tag-payment { color: #a0531f; background: rgba(180,113,31,0.14); }
   .vr-tag-order { color: var(--accent); background: var(--accent-soft); }
+  .vr-task-btn { background: var(--accent-soft); color: var(--accent); border: none; border-radius: 5px; padding: 3px 9px; cursor: pointer; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+  .vr-task-btn:hover { filter: brightness(0.95); }
   .vr-empty { padding: 10px 0; color: var(--ink-muted); font-size: 12.5px; margin: 0; }
 </style>
 <link rel="manifest" href="manifest.json">
@@ -11857,13 +11859,15 @@
         return;
       }
       var shown = list.slice(0, VR_MAX_ROWS);
-      listEl.innerHTML = shown.map(function (v) {
+      vrShown = shown;
+      listEl.innerHTML = shown.map(function (v, idx) {
         var tag = VR_FOLLOWUP_CATS[v.cat];
         return '<div class="vr-row">' +
           '<div class="vr-row-top"><span class="vr-shop">' + esc(v.shop) + '</span>' +
             '<span class="vr-tag vr-tag-dsr">' + esc(VR_DSR_LABEL[v.staff] || v.staff) + '</span>' +
             (v._due ? '<span class="vr-tag vr-tag-due">Due</span>' : '') +
             (tag ? '<span class="' + tagClass(tag) + '">' + esc(tag) + '</span>' : (v.cat ? '<span class="vr-tag">' + esc(v.cat) + '</span>' : '')) +
+            '<button type="button" class="vr-task-btn" data-vr-idx="' + idx + '" title="Create a task for ' + esc(v.staff) + ' about this shop">+ Task</button>' +
           '</div>' +
           '<div class="vr-remark">' + esc(v.remarks || "(no remark)") + '</div>' +
           '<div class="vr-meta">' + esc(metaText(v)) + '</div>' +
@@ -11872,6 +11876,221 @@
         ? '<p class="vr-empty">Showing the latest ' + VR_MAX_ROWS + ' of ' + list.length + '. Pick a DSR, fewer days or search to narrow it - or Download for everything.</p>'
         : '');
     }
+
+
+    // ---- "+ Task" on a visit row (14 Oct 2026, owner's request: "from
+    // dashboard also make link to create task to the particular dsr").
+    // Opens Task Manager's "+ New" form pre-filled: Assigned To = that DSR,
+    // Dealer = the matching dealer from that DSR's own Tally dealer list
+    // (same name/town matching the DSR apps use), task name + remarks from
+    // the visit. Nothing is saved until "Create task" is pressed.
+    var dealers = [];              // set per DSR from the Task form's Dealer list
+    var visitDealerCache_ = {};
+    // --- Name/town matching between visit-app shop names and Tally dealers ---
+    var VISIT_GENERIC_WORDS_ = {};
+    ("AUTO AUTOS SPARE SPARES PART PARTS STORE AGENCY AGENCIE TRADER MOTOR AUTOMOBILE MOBILE " +
+     "WORK WORKSHOP SHOP OIL SRI SHRI SREE THE AND CARE GARAGE CARAGE TWO WHEELER CENTRE CENTER SERVICE NEW BIKE POINT CAR")
+      .split(" ").forEach(function (w) { VISIT_GENERIC_WORDS_[w] = true; });
+    // Town spellings/abbreviations seen in Tally dealer names vs the visit
+    // app's Location field, folded to one key each (all DSR areas).
+    var VISIT_TOWN_ALIASES_ = {};
+    [
+      // Dindigul (Arun)
+      "DINDIGUL DGL", "ODC ODANCHATRAM ODDANCHATRAM ODDANCHATHRAM ODANCHATHRAM", "NKT NILAKOTTAI NILAKKOTTAI",
+      "VDS VEDASANDUR VEDACHADUR VEDASNDUR VEDASENDUR VEDACHANDUR", "BGU BATHALAGUNDU BATLAGUNDU BATHLAGUNDU BATALAGUNDU",
+      "PALANI PLN", "GOPALPATTI GOPALPATTY", "DPM DHARAPURAM", "CHINNALAPATTI GANDHIGRAM CINNALAPATTY CHINNALAPATTY",
+      "UDUMALPET UDUMALAIPETTAI UDT", "VADAMADURAI VDM",
+      // Theni (Prabha)
+      "THENI TNI", "CUMBUM CUMBAM CBM KAMBAM", "APT AUNDIPATTI AUNDIPATTY ANDIPATTI ANDIPATTY", "PKM PERIYAKULAM PERIY",
+      "CNMR CHINNAMANUR CHINNAMANNUR CNMNR CMR", "BODI BODINAYAKANUR BODINAYAKKANUR", "UPLM UPLYM UTHAMAPALAYAM UTHAMAPALAYAM",
+      // Tirunelveli / Tenkasi (Anandh)
+      "TVL TIRUNELVELI THIRUNELVELI", "SKL SANKARANKOVIL SANKARANKOIL SANKARANKOVIL", "TENKASI THENKASI TSI",
+      "SKT SHENCOTTAI SHENKOTTAI SHENGKOTTAI SENGOTTAI", "AMBAI AMBASAMUDRAM", "PAVOORCHATHRAM PAVOORCHADRAM PAVOORCHATRAM",
+      "KNLR KADAYANALLUR", "AGLM ALANGULAM", "PKT PLY PALAYAMKOTTAI PALAYAMKOTTAIOIL", "VANNIKONENDAL VANNIKONATHAL",
+      "UDAIYARPATTI UDAYARPATTI", "REDDIARPATTI REDDIYARPATTI", "VKPURAM VIKRAMASINGAPURAM",
+      // Virudhunagar (Nagaraj)
+      "SVK SIVAKASI SVKS", "RJPM RAJAPALAYAM", "VNR VIRUDHUNAGAR", "APK ARUPPUKOTTAI", "KVP KVPT KOVILPATTI",
+      "SVPR SVPTR SRIVI SRIVILLIPUTTUR SRIVILLIPUTHUR SRIVILLIPUTHUROIL", "DVPM DHALAVAIPURAM",
+      "KKOIL KKOVIL KRISHNANKOVIL", "WATRAP WATRAB", "NAHALAPURAM NAHALAPAURAM", "THIRUTHANGAL THRUTHANGAL",
+      "SUNDARANACHIYARPURAM SUNDHARNACHIYARPURAM",
+      // Nagercoil (Madhu)
+      "NKL NGL NAGERCOIL NAGERCOVIL", "VLR VALLIYUR VALLIOOR VALLIYOOR VALIYUR", "MDM MARTHANDAM",
+      "KKRI KKMRI KANYAKUMARI KANNIYAKUMARI KANAYAKUMARI KANYAKUMARIOIL", "EATHAMOZHI EATHAMOZHY",
+      "MULAGUMODU MULUGUMOODU", "ATTOOR ATOOR", "KAVALKINARU KAVALKINARAU", "SUCHINDRUM SUDHINDRAM SUCHINDRAM",
+      // Madurai (Chellamani)
+      "MDU MADURAI", "USILAI USILAMPATTI USPT", "TMLM TIRUMANGALAM THIRUMANGALAM", "MLR MELUR", "KKDI KKD KARAIKUDI",
+      "SVG SIVAGANGAI SIVGANGAI", "MNM MANAMADURAI", "PYR PERAIYUR", "TPVNM TIRUPPUVANAM", "CHEKKANURANI CHECKANURANI"
+    ].forEach(function (grp) {
+      var w = grp.split(" ");
+      w.forEach(function (x) { VISIT_TOWN_ALIASES_[x] = w[0]; });
+    });
+    function visitTownKey_(s) {
+      var k = String(s || "").toUpperCase().replace(/[^A-Z]/g, "");
+      return VISIT_TOWN_ALIASES_[k] || k;
+    }
+    // Every town key a free-text Location could mean: the whole value plus
+    // each word/part ("OZHUGINASERY NAGERCOIL" -> also NKL).
+    function visitTownKeys_(loc) {
+      var keys = {}, raw = String(loc || "").toUpperCase();
+      var whole = visitTownKey_(raw);
+      if (whole) keys[whole] = true;
+      raw.split(/[\s,\/.\-]+/).forEach(function (p) { var k = visitTownKey_(p); if (k.length >= 3) keys[k] = true; });
+      return keys;
+    }
+    function visitTownMatch_(locKeys, dealerTown) {
+      if (!dealerTown) return false;
+      if (locKeys[dealerTown]) return true;
+      // "PERIY" vs "PERIYAKULAM", "SRIVI" vs ... - a 4+ letter prefix of one another
+      return Object.keys(locKeys).some(function (k) {
+        return k.length >= 4 && dealerTown.length >= 4 && (k.indexOf(dealerTown) === 0 || dealerTown.indexOf(k) === 0);
+      });
+    }
+    function visitNameTokens_(s) {
+      var x = String(s || "").toUpperCase().split(",")[0].replace(/\(.*?\)/g, " ");
+      x = x.replace(/&/g, " AND ").replace(/[^A-Z0-9 ]/g, " ");
+      var out = x.split(/\s+/).filter(Boolean).map(function (w) {
+        return (w.length > 3 && /S$/.test(w) && !/SS$/.test(w)) ? w.slice(0, -1) : w;   // STORES -> STORE
+      });
+      // Join runs of single letters: "A M S" / "A.M.S." -> "AMS", "K K" -> "KK"
+      var joined = [], run = "";
+      out.forEach(function (w) {
+        if (w.length === 1 && /[A-Z]/.test(w)) { run += w; return; }
+        if (run) { joined.push(run); run = ""; }
+        joined.push(w);
+      });
+      if (run) joined.push(run);
+      return joined.join(" ").replace(/\bAUTO MOBILE\b/g, "AUTOMOBILE").split(" ").filter(Boolean);
+    }
+    function visitKeyTokens_(s) {
+      var t = visitNameTokens_(s);
+      var k = t.filter(function (w) { return !VISIT_GENERIC_WORDS_[w]; });
+      return k.length ? k : t;
+    }
+    function visitDealerTown_(dealerName) {
+      var parts = String(dealerName || "").split(/[,.]/);
+      var tail = parts.length > 1 ? parts[parts.length - 1] : "";
+      return visitTownKey_(tail.replace(/\(.*?\)/g, "").replace(/OIL\s*$/i, ""));
+    }
+    function visitSameSet_(a, b) {
+      if (a.length !== b.length) return false;
+      var s = {}; a.forEach(function (w) { s[w] = true; });
+      return b.every(function (w) { return s[w]; });
+    }
+    function visitContains_(small, big) {
+      var s = {}; big.forEach(function (w) { s[w] = true; });
+      return small.length > 0 && small.every(function (w) { return s[w]; });
+    }
+    // Generic words that say what KIND of shop it is (AUTO, SPARES, MOTORS,
+    // WORKS...) - used to stop "VINAYAGA MOTORS" matching "SRI VINAYAGA AUTO
+    // STORE" on the single shared word VINAYAGA.
+    var VISIT_WEAK_WORDS_ = { SRI: 1, SHRI: 1, SREE: 1, THE: 1, AND: 1, NEW: 1 };
+    var VISIT_KIND_SAME_ = { AUTOMOBILE: "AUTO", MOBILE: "AUTO", AUTOS: "AUTO", WORKSHOP: "WORK" };
+    function visitKindOverlap_(allA, allB) {
+      var s = {};
+      function kind(w) { return VISIT_KIND_SAME_[w] || w; }
+      allB.forEach(function (w) { if (VISIT_GENERIC_WORDS_[w] && !VISIT_WEAK_WORDS_[w]) s[kind(w)] = true; });
+      return allA.some(function (w) { return VISIT_GENERIC_WORDS_[w] && !VISIT_WEAK_WORDS_[w] && s[kind(w)]; });
+    }
+    var visitKnownTowns_ = null;   // every town key this app knows: alias table + its own dealers' towns
+    function visitIsKnownTown_(k) {
+      if (!visitKnownTowns_) {
+        visitKnownTowns_ = {};
+        Object.keys(VISIT_TOWN_ALIASES_).forEach(function (a) { visitKnownTowns_[VISIT_TOWN_ALIASES_[a]] = true; });
+        dealers.forEach(function (d) { var t = visitDealerTown_(d.name); if (t.length >= 3) visitKnownTowns_[t] = true; });
+      }
+      return !!visitKnownTowns_[k];
+    }
+    // Rules (checked against every DSR's visits vs their own dealer list):
+    //  1. every word the same (ignoring punctuation/plurals) -> match, any town
+    //  2. same town AND at least half of the distinctive words (not AUTO/
+    //     SPARES/STORE/SRI...) overlap
+    //  3. town unknown on one side (Madurai visits log the neighbourhood, e.g.
+    //     "ANNA NAGAR", not "MDU"): all distinctive words of one name appear in
+    //     the other, and only ONE dealer in this app fits that way
+    // For 2 and 3, if only one distinctive word is shared, the shop-kind
+    // words must also overlap (AUTO, SPARES, MOTORS...). Best score wins;
+    // anything weaker is left unmatched rather than risk showing another
+    // dealer's remarks.
+    function visitMatchDealer_(shop, loc) {
+      var cacheKey = shop + "|" + loc;
+      if (Object.prototype.hasOwnProperty.call(visitDealerCache_, cacheKey)) return visitDealerCache_[cacheKey];
+      var allS = visitNameTokens_(shop), keyS = visitKeyTokens_(shop), locKeys = visitTownKeys_(loc);
+      var keySLen = keyS.join("").length;
+      var locKnown = Object.keys(locKeys).some(visitIsKnownTown_);
+      var best = "", bestScore = 0, containHits = [];
+      dealers.forEach(function (d) {
+        var allD = visitNameTokens_(d.name);
+        var keyD = visitKeyTokens_(d.name);
+        var townD = visitDealerTown_(d.name);
+        var score = 0;
+        if (allS.length && visitSameSet_(allS, allD)) {
+          score = 3;
+        } else {
+          var setD = {}, inter = 0, union = {};
+          keyD.forEach(function (w) { setD[w] = true; union[w] = true; });
+          keyS.forEach(function (w) { if (setD[w]) inter++; union[w] = true; });
+          var kindOk = inter >= 2 || visitKindOverlap_(allS, allD);
+          if (inter && kindOk) {
+            var j = inter / Object.keys(union).length;
+            if (visitTownMatch_(locKeys, townD)) {
+              if (j >= 0.5) score = 1 + j;
+            } else if (!(locKnown && visitIsKnownTown_(townD)) && keySLen >= 5 && keyD.join("").length >= 5 &&
+                       (visitContains_(keyS, keyD) || visitContains_(keyD, keyS))) {
+              containHits.push(d.name);
+            }
+          }
+        }
+        if (score > bestScore) { bestScore = score; best = d.name; }
+      });
+      if (!best && containHits.length === 1) best = containHits[0];
+      visitDealerCache_[cacheKey] = best;
+      return best;
+    }
+
+
+    var VR_TASK_TYPE = { "Payment": "Payment", "Order": "Sales", "Price/Scheme": "Sales", "Supply": "Stock" };
+    var vrShown = [];
+    function openTaskFromVisit(v) {
+      var tmDetails = document.getElementById("taskManagerDetails");
+      var addBtn = document.getElementById("taskManagerAddBtn");
+      var form = document.getElementById("taskCreateForm");
+      if (!tmDetails || !form) { alert("Task Manager isn't available on this login."); return; }
+      tmDetails.open = true;
+      if (form.hidden && addBtn) addBtn.click();
+      var assignedSel = document.getElementById("tcAssignedTo");
+      var dsrOk = false;
+      if (assignedSel) {
+        dsrOk = Array.prototype.some.call(assignedSel.options, function (o) { return o.value === v.staff; });
+        assignedSel.value = dsrOk ? v.staff : "";
+        assignedSel.dispatchEvent(new Event("change"));   // refills the Dealer list for that DSR
+      }
+      var dealerSel = document.getElementById("tcDealer");
+      var dealerName = "";
+      if (dealerSel && dsrOk) {
+        dealers = Array.prototype.map.call(dealerSel.options, function (o) { return { name: o.value }; })
+          .filter(function (d) { return d.name; });
+        visitDealerCache_ = {};
+        visitKnownTowns_ = null;
+        dealerName = visitMatchDealer_(v.shop, v.loc);
+        dealerSel.value = dealerName || "";
+      }
+      var tag = VR_FOLLOWUP_CATS[v.cat] || "Visit";
+      function setVal(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
+      setVal("tcName", tag + " follow-up - " + v.shop);
+      setVal("tcType", VR_TASK_TYPE[tag] || "General");
+      var due = document.getElementById("tcDueDate");
+      if (due) due.value = todayIso();
+      setVal("tcRemarks", "Last visit " + showDate(v.date) + (v.loc ? " (" + v.loc + ")" : "") + ": " + (v.remarks || "(no remark)"));
+      detailsEl.open = false;
+      if (tmDetails.scrollIntoView) tmDetails.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (!dsrOk) alert(v.staff + " isn't in the Assigned To list (not an order-app DSR) - pick who should get this task.");
+    }
+    listEl.addEventListener("click", function (e) {
+      var btn = e.target.closest(".vr-task-btn");
+      if (!btn) return;
+      var v = vrShown[Number(btn.getAttribute("data-vr-idx"))];
+      if (v) openTaskFromVisit(v);
+    });
 
     function ensureLoaded() {
       if (rows !== null || loading) return;
