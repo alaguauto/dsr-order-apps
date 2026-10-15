@@ -378,14 +378,22 @@
   /* Sales/Collection weekday heatmap, added 11 Oct 2026, placed directly
      above Ranking (see captureHeatmap in the markup below) - matches the
      owner's own reference screenshot (week rows x weekday columns, green-
-     shaded tiles, Less...More legend). */
+     shaded tiles, Less...More legend).
+     Reworked 15 Oct 2026 at the owner's request ("can u make week total and
+     day total, change the calender as per our week calculation that 1-7,
+     8-14 like that and put the date also") - see
+     renderSalesCollectionHeatmap_()'s own comment for the full change; this
+     added an 8th grid column (week totals) and a bottom totals row (day/
+     column totals), plus a small date number inside every cell. */
   .heatmap-tabs { display: flex; gap: 6px; margin: 0 0 10px; }
   .heatmap-tab { font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-muted); background: var(--surface-2); cursor: pointer; }
   .heatmap-tab.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-  .heatmap-grid { display: grid; grid-template-columns: 44px repeat(7, 1fr); gap: 4px; font-size: 11px; }
-  .heatmap-wk-label { color: var(--ink-muted); font-size: 10.5px; display: flex; align-items: center; }
+  .heatmap-grid { display: grid; grid-template-columns: 50px repeat(7, 1fr) 1.1fr; gap: 4px; font-size: 11px; }
+  .heatmap-wk-label { color: var(--ink-muted); font-size: 10px; line-height: 1.25; display: flex; flex-direction: column; justify-content: center; }
+  .heatmap-wk-range { font-weight: 400; opacity: .8; }
   .heatmap-day-label { text-align: center; color: var(--ink-muted); font-size: 10.5px; font-weight: 700; padding-bottom: 2px; }
-  .heatmap-cell { border-radius: 7px; padding: 8px 2px; text-align: center; font-weight: 700; }
+  .heatmap-cell { border-radius: 7px; padding: 6px 2px; text-align: center; font-weight: 700; }
+  .heatmap-cell-date { display: block; font-size: 9px; font-weight: 600; opacity: .65; margin-bottom: 1px; }
   .heatmap-cell.h0 { background: var(--surface-2); color: var(--ink-muted); font-weight: 400; }
   .heatmap-cell.h1 { background: #d9ecdf; color: #1c4631; }
   .heatmap-cell.h2 { background: #a9d6ba; color: #1c4631; }
@@ -397,6 +405,13 @@
     .heatmap-cell.h3 { background: #366a3f; color: #fff; }
     .heatmap-cell.h4 { background: #56b087; color: #0a1f12; }
   }
+  /* Week-total column and day-total row, added 15 Oct 2026 - deliberately
+     NOT given an h0-h4 heat class (bucketClass_() never assigns one to a
+     total cell), so a big total never gets miscolored as if it were one
+     more day's heat-ranked value and never affects maxVal's own scaling. */
+  .heatmap-total-cell { background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); }
+  .heatmap-total-label { font-weight: 700; color: var(--ink); }
+  .heatmap-grand-total { font-weight: 800; }
   .heatmap-legend { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 10.5px; color: var(--ink-muted); }
   .heatmap-legend .sw { width: 14px; height: 10px; border-radius: 3px; display: inline-block; }
   .rank-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
@@ -855,7 +870,7 @@
      owner supplied the real opening stock (80762 Ltr, start of Jan 2026) -
      see the 1 Oct 2026 entries in the project notes for the full back-
      and-forth. 9 columns again, min-width back to 1100px. */
-  .petronas-summary-table { min-width: 1100px; }
+  .petronas-summary-table { min-width: 1224px; } /* +124px 15 Oct 2026 for the new Claims (CN) column */
   .petronas-summary-table thead th { white-space: normal; line-height: 1.3; vertical-align: bottom; }
   .petronas-summary-table thead th:first-child { width: 110px; }
   .petronas-summary-table thead th:not(:first-child) { width: 124px; }
@@ -3686,21 +3701,44 @@
     var now = new Date();
     var y = now.getFullYear(), m = now.getMonth();
     var daysInMonth = new Date(y, m + 1, 0).getDate();
-    var firstWeekdayIdx = (new Date(y, m, 1).getDay() + 6) % 7; // Monday=0
 
+    // Week buckets changed 15 Oct 2026 at the owner's request ("change the
+    // calender as per our week calculation that 1-7, 8-14 like that") -
+    // was: real Mon-Sun calendar weeks (firstWeekdayIdx offset into a
+    // 7-wide Mon..Sun grid, matching the owner's original reference
+    // screenshot). Now: fixed 7-DATE buckets anchored to the 1st of the
+    // month (1-7, 8-14, 15-21, 22-28, 29-end) regardless of what weekday
+    // the 1st falls on - this is "his own" week numbering for billing/
+    // target-period purposes (matches weekDayCount_()/weeklyTargetShare_()
+    // elsewhere on this dashboard, which already splits the month into
+    // weeks this same way, not real calendar weeks). Column position no
+    // longer lines up with a fixed weekday (Week 1's 7 dates and Week 2's 7
+    // dates don't start on the same weekday unless the month starts on a
+    // Monday), so the old fixed "M T W T F S S" header is gone - every cell
+    // now shows its own date number directly instead (see
+    // heatmap-cell-date below), which is unambiguous regardless of bucket
+    // alignment and also covers the separate "put the date also" ask.
+    var WEEK_BUCKET_SIZE = 7;
     var weeks = [];
-    var week = new Array(7).fill(null);
-    var col = firstWeekdayIdx;
-    var maxVal = 0;
-    for (var day = 1; day <= daysInMonth; day++) {
-      var iso = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
-      var val = byDate[iso] || 0;
-      if (val > maxVal) maxVal = val;
-      week[col] = { iso: iso, val: val };
-      col++;
-      if (col === 7) { weeks.push(week); week = new Array(7).fill(null); col = 0; }
+    for (var startDay = 1; startDay <= daysInMonth; startDay += WEEK_BUCKET_SIZE) {
+      var endDay = Math.min(startDay + WEEK_BUCKET_SIZE - 1, daysInMonth);
+      var days = [];
+      for (var day = startDay; day <= endDay; day++) {
+        var iso = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        days.push({ day: day, iso: iso, val: byDate[iso] || 0 });
+      }
+      weeks.push({ startDay: startDay, endDay: endDay, days: days });
     }
-    if (col !== 0) weeks.push(week);
+
+    // maxVal drives bucketClass_()'s relative shading below - computed only
+    // from individual day cells, never from the week-total/day-total cells
+    // added 15 Oct 2026 (those get their own neutral .heatmap-total-cell
+    // style instead of an h0-h4 heat class, see the CSS comment above), so
+    // a big total can never skew the color scale for the real daily values.
+    var maxVal = 0;
+    weeks.forEach(function (w) {
+      w.days.forEach(function (cell) { if (cell.val > maxVal) maxVal = cell.val; });
+    });
 
     // Relative shading (quartiles of this DSR's own month-to-date range,
     // not a fixed absolute threshold) - same "Less...More" relative-heat
@@ -3713,15 +3751,35 @@
       if (ratio > 0.25) return 'h2';
       return 'h1';
     }
+
+    // Week-total column (right edge), added 15 Oct 2026 ("make week total
+    // and day total"). The bottom day-total row from that same round was
+    // removed again on the owner's follow-up request ("remove the bottom
+    // total"), keeping only this per-week column.
+    //
+    // Weekday header row, added 15 Oct 2026 ("add mon tue on top of the
+    // coloumn"). Bucket size is exactly 7, so column position p (0-6) maps
+    // to ONE fixed weekday across every full week of this month - day
+    // 1+p, day 8+p, day 15+p, etc. all fall on the same weekday - even
+    // though which weekday that is shifts month to month depending on
+    // what the 1st falls on. So the header is computed once from the 1st.
+    var WEEKDAY_ABBR_ = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var firstDow = new Date(y, m, 1).getDay();
+
     var html = '<div class="heatmap-grid">';
     html += '<div></div>';
-    ['M', 'T', 'W', 'T', 'F', 'S', 'S'].forEach(function (lbl) { html += '<div class="heatmap-day-label">' + lbl + '</div>'; });
+    for (var p = 0; p < WEEK_BUCKET_SIZE; p++) { html += '<div class="heatmap-day-label">' + WEEKDAY_ABBR_[(firstDow + p) % 7] + '</div>'; }
+    html += '<div class="heatmap-day-label heatmap-total-label">Total</div>';
     weeks.forEach(function (w, wi) {
-      html += '<div class="heatmap-wk-label">Wk ' + (wi + 1) + '</div>';
-      w.forEach(function (cell) {
-        if (!cell) { html += '<div></div>'; return; }
-        html += '<div class="heatmap-cell ' + bucketClass_(cell.val) + '" title="' + cell.iso + '">' + fmt(cell.val) + '</div>';
-      });
+      var weekTotal = 0;
+      html += '<div class="heatmap-wk-label">Wk ' + (wi + 1) + '<span class="heatmap-wk-range">(' + w.startDay + '–' + w.endDay + ')</span></div>';
+      for (var pp = 0; pp < WEEK_BUCKET_SIZE; pp++) {
+        var cell = w.days[pp];
+        if (!cell) { html += '<div></div>'; continue; }
+        weekTotal += cell.val;
+        html += '<div class="heatmap-cell ' + bucketClass_(cell.val) + '" title="' + cell.iso + '"><span class="heatmap-cell-date">' + cell.day + '</span>' + fmt(cell.val) + '</div>';
+      }
+      html += '<div class="heatmap-cell heatmap-total-cell" title="Week ' + (wi + 1) + ' total (' + w.startDay + '–' + w.endDay + ')">' + fmt(weekTotal) + '</div>';
     });
     html += '</div>';
     gridWrap.innerHTML = html;
@@ -5611,15 +5669,28 @@
   // handleLiveGet_() (see its petronasSummaryLive salesValue line) - not
   // here, and not in tally_live_watcher.py. purchaseLtr/salesLtr/
   // collected/purchaseValue/payment were never touched by any of this.
+  // Corrected 15 Oct 2026 per the owner's own figures, sent against the
+  // rendered table (same "his own confirmed numbers win" convention as the
+  // 1 Oct 2026 snapshot replacement above): Feb salesValue, Feb/Mar
+  // collected, Jan-Aug payment (all 8 months), and Feb/Apr/Jun
+  // purchaseValue. Everything else in this array (purchaseLtr/salesLtr, and
+  // any field not named in his correction) is untouched.
+  //
+  // NOTE left for a future pass, not yet acted on: the corrected Feb
+  // salesValue (8858552.00) is now numerically identical to Mar's own
+  // salesValue (also 8858552.00, unchanged) - flagged to the owner in chat
+  // rather than silently "fixed", since it's exactly as likely to be a
+  // genuine coincidence as a transcription slip and this file should only
+  // ever hold what he actually confirmed.
   var PETRONAS_SUMMARY_DATA_ = [
-    { month: 'Jan 2026', purchaseLtr: 30982, salesLtr: 27576, salesValue: 6909179.00, collected: 8127543.00, purchaseValue: 7221248.26, payment: 6471590.07 },
-    { month: 'Feb 2026', purchaseLtr: 32564, salesLtr: 29675, salesValue: 25872739.00, collected: 7306703.00, purchaseValue: 8075840.06, payment: 8277424.01 },
-    { month: 'Mar 2026', purchaseLtr: 27885, salesLtr: 35679, salesValue: 8858552.00, collected: 9536059.00, purchaseValue: 7474381.34, payment: 7388067.09 },
-    { month: 'Apr 2026', purchaseLtr: 33512, salesLtr: 31709, salesValue: 7945848.00, collected: 8156942.00, purchaseValue: 10091030.73, payment: 11503190.71 },
-    { month: 'May 2026', purchaseLtr: 30771, salesLtr: 29491, salesValue: 7703865.00, collected: 8639621.00, purchaseValue: 9394405.00, payment: 9580264.64 },
-    { month: 'Jun 2026', purchaseLtr: 34931, salesLtr: 34004, salesValue: 9435177.00, collected: 9687818.00, purchaseValue: 11820364.46, payment: 8023850.54 },
-    { month: 'Jul 2026', purchaseLtr: 35123, salesLtr: 32536, salesValue: 9063214.00, collected: 9152254.00, purchaseValue: 11098907.35, payment: 15671666.23 },
-    { month: 'Aug 2026', purchaseLtr: 35192, salesLtr: 26888, salesValue: 8095684.00, collected: 7923677.00, purchaseValue: 9455076.94, payment: 7646181.04 }
+    { month: 'Jan 2026', purchaseLtr: 30982, salesLtr: 27576, salesValue: 6909179.00, collected: 8127543.00, purchaseValue: 7221248.26, payment: 6437370.00 },
+    { month: 'Feb 2026', purchaseLtr: 32564, salesLtr: 29675, salesValue: 8858552.00, collected: 7143788.00, purchaseValue: 7538740.00, payment: 7173315.00 },
+    { month: 'Mar 2026', purchaseLtr: 27885, salesLtr: 35679, salesValue: 8858552.00, collected: 9787176.00, purchaseValue: 7474381.34, payment: 8551490.00 },
+    { month: 'Apr 2026', purchaseLtr: 33512, salesLtr: 31709, salesValue: 7945848.00, collected: 8156942.00, purchaseValue: 8526254.00, payment: 9910094.00 },
+    { month: 'May 2026', purchaseLtr: 30771, salesLtr: 29491, salesValue: 7703865.00, collected: 8639621.00, purchaseValue: 9394405.00, payment: 8262026.00 },
+    { month: 'Jun 2026', purchaseLtr: 34931, salesLtr: 34004, salesValue: 9435177.00, collected: 9687818.00, purchaseValue: 10847423.00, payment: 7995530.00 },
+    { month: 'Jul 2026', purchaseLtr: 35123, salesLtr: 32536, salesValue: 9063214.00, collected: 9152254.00, purchaseValue: 11098907.35, payment: 14178948.00 },
+    { month: 'Aug 2026', purchaseLtr: 35192, salesLtr: 26888, salesValue: 8095684.00, collected: 7923677.00, purchaseValue: 9455076.94, payment: 7389496.00 }
   ];
 
   // "Balance (Closing Stock)" running column - added 30 Sep 2026, removed
@@ -5659,7 +5730,11 @@
     var rows = PETRONAS_SUMMARY_DATA_.map(function (r) {
       return { month: r.month, purchaseLtr: r.purchaseLtr, salesLtr: r.salesLtr,
         salesValue: r.salesValue, collected: r.collected, purchaseValue: r.purchaseValue,
-        payment: r.payment, live: false };
+        // claimsCn: null for every static Jan-Aug row, added 15 Oct 2026 -
+        // see petronasSummaryRowHtml_()'s own comment. The claim-exclusion/
+        // CN-tracking feature didn't exist yet for these closed months, so
+        // there's no real figure to show - a dash, not a fabricated 0.
+        payment: r.payment, claimsCn: null, live: false };
     });
     petronasSummaryLive.forEach(function (r) {
       rows.push({
@@ -5667,6 +5742,7 @@
         purchaseLtr: r.purchaseLtr || 0, salesLtr: r.salesLtr || 0,
         salesValue: r.salesValue || 0, collected: r.collected || 0,
         purchaseValue: r.purchaseValue || 0, payment: r.payment || 0,
+        claimsCn: (r.claimsCn === null || r.claimsCn === undefined) ? null : r.claimsCn,
         live: true
       });
     });
@@ -5675,7 +5751,14 @@
 
   var PETRONAS_SUMMARY_HEAD_ = '<thead><tr><th>Month</th><th>Purchase (Ltr)</th><th>Sales (Ltr)</th>' +
     '<th>Stock (Purchase&nbsp;−&nbsp;Sales)</th><th>Balance (Closing Stock)</th><th>Sales (Value)</th>' +
-    '<th>Collected Amount</th><th>Purchase (Value)</th><th>Payment Made to Petronas</th></tr></thead>';
+    '<th>Collected Amount</th><th>Purchase (Value)</th><th>Payment Made to Petronas</th>' +
+    '<th>Claims (CN)</th></tr></thead>';
+
+  // fmtRsOrDash_ - added 15 Oct 2026 for the new Claims (CN) column, which
+  // is genuinely absent (not zero) for every Jan-Aug static row and for any
+  // live month before this feature's first sync - a dash reads as "not
+  // tracked here" where fmtRs(0) would misleadingly read as "zero claims".
+  function fmtRsOrDash_(v) { return (v === null || v === undefined) ? '—' : fmtRs(v); }
 
   function petronasSummaryRowHtml_(r, balance) {
     var stock = r.purchaseLtr - r.salesLtr;
@@ -5691,7 +5774,8 @@
       '<td class="num">' + fmtRs(r.salesValue) + '</td>' +
       '<td class="num petronas-summary-collected">' + fmtRs(r.collected) + '</td>' +
       '<td class="num petronas-summary-purchaseval">' + fmtRs(r.purchaseValue) + '</td>' +
-      '<td class="num petronas-summary-payment">' + fmtRs(r.payment) + '</td></tr>';
+      '<td class="num petronas-summary-payment">' + fmtRs(r.payment) + '</td>' +
+      '<td class="num">' + fmtRsOrDash_(r.claimsCn) + '</td></tr>';
   }
 
   function renderPetronasSummary_() {
@@ -5704,8 +5788,9 @@
       t.purchaseLtr += r.purchaseLtr; t.salesLtr += r.salesLtr;
       t.salesValue += r.salesValue; t.collected += r.collected;
       t.purchaseValue += r.purchaseValue; t.payment += r.payment;
+      if (r.claimsCn !== null && r.claimsCn !== undefined) { t.claimsCn += r.claimsCn; t.claimsCnSeen = true; }
       return t;
-    }, { purchaseLtr: 0, salesLtr: 0, salesValue: 0, collected: 0, purchaseValue: 0, payment: 0 });
+    }, { purchaseLtr: 0, salesLtr: 0, salesValue: 0, collected: 0, purchaseValue: 0, payment: 0, claimsCn: 0, claimsCnSeen: false });
     var totalStock = totals.purchaseLtr - totals.salesLtr;
     var totalStockCls = totalStock < 0 ? 'petronas-summary-stock neg' : 'petronas-summary-stock pos';
     var latestBalance = balances.length ? balances[balances.length - 1] : PETRONAS_OPENING_STOCK_LTR_;
@@ -5718,7 +5803,8 @@
       '<td class="num">' + fmtRs(totals.salesValue) + '</td>' +
       '<td class="num petronas-summary-collected">' + fmtRs(totals.collected) + '</td>' +
       '<td class="num petronas-summary-purchaseval">' + fmtRs(totals.purchaseValue) + '</td>' +
-      '<td class="num petronas-summary-payment">' + fmtRs(totals.payment) + '</td></tr>';
+      '<td class="num petronas-summary-payment">' + fmtRs(totals.payment) + '</td>' +
+      '<td class="num">' + (totals.claimsCnSeen ? fmtRs(totals.claimsCn) : '—') + '</td></tr>';
     // NOT built via ageTableWrap_() - its variant system appends an
     // "age-table-<variant>" class and picks column widths from a fixed
     // name-first-column formula, neither of which fits this table's own
@@ -5801,27 +5887,30 @@
       }
       var allRows = petronasSummaryAllRows_();
       var balances = petronasOpeningStockBalances_(allRows);
-      var rows = [['Month', 'Purchase (Ltr)', 'Sales (Ltr)', 'Stock (Purchase - Sales)', 'Balance (Closing Stock)', 'Sales (Value)', 'Collected Amount', 'Purchase (Value)', 'Payment Made to Petronas']];
+      var rows = [['Month', 'Purchase (Ltr)', 'Sales (Ltr)', 'Stock (Purchase - Sales)', 'Balance (Closing Stock)', 'Sales (Value)', 'Collected Amount', 'Purchase (Value)', 'Payment Made to Petronas', 'Claims (CN)']];
       rows.push(['Opening stock: ' + PETRONAS_OPENING_STOCK_LTR_ + ' Ltr (' + PETRONAS_OPENING_STOCK_AS_OF_ + ')']);
-      var totals = { purchaseLtr: 0, salesLtr: 0, salesValue: 0, collected: 0, purchaseValue: 0, payment: 0 };
+      var totals = { purchaseLtr: 0, salesLtr: 0, salesValue: 0, collected: 0, purchaseValue: 0, payment: 0, claimsCn: 0, claimsCnSeen: false };
       allRows.forEach(function (r, i) {
         var stock = r.purchaseLtr - r.salesLtr;
         totals.purchaseLtr += r.purchaseLtr; totals.salesLtr += r.salesLtr;
         totals.salesValue += r.salesValue; totals.collected += r.collected;
         totals.purchaseValue += r.purchaseValue; totals.payment += r.payment;
+        if (r.claimsCn !== null && r.claimsCn !== undefined) { totals.claimsCn += r.claimsCn; totals.claimsCnSeen = true; }
         rows.push([
           r.month + (r.live ? ' (live)' : ''),
           r.purchaseLtr, r.salesLtr, stock, balances[i],
-          Math.round(r.salesValue), Math.round(r.collected), Math.round(r.purchaseValue), Math.round(r.payment)
+          Math.round(r.salesValue), Math.round(r.collected), Math.round(r.purchaseValue), Math.round(r.payment),
+          (r.claimsCn === null || r.claimsCn === undefined) ? '' : Math.round(r.claimsCn)
         ]);
       });
       var latestBalance = balances.length ? balances[balances.length - 1] : PETRONAS_OPENING_STOCK_LTR_;
       rows.push([
         'Total', totals.purchaseLtr, totals.salesLtr, totals.purchaseLtr - totals.salesLtr, latestBalance,
-        Math.round(totals.salesValue), Math.round(totals.collected), Math.round(totals.purchaseValue), Math.round(totals.payment)
+        Math.round(totals.salesValue), Math.round(totals.collected), Math.round(totals.purchaseValue), Math.round(totals.payment),
+        totals.claimsCnSeen ? Math.round(totals.claimsCn) : ''
       ]);
       var ws = XLSX.utils.aoa_to_sheet(rows);
-      ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 20 }];
+      ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 20 }, { wch: 16 }];
       var wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Petronas Summary');
       var d = new Date();
