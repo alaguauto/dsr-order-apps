@@ -427,9 +427,28 @@
   .rank-row.total-row .rank-name { font-weight: 800; }
   .rank-row.total-row .rank-value { font-weight: 800; color: var(--ink); }
   .rank-name { flex: 1.1; min-width: 0; font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* .rank-bar-wrap / .progress-track.mini: the mini progress bar that used
+     to sit between name and percent in the Ranking panel rows. Dropped 16
+     Oct 2026 in the same round that added the Ltr/Rs value line below -
+     owner said to drop the bar first if space got tight ("can remove the
+     graph if space constraints") rather than cramp the new number. Rules
+     kept (now unused by any row) in case the bar comes back later. */
   .rank-bar-wrap { flex: 1.3; min-width: 50px; }
   .progress-track.mini { height: 6px; }
   .rank-pct { font-weight: 600; font-size: 12px; width: 38px; text-align: right; flex-shrink: 0; }
+  /* Ranking panel (Sales/Collection leaderboard) grew its own value line
+     under the percent, added 16 Oct 2026 at the owner's request ("in
+     ranking show the number also") - .rank-pct is only used by
+     renderLeaderboard()'s two lists (confirmed - no other panel shares
+     this class), so widening it here is safe. */
+  .rank-pct.with-value { width: auto; min-width: 64px; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.3; }
+  /* Swapped emphasis 17 Oct 2026 at the owner's request ("put the number
+     inside before the percentage and also make it as bold") - the Ltr/Rs
+     value is now the bold top line, the percent is the smaller muted line
+     underneath (was the other way round when this value line was first
+     added the day before). */
+  .rank-pct-value { font-size: 13px; font-weight: 800; color: var(--ink); white-space: nowrap; }
+  .rank-pct-main { font-size: 10.5px; font-weight: 600; color: var(--ink-muted); }
   .rank-waiting { font-size: 11.5px; color: var(--ink-muted); font-style: italic; }
   .leaderboard.three { grid-template-columns: repeat(3, 1fr); }
   @media (max-width: 900px) { .leaderboard.three { grid-template-columns: 1fr 1fr; } }
@@ -3599,10 +3618,11 @@
   }
 
   // Ranking / leaderboard, added 17 Sep 2026 per the owner's request -
-  // "DSR performance/ranking". Sales ranks all 6 by % of monthly Ltr
-  // target reached, descending - a DSR past 100% still sorts correctly
-  // (percentages aren't clamped for the SORT, only for the bar width).
-  // Collection ranks separately (different unit, own target) and only
+  // "DSR performance/ranking". Originally sorted by % of monthly target
+  // reached; changed 17 Oct 2026 to sort by the raw monthLtr/monthCollected
+  // figure instead ("sort according to the number not the percentage") -
+  // the % still shows per row, just as the secondary line, not the sort
+  // key. Collection ranks separately (different unit, own target) and only
   // among DSRs whose live Collection figure has actually arrived at least
   // once (monthCollected !== null) - a DSR still waiting on today's first
   // Tally sync is listed at the bottom, unranked, rather than sorted in
@@ -3616,16 +3636,19 @@
     // Collection ranking directly below already uses.
     var withSales = visibleDsrs_().filter(function (d) { return d.target > 0 && d.monthLtr !== null; });
     var waitingSales = visibleDsrs_().filter(function (d) { return d.target > 0 && d.monthLtr === null; });
+    // Sort changed 17 Oct 2026 at the owner's request ("sort according to
+    // the number not the percentage") - was ranked by % of target reached;
+    // now ranked by the raw monthLtr figure itself, descending.
     var salesRanked = withSales.slice().sort(function (a, b) {
-      return (b.monthLtr / b.target) - (a.monthLtr / a.target);
+      return b.monthLtr - a.monthLtr;
     });
     var salesRows = salesRanked.map(function (d, i) {
       var pct = (d.monthLtr / d.target) * 100;
       var pctClamped = Math.min(100, Math.max(0, pct));
       return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
         '<span class="rank-name">' + d.name + '</span>' +
-        '<span class="rank-bar-wrap"><div class="progress-track mini"><div class="progress-fill' + (pctClamped >= 100 ? ' done' : '') + '" style="width:' + pctClamped + '%"></div></div></span>' +
-        '<span class="rank-pct num">' + Math.round(pct) + '%' + (pctClamped < 100 ? paceTagHtml(pct, true) : '') + '</span></div>';
+        '<span class="rank-pct with-value num"><span class="rank-pct-value">' + fmt(d.monthLtr) + ' Ltr</span>' +
+        '<span class="rank-pct-main">' + Math.round(pct) + '%' + (pctClamped < 100 ? paceTagHtml(pct, true) : '') + '</span></span></div>';
     });
     salesRows = salesRows.concat(waitingSales.map(function (d) {
       return '<div class="rank-row"><span class="rank-num">—</span><span class="rank-name">' + d.name +
@@ -3636,16 +3659,18 @@
 
     var withCollection = visibleDsrs_().filter(function (d) { return d.collectionTarget > 0 && d.monthCollected !== null; });
     var waiting = visibleDsrs_().filter(function (d) { return d.collectionTarget > 0 && d.monthCollected === null; });
+    // Sort changed 17 Oct 2026, same request as Sales above - ranked by the
+    // raw monthCollected figure now, not % of target.
     var collectionRanked = withCollection.slice().sort(function (a, b) {
-      return (b.monthCollected / b.collectionTarget) - (a.monthCollected / a.collectionTarget);
+      return b.monthCollected - a.monthCollected;
     });
     var rows = collectionRanked.map(function (d, i) {
       var pct = (d.monthCollected / d.collectionTarget) * 100;
       var pctClamped = Math.min(100, Math.max(0, pct));
       return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
         '<span class="rank-name">' + d.name + '</span>' +
-        '<span class="rank-bar-wrap"><div class="progress-track mini"><div class="progress-fill money' + (pctClamped >= 100 ? ' done' : '') + '" style="width:' + pctClamped + '%"></div></div></span>' +
-        '<span class="rank-pct num">' + Math.round(pct) + '%' + (pctClamped < 100 ? paceTagHtml(pct, true) : '') + '</span></div>';
+        '<span class="rank-pct with-value num"><span class="rank-pct-value">' + fmtRs(d.monthCollected) + '</span>' +
+        '<span class="rank-pct-main">' + Math.round(pct) + '%' + (pctClamped < 100 ? paceTagHtml(pct, true) : '') + '</span></span></div>';
     });
     rows = rows.concat(waiting.map(function (d) {
       return '<div class="rank-row"><span class="rank-num">—</span><span class="rank-name">' + d.name +
@@ -3752,10 +3777,13 @@
       return 'h1';
     }
 
-    // Week-total column (right edge), added 15 Oct 2026 ("make week total
-    // and day total"). The bottom day-total row from that same round was
-    // removed again on the owner's follow-up request ("remove the bottom
-    // total"), keeping only this per-week column.
+    // Week-total column (right edge) and day-total row (bottom), added 15
+    // Oct 2026 ("make week total and day total"), briefly removed on a
+    // follow-up ("remove the bottom total") and restored again 16 Oct 2026
+    // ("put bottom total also") - dayTotals[p] is the sum of every week's
+    // p'th day-in-bucket (p=0 is each week's 1st/8th/15th/22nd/29th day,
+    // etc.), the natural "column total" now that columns are bucket
+    // positions rather than fixed weekdays.
     //
     // Weekday header row, added 15 Oct 2026 ("add mon tue on top of the
     // coloumn"). Bucket size is exactly 7, so column position p (0-6) maps
@@ -3765,6 +3793,9 @@
     // what the 1st falls on. So the header is computed once from the 1st.
     var WEEKDAY_ABBR_ = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     var firstDow = new Date(y, m, 1).getDay();
+
+    var dayTotals = new Array(WEEK_BUCKET_SIZE).fill(0);
+    var grandTotal = 0;
 
     var html = '<div class="heatmap-grid">';
     html += '<div></div>';
@@ -3777,10 +3808,15 @@
         var cell = w.days[pp];
         if (!cell) { html += '<div></div>'; continue; }
         weekTotal += cell.val;
+        dayTotals[pp] += cell.val;
         html += '<div class="heatmap-cell ' + bucketClass_(cell.val) + '" title="' + cell.iso + '"><span class="heatmap-cell-date">' + cell.day + '</span>' + fmt(cell.val) + '</div>';
       }
+      grandTotal += weekTotal;
       html += '<div class="heatmap-cell heatmap-total-cell" title="Week ' + (wi + 1) + ' total (' + w.startDay + '–' + w.endDay + ')">' + fmt(weekTotal) + '</div>';
     });
+    html += '<div class="heatmap-wk-label heatmap-total-label">Total</div>';
+    dayTotals.forEach(function (t) { html += '<div class="heatmap-cell heatmap-total-cell">' + fmt(t) + '</div>'; });
+    html += '<div class="heatmap-cell heatmap-total-cell heatmap-grand-total" title="Month total so far">' + fmt(grandTotal) + '</div>';
     html += '</div>';
     gridWrap.innerHTML = html;
   }
