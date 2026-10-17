@@ -449,7 +449,15 @@
      added the day before). */
   .rank-pct-value { font-size: 13px; font-weight: 800; color: var(--ink); white-space: nowrap; }
   .rank-pct-main { font-size: 10.5px; font-weight: 600; color: var(--ink-muted); }
+  /* "Share of team" line, added 17 Oct 2026 at the owner's request ("how
+     much share his volume in the done number") - a third, smaller line so
+     it reads as clearly distinct from the target-% line above it. */
+  .rank-pct-share { font-size: 9.5px; font-weight: 600; color: var(--accent); white-space: nowrap; }
   .rank-waiting { font-size: 11.5px; color: var(--ink-muted); font-style: italic; }
+  /* Short explainer under each Ranking panel's title, added 17 Oct 2026
+     ("write a short note near the percentage") - clarifies the two
+     different percentages now shown per row before anyone has to ask. */
+  .leaderboard-note { font-size: 10.5px; color: var(--ink-muted); line-height: 1.35; margin: 0 0 10px; }
   .leaderboard.three { grid-template-columns: repeat(3, 1fr); }
   @media (max-width: 900px) { .leaderboard.three { grid-template-columns: 1fr 1fr; } }
   @media (max-width: 600px) { .leaderboard.three { grid-template-columns: 1fr; } }
@@ -1495,10 +1503,12 @@
     <div class="leaderboard">
       <div class="leaderboard-panel">
         <p class="leaderboard-title">Sales — % of target</p>
+        <p class="leaderboard-note">% of target = this DSR's own monthly target reached so far. % of team = his share of all DSRs' combined Sales this month.</p>
         <div id="salesRanking"></div>
       </div>
       <div class="leaderboard-panel">
         <p class="leaderboard-title">Collection — % of target</p>
+        <p class="leaderboard-note">% of target = this DSR's own monthly target reached so far. % of team = his share of all DSRs' combined Collection this month.</p>
         <div id="collectionRanking"></div>
       </div>
     </div>
@@ -3642,13 +3652,24 @@
     var salesRanked = withSales.slice().sort(function (a, b) {
       return b.monthLtr - a.monthLtr;
     });
+    // "Share" line, added 17 Oct 2026 at the owner's request ("how much
+    // share his volume in the done number... if Prabha 50, Madhu 30 and
+    // Anadh 20, then Prabha is 50% of this 100") - each DSR's monthLtr as
+    // a % of the TEAM's combined monthLtr (sum over the ranked/synced list
+    // only - same denominator the rows themselves are drawn from), not a
+    // % of that DSR's own target. Two different percentages on the same
+    // row, so each gets its own short label (see the panel note above the
+    // list too).
+    var salesTeamTotal = salesRanked.reduce(function (sum, d) { return sum + d.monthLtr; }, 0);
     var salesRows = salesRanked.map(function (d, i) {
       var pct = (d.monthLtr / d.target) * 100;
       var pctClamped = Math.min(100, Math.max(0, pct));
+      var sharePct = salesTeamTotal > 0 ? (d.monthLtr / salesTeamTotal) * 100 : 0;
       return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
         '<span class="rank-name">' + d.name + '</span>' +
         '<span class="rank-pct with-value num"><span class="rank-pct-value">' + fmt(d.monthLtr) + ' Ltr</span>' +
-        '<span class="rank-pct-main">' + Math.round(pct) + '%' + (pctClamped < 100 ? paceTagHtml(pct, true) : '') + '</span></span></div>';
+        '<span class="rank-pct-main">' + Math.round(pct) + '% of target' + (pctClamped < 100 ? paceTagHtml(pct, true) : '') + '</span>' +
+        '<span class="rank-pct-share">' + Math.round(sharePct) + '% of team</span></span></div>';
     });
     salesRows = salesRows.concat(waitingSales.map(function (d) {
       return '<div class="rank-row"><span class="rank-num">—</span><span class="rank-name">' + d.name +
@@ -3664,13 +3685,18 @@
     var collectionRanked = withCollection.slice().sort(function (a, b) {
       return b.monthCollected - a.monthCollected;
     });
+    // Share line, same 17 Oct 2026 request as Sales above - % of the
+    // team's combined monthCollected, not % of that DSR's own target.
+    var collectionTeamTotal = collectionRanked.reduce(function (sum, d) { return sum + d.monthCollected; }, 0);
     var rows = collectionRanked.map(function (d, i) {
       var pct = (d.monthCollected / d.collectionTarget) * 100;
       var pctClamped = Math.min(100, Math.max(0, pct));
+      var sharePct = collectionTeamTotal > 0 ? (d.monthCollected / collectionTeamTotal) * 100 : 0;
       return '<div class="rank-row' + (i === 0 ? ' top' : '') + '"><span class="rank-num">' + (i + 1) + '</span>' +
         '<span class="rank-name">' + d.name + '</span>' +
         '<span class="rank-pct with-value num"><span class="rank-pct-value">' + fmtRs(d.monthCollected) + '</span>' +
-        '<span class="rank-pct-main">' + Math.round(pct) + '%' + (pctClamped < 100 ? paceTagHtml(pct, true) : '') + '</span></span></div>';
+        '<span class="rank-pct-main">' + Math.round(pct) + '% of target' + (pctClamped < 100 ? paceTagHtml(pct, true) : '') + '</span>' +
+        '<span class="rank-pct-share">' + Math.round(sharePct) + '% of team</span></span></div>';
     });
     rows = rows.concat(waiting.map(function (d) {
       return '<div class="rank-row"><span class="rank-num">—</span><span class="rank-name">' + d.name +
