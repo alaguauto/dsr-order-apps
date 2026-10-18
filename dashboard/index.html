@@ -628,18 +628,19 @@
      can run long) via the :not() below. */
   #mfdbTable th, #mfdbTable td { white-space: nowrap; }
   #mfdbTable td:first-child { white-space: normal; }
-  /* Dealer column stays pinned while scrolling sideways to the month
-     values - without this, swiping right to see Oct/Sept loses all
-     context of which row is which dealer, which is most of what made
-     the scroll feel like it was going nowhere/showing nothing on a
-     phone. Solid --surface background so scrolled-under cells don't
-     show through; a shadow-only right edge gives a visible "there's
-     more" cue the plain scroll container didn't have before. */
-  #mfdbTable th:first-child, #mfdbTable td:first-child {
-    position: sticky; left: 0; z-index: 2; background: var(--surface);
-    box-shadow: 2px 0 4px -2px rgba(28, 26, 22, 0.18);
-  }
-  #mfdbTable th:first-child { z-index: 3; }
+  /* A per-row `position: sticky` first column (pinning the Dealer name
+     while scrolling sideways to the month values) was tried here on
+     18 Oct 2026 but reverted the same day: with a real dealer list this
+     table can run into the hundreds of rows (684 dealers company-wide),
+     and turning every single row's first <td> into its own sticky/
+     shadowed layer is a well-known mobile-Safari performance cliff -
+     exactly the right shape to explain the owner's follow-up report
+     ("no not loading, and after clicking of Item-wise... only not
+     others" - i.e. only THIS table, only after it had real-scale data
+     instead of the handful of mock rows this was first tested against).
+     Sticking with plain nowrap + horizontal scroll (no sticky column)
+     is far cheaper and still fixes the original letter-wrapping bug,
+     which was the actual "looks broken on mobile" complaint. */
   #mfdbTable th.current-month, #mfdbTable td.current-month { background: var(--accent-soft-lt); }
   /* Flags a month cell with zero sales so a gap is easy to spot at a
      glance, added same day ("where all zero is there make a background
