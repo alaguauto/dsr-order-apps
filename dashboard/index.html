@@ -39,6 +39,7 @@
     --accent: #b8721c;
     --accent-ink: #ffffff;
     --accent-soft: #f2ddb4;
+    --accent-soft-lt: #f9f0dc;
     --good: #2f7d5a;
     --good-soft: #d9ecdf;
     --live: #2f6f8f;
@@ -62,6 +63,7 @@
       --accent: #e0a030;
       --accent-ink: #1c1400;
       --accent-soft: #3a2c13;
+      --accent-soft-lt: #2a2113;
       --good: #56b087;
       --good-soft: #1c3226;
       --live: #6fb6d6;
@@ -598,6 +600,28 @@
   .master-file-table td.mf-good { color: var(--good); font-weight: 700; }
   .master-file-table td.mf-warn { color: var(--warn); font-weight: 700; }
   .master-file-table td.mf-money { color: var(--money); }
+  /* #mfdbTable specifically grows an extra column per month (current
+     month first) since 18 Oct 2026 ("all month wise in table also") -
+     table-layout:fixed (every other .master-file-table keeps it) would
+     squeeze those into illegibly narrow slivers as more months pass, so
+     this one table sizes columns to content instead and relies on its
+     .age-table-scroll wrapper for horizontal scroll once they outgrow
+     the panel. font-size bumped to match .age-table (the font every
+     other card on this dashboard uses) instead of .master-file-table's
+     own smaller 11.5px - owner: "make this font as all other card look
+     same". Current-month column uses a LIGHTER tint (--accent-soft-lt)
+     than the standard --accent-soft pill/badge color elsewhere - a
+     whole column shaded at full --accent-soft read too heavy; owner:
+     "make this month background and more light shade". */
+  #mfdbTable { table-layout: auto; min-width: 0; font-size: 12.5px; }
+  #mfdbTable th.current-month, #mfdbTable td.current-month { background: var(--accent-soft-lt); }
+  /* Flags a month cell with zero sales so a gap is easy to spot at a
+     glance, added same day ("where all zero is there make a background
+     colour for that to easy identify the zeros"). Declared after
+     .current-month above so it wins when a cell is both (equal CSS
+     specificity, later rule wins) - a zero in the current month is more
+     worth flagging than the column tint. */
+  #mfdbTable td.zero-cell { background: var(--warn-soft); color: var(--ink-muted); }
   .master-file-filters { display: flex; gap: 10px; flex-wrap: wrap; padding: 10px 18px 4px; align-items: center; }
   /* max-width/ellipsis added 11 Oct 2026 ("not outside the box") - a plain
      <select> sizes itself to fit its currently-selected option's text, so
@@ -608,6 +632,33 @@
      names elsewhere on this dashboard. */
   .master-file-filters select { font-size: 12.5px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
   .master-file-filters label { font-size: 11px; color: var(--ink-muted); margin-right: 3px; }
+  /* Item search box ("By Item -> Dealers" view) + Month-on-month strip,
+     added 18 Oct 2026 - see the Item-wise & Dealer-wise Summary panel's
+     own markup comment for the full "why". Dropdown positioning mirrors
+     .lookup-dropdown elsewhere on this page, just anchored to its own
+     small wrap instead of the full-width Dealer Lookup card. */
+  .mfdb-item-search-wrap { position: relative; display: inline-block; }
+  .mfdb-item-search-input { font-size: 12.5px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); width: 220px; font-family: inherit; }
+  .mfdb-item-search-dropdown { position: absolute; left: 0; top: calc(100% + 4px); width: 300px; max-width: 80vw; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); max-height: 220px; overflow-y: auto; z-index: 6; }
+  .mfdb-item-search-row { padding: 8px 12px; font-size: 12.5px; cursor: pointer; border-top: 1px solid var(--border); }
+  .mfdb-item-search-row:first-child { border-top: none; }
+  .mfdb-item-search-row:hover { background: var(--surface-2); }
+  .mfdb-item-search-row .num { float: right; font-weight: 600; color: var(--ink-secondary); }
+  .mfdb-mom-wrap { margin: 2px 18px 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); padding: 12px 14px; }
+  .mfdb-mom-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .mfdb-mom-title { font-size: 11px; font-weight: 700; color: var(--ink-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+  .mfdb-mom-item-name { font-size: 11px; color: var(--ink-muted); font-weight: 600; text-align: right; }
+  .mfdb-mom-row { display: flex; align-items: center; gap: 14px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+  .mfdb-mom-month { display: flex; flex-direction: column; min-width: 90px; flex-shrink: 0; }
+  .mfdb-mom-month-label { font-size: 10px; color: var(--ink-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px; white-space: nowrap; }
+  .mfdb-mom-month-value { font-family: 'Archivo', system-ui, sans-serif; font-size: 17px; font-weight: 800; color: var(--ink); white-space: nowrap; }
+  .mfdb-mom-bar-track { height: 6px; border-radius: 4px; background: var(--border); margin-top: 6px; overflow: hidden; width: 88px; }
+  .mfdb-mom-bar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+  .mfdb-mom-arrow { display: flex; flex-direction: column; align-items: center; color: var(--ink-muted); font-size: 11px; flex-shrink: 0; }
+  .mfdb-mom-change { font-weight: 800; font-size: 12.5px; white-space: nowrap; }
+  .mfdb-mom-change.up { color: var(--good); }
+  .mfdb-mom-change.down { color: var(--warn); }
+  .mfdb-mom-note { font-size: 10.5px; color: var(--ink-muted); margin: 8px 0 0; }
   /* Remarks -> Task button, 10 Oct 2026 - see the Master File <th>/row
      comments near renderMasterFileTable_ for why. .mf-remarks-cell/
      .mf-remark-* replaced with .mf-task-cell/.mf-task-btn. */
@@ -2381,15 +2432,37 @@
     </summary>
     <div class="dsr-row-body">
       <div class="master-file-filters">
-        <span><label>View</label><select id="mfdbViewMode"><option value="byGroup">By Item Group → Dealers</option><option value="byDealer">By Dealer → Item Groups</option><option value="byDsr">By DSR Group → Item Groups</option></select></span>
+        <!-- "By Item -> Dealers" added 18 Oct 2026 at the owner's request
+             ("can we add item name also") - one level more detailed than
+             "By Item Group -> Dealers": the same table, keyed by the real
+             item/SKU name (r.itemName) instead of the broader item group.
+             Picked Option C of 3 mock-ups shown first ("lets go with
+             option c") - a type-to-search box (mfdbItemSearchWrap below)
+             instead of a plain 180-item dropdown, since the item list is
+             far too long to scroll comfortably. -->
+        <span><label>View</label><select id="mfdbViewMode"><option value="byGroup">By Item Group → Dealers</option><option value="byItem">By Item → Dealers</option><option value="byDealer">By Dealer → Item Groups</option><option value="byDsr">By DSR Group → Item Groups</option></select></span>
         <span id="mfdbGroupPickerWrap"><label>Item Group</label><select id="mfdbGroupPicker"></select></span>
-        <!-- DSR filter for the "By Item Group" view, added 11 Oct 2026
-             ("by item group - dsr also needed") - narrows the dealer list
-             for the selected item group down to one DSR's dealers.
+        <!-- Item search box for "By Item" view, added 18 Oct 2026 - same
+             type-to-search pattern as the Dealer Lookup card's own
+             #lookupInput/#lookupDropdown (see allKnownDealers_()/
+             renderLookupDropdown_() far below), just scoped to this
+             panel's own item list instead of the dealer roster. -->
+        <span id="mfdbItemPickerWrap" hidden>
+          <label>Item</label>
+          <div class="mfdb-item-search-wrap">
+            <input type="text" class="mfdb-item-search-input" id="mfdbItemSearchInput" placeholder="Search item…" autocomplete="off">
+            <div class="mfdb-item-search-dropdown" id="mfdbItemSearchDropdown" hidden></div>
+          </div>
+        </span>
+        <!-- DSR filter for the "By Item Group"/"By Item" views, added 11
+             Oct 2026 ("by item group - dsr also needed"), extended to the
+             new "By Item" view 18 Oct 2026 - narrows the dealer list for
+             the selected item group/item down to one DSR's dealers.
              Separate from mfdbDsrPicker below (that one drives the whole
              "By DSR Group" VIEW; this is just a filter within the
-             "By Item Group" view) - shown/hidden together with
-             mfdbGroupPickerWrap since both only apply in byGroup mode. -->
+             "By Item Group"/"By Item" views) - shown/hidden together with
+             mfdbGroupPickerWrap/mfdbItemPickerWrap since all three only
+             apply in byGroup/byItem mode. -->
         <span id="mfdbGroupDsrFilterWrap"><label>DSR Group</label><select id="mfdbGroupDsrFilter"><option value="">All DSR Groups</option></select></span>
         <span id="mfdbDealerPickerWrap" hidden><label>Dealer</label><select id="mfdbDealerPicker"></select></span>
         <!-- "DSR Group" dropdown, added 11 Oct 2026 at the owner's request
@@ -2397,6 +2470,20 @@
              pattern as the Item Group/Dealer views either side of it. -->
         <span id="mfdbDsrPickerWrap" hidden><label>DSR Group</label><select id="mfdbDsrPicker"></select></span>
       </div>
+      <!-- Month-on-month strip, added 18 Oct 2026 at the owner's request
+           ("can it add month on month near by also , that we have live
+           data from sep") - only shown in the "By Item" view, for the
+           item currently selected there. Reads the SAME Day Book data
+           already flowing in, one month at a time (see
+           mfdbFetchMonthItemTotals_()/renderMfdbMonthOnMonth_() below) -
+           Day Book has been live since DAYBOOK_FIRST_MONTH_ (Sep 2026),
+           so that's the floor; new months appear here on their own as
+           they pass, same convention as reportMonthOptionsList_()
+           elsewhere on this dashboard. Calendar months only (Jan-Dec),
+           never a Apr-Mar financial year - the owner's explicit
+           instruction, confirmed already true elsewhere on this dashboard
+           (see the "Report period" Quarter/Year comment far below). -->
+      <div class="mfdb-mom-wrap" id="mfdbMomWrap" hidden></div>
       <div class="age-table-scroll">
         <table class="master-file-table" id="mfdbTable">
           <thead id="mfdbTableHead"></thead>
@@ -5401,6 +5488,50 @@
     return false;
   }
   var MFDB_VIEW_MODE_ = 'byGroup';
+  // Currently-selected item for the "By Item" view, added 18 Oct 2026 -
+  // null until the owner picks one (renderMfDaybookSummary_()'s own
+  // byItem branch defaults it to the highest-volume item, same "default
+  // to #1 by volume" convention byGroup/byDealer/byDsr already use).
+  var MFDB_SELECTED_ITEM_ = null;
+  // Core accumulation loop, factored out of mfdbBuildIndexes_() on 18 Oct
+  // 2026 so the SAME byGroup/byItem/byDealer/byDsr shape can be built for
+  // any month's rows, not just the currently-loaded daybookItemGroupRows -
+  // needed for the new month-wise columns (owner's request: "all month
+  // wise in table also... in all the selection i need like that", i.e.
+  // every view in this panel, not only "By Item"). dealerDsr is passed in
+  // rather than recomputed here since it's the same roster join
+  // regardless of which month's rows are being summed.
+  function mfdbAccumulateRows_(rows, dealerDsr) {
+    var byGroup = {};  // mainGroup -> { total, byDealer: { normName: {label, ltr} } }
+    var byItem = {};   // itemName -> { total, byDealer: { normName: {label, ltr, dsrName} } }
+    var byDealer = {}; // normName -> { label, total, byGroup: { mainGroup: ltr } }
+    var byDsr = {};    // dsrDisplayName -> { total, byGroup: { mainGroup: ltr } }
+    (rows || []).forEach(function (r) {
+      if (!isPetronasItemGroup_(r.itemGroup)) return;
+      if (mfdbIsExcludedRow_(r)) return;
+      var ltr = Number(r.altQtyLtr) || 0;
+      if (!ltr) return;
+      var mainGroup = daybookMainGroup_(r.itemGroup);
+      var norm = mfdbNormName_(r.party);
+      var dsrName = dealerDsr[r.party] || 'Other Areas / Dealers';
+      var g = (byGroup[mainGroup] = byGroup[mainGroup] || { total: 0, byDealer: {} });
+      g.total += ltr;
+      g.byDealer[norm] = g.byDealer[norm] || { label: r.party, ltr: 0, dsrName: dsrName };
+      g.byDealer[norm].ltr += ltr;
+      var itemName = r.itemName || '(Unnamed item)';
+      var gi = (byItem[itemName] = byItem[itemName] || { total: 0, byDealer: {} });
+      gi.total += ltr;
+      gi.byDealer[norm] = gi.byDealer[norm] || { label: r.party, ltr: 0, dsrName: dsrName };
+      gi.byDealer[norm].ltr += ltr;
+      var dd = (byDealer[norm] = byDealer[norm] || { label: r.party, total: 0, byGroup: {} });
+      dd.total += ltr;
+      dd.byGroup[mainGroup] = (dd.byGroup[mainGroup] || 0) + ltr;
+      var ds = (byDsr[dsrName] = byDsr[dsrName] || { total: 0, byGroup: {} });
+      ds.total += ltr;
+      ds.byGroup[mainGroup] = (ds.byGroup[mainGroup] || 0) + ltr;
+    });
+    return { byGroup: byGroup, byItem: byItem, byDealer: byDealer, byDsr: byDsr };
+  }
   function mfdbBuildIndexes_() {
     var mfByNorm = {};
     (MASTER_FILE_DATA_ || []).forEach(function (d) {
@@ -5414,36 +5545,9 @@
     // under any of the 7 DSR rosters falls into "Other Areas / Dealers"
     // rather than being silently dropped, same convention as that panel.
     var dealerDsr = knownDealerDsrMap_();
-    var byGroup = {};  // mainGroup -> { total, byDealer: { normName: {label, ltr} } }
-    var byDealer = {}; // normName -> { label, total, byGroup: { mainGroup: ltr } }
-    var byDsr = {};    // dsrDisplayName -> { total, byGroup: { mainGroup: ltr } }
-    (daybookItemGroupRows || []).forEach(function (r) {
-      if (!isPetronasItemGroup_(r.itemGroup)) return;
-      if (mfdbIsExcludedRow_(r)) return;
-      var ltr = Number(r.altQtyLtr) || 0;
-      if (!ltr) return;
-      var mainGroup = daybookMainGroup_(r.itemGroup);
-      var norm = mfdbNormName_(r.party);
-      // Resolved once per row so byGroup's own per-dealer records can
-      // carry it too (added 11 Oct 2026 for the new "By Item Group" DSR
-      // filter, "by item group - dsr also needed") - same roster-based
-      // name every other DSR grouping on this dashboard uses, not the
-      // Plan's own free-text dsrName field (which mfdbDealerCellsHtml_
-      // shows in the table and can disagree in wording/coverage - this
-      // filter intentionally uses the more reliable roster join instead).
-      var dsrName = dealerDsr[r.party] || 'Other Areas / Dealers';
-      var g = (byGroup[mainGroup] = byGroup[mainGroup] || { total: 0, byDealer: {} });
-      g.total += ltr;
-      g.byDealer[norm] = g.byDealer[norm] || { label: r.party, ltr: 0, dsrName: dsrName };
-      g.byDealer[norm].ltr += ltr;
-      var dd = (byDealer[norm] = byDealer[norm] || { label: r.party, total: 0, byGroup: {} });
-      dd.total += ltr;
-      dd.byGroup[mainGroup] = (dd.byGroup[mainGroup] || 0) + ltr;
-      var ds = (byDsr[dsrName] = byDsr[dsrName] || { total: 0, byGroup: {} });
-      ds.total += ltr;
-      ds.byGroup[mainGroup] = (ds.byGroup[mainGroup] || 0) + ltr;
-    });
-    return { mfByNorm: mfByNorm, byGroup: byGroup, byDealer: byDealer, byDsr: byDsr };
+    var acc = mfdbAccumulateRows_(daybookItemGroupRows, dealerDsr);
+    acc.mfByNorm = mfByNorm;
+    return acc;
   }
   function mfdbDealerCellsHtml_(label, mfByNorm, norm) {
     var mf = mfByNorm[norm];
@@ -5471,6 +5575,12 @@
     if (territoryEl) {
       territoryEl.textContent = reportMonthLabelFor_(currentViewMonthKey_()) + ' · Day Book sales matched against the Sales & Collection Plan dealer list';
     }
+    // Month-on-month strip only ever shows in the "By Item" view - hidden
+    // by default here so every early return/other view mode below leaves
+    // it hidden without each one needing to say so itself; the byItem
+    // branch further down is the only place that un-hides it.
+    var momWrap = document.getElementById('mfdbMomWrap');
+    if (momWrap) momWrap.hidden = true;
     if (!headEl || !bodyEl) return;
     if (daybookItemGroupRows === null) {
       headEl.innerHTML = '';
@@ -5485,8 +5595,23 @@
     }
     var idx = mfdbBuildIndexes_();
     var groupNames = Object.keys(idx.byGroup).sort(function (a, b) { return idx.byGroup[b].total - idx.byGroup[a].total; });
+    var itemNames = Object.keys(idx.byItem).sort(function (a, b) { return idx.byItem[b].total - idx.byItem[a].total; });
     var dealerNorms = Object.keys(idx.byDealer).sort(function (a, b) { return idx.byDealer[b].total - idx.byDealer[a].total; });
     var dsrNames = Object.keys(idx.byDsr).sort(function (a, b) { return idx.byDsr[b].total - idx.byDsr[a].total; });
+
+    // Month-wise columns, added 18 Oct 2026 at the owner's request ("can i
+    // get the all month wise in table also , that current month should be
+    // first and before month next to it , in all the selection i need
+    // like that") - applies to every view below (By Item Group, By Item,
+    // By Dealer, By DSR Group), not only "By Item". monthKeys is current
+    // month first, oldest last; displayedMonthKey is whichever month idx
+    // above actually reflects (the real current month, or a frozen past
+    // month if one's being viewed elsewhere on the dashboard) so that
+    // column reuses idx directly instead of an extra fetch, same as the
+    // Month-on-month strip's own convention.
+    var monthKeys = mfdbMonthColumnsList_();
+    var displayedMonthKey = currentViewMonthKey_();
+    mfdbEnsureMonthlyIdxLoaded_(monthKeys, displayedMonthKey);
 
     // Keep pickers in sync - rebuild options only when the option set
     // actually changed (tracked via a data-built fingerprint), so an open
@@ -5527,16 +5652,21 @@
     if (MFDB_VIEW_MODE_ === 'byDsr') {
       var selDsrName = (dsrPicker && dsrPicker.value) || dsrNames[0];
       var ds = idx.byDsr[selDsrName];
-      headEl.innerHTML = '<tr><th>Item Group</th><th>Alt Qty (Ltr)</th><th>% of DSR total</th></tr>';
+      headEl.innerHTML = '<tr><th>Item Group</th>' + mfdbMonthlyHeadersHtml_(monthKeys) + '</tr>';
       if (!ds) {
-        bodyEl.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--ink-muted);">No Petronas item-group sales matched for this DSR Group this month.</td></tr>';
+        bodyEl.innerHTML = '<tr><td colspan="' + (1 + monthKeys.length) + '" style="text-align:center;color:var(--ink-muted);">No Petronas item-group sales matched for this DSR Group this month.</td></tr>';
       } else {
         var gNamesDsr = Object.keys(ds.byGroup).sort(function (a, b) { return ds.byGroup[b] - ds.byGroup[a]; });
         bodyEl.innerHTML = gNamesDsr.map(function (g) {
-          var ltr = ds.byGroup[g];
-          var pct = ds.total > 0 ? Math.round((ltr / ds.total) * 100) : 0;
-          return '<tr><td>' + mfEscapeHtml_(g) + '</td><td class="num">' + fmt(ltr) + '</td><td class="num">' + pct + '%</td></tr>';
-        }).join('') + '<tr class="age-table-total"><td>Total</td><td class="num">' + fmt(ds.total) + '</td><td></td></tr>';
+          var cells = mfdbMonthlyCellsHtml_(monthKeys, displayedMonthKey, idx, function (mIdx) {
+            var mds = mIdx.byDsr[selDsrName];
+            return mds && mds.byGroup[g];
+          });
+          return '<tr><td>' + mfEscapeHtml_(g) + '</td>' + cells + '</tr>';
+        }).join('') + '<tr class="age-table-total"><td>Total</td>' + mfdbMonthlyCellsHtml_(monthKeys, displayedMonthKey, idx, function (mIdx) {
+          var mds = mIdx.byDsr[selDsrName];
+          return mds && mds.total;
+        }) + '</tr>';
       }
       if (footEl) footEl.textContent = 'DSR Group: ' + (selDsrName || '—');
       return;
@@ -5545,16 +5675,21 @@
     if (MFDB_VIEW_MODE_ === 'byDealer') {
       var selNorm = (dealerPicker && dealerPicker.value) || dealerNorms[0];
       var dd = idx.byDealer[selNorm];
-      headEl.innerHTML = '<tr><th>Item Group</th><th>Alt Qty (Ltr)</th><th>% of dealer total</th></tr>';
+      headEl.innerHTML = '<tr><th>Item Group</th>' + mfdbMonthlyHeadersHtml_(monthKeys) + '</tr>';
       if (!dd) {
-        bodyEl.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--ink-muted);">No Petronas item-group sales matched for this dealer this month.</td></tr>';
+        bodyEl.innerHTML = '<tr><td colspan="' + (1 + monthKeys.length) + '" style="text-align:center;color:var(--ink-muted);">No Petronas item-group sales matched for this dealer this month.</td></tr>';
       } else {
         var gNames = Object.keys(dd.byGroup).sort(function (a, b) { return dd.byGroup[b] - dd.byGroup[a]; });
         bodyEl.innerHTML = gNames.map(function (g) {
-          var ltr = dd.byGroup[g];
-          var pct = dd.total > 0 ? Math.round((ltr / dd.total) * 100) : 0;
-          return '<tr><td>' + mfEscapeHtml_(g) + '</td><td class="num">' + fmt(ltr) + '</td><td class="num">' + pct + '%</td></tr>';
-        }).join('') + '<tr class="age-table-total"><td>Total</td><td class="num">' + fmt(dd.total) + '</td><td></td></tr>';
+          var cells = mfdbMonthlyCellsHtml_(monthKeys, displayedMonthKey, idx, function (mIdx) {
+            var mdd = mIdx.byDealer[selNorm];
+            return mdd && mdd.byGroup[g];
+          });
+          return '<tr><td>' + mfEscapeHtml_(g) + '</td>' + cells + '</tr>';
+        }).join('') + '<tr class="age-table-total"><td>Total</td>' + mfdbMonthlyCellsHtml_(monthKeys, displayedMonthKey, idx, function (mIdx) {
+          var mdd = mIdx.byDealer[selNorm];
+          return mdd && mdd.total;
+        }) + '</tr>';
       }
       var mfSel = idx.mfByNorm[selNorm];
       if (footEl) footEl.textContent = mfSel
@@ -5563,12 +5698,77 @@
       return;
     }
 
+    if (MFDB_VIEW_MODE_ === 'byItem') {
+      // Added 18 Oct 2026 ("can we add item name also") - same table shape
+      // as byGroup below, just keyed by the real item/SKU name instead of
+      // the item group, and picked via the type-to-search box instead of
+      // a plain dropdown (Option C of 3 mock-ups, "lets go with option
+      // c") since the item list runs to 180 names.
+      var itemSearchInput = document.getElementById('mfdbItemSearchInput');
+      var selItem = MFDB_SELECTED_ITEM_ && idx.byItem[MFDB_SELECTED_ITEM_] ? MFDB_SELECTED_ITEM_ : itemNames[0];
+      MFDB_SELECTED_ITEM_ = selItem;
+      if (itemSearchInput && document.activeElement !== itemSearchInput) itemSearchInput.value = selItem || '';
+      var gi = idx.byItem[selItem];
+      headEl.innerHTML = '<tr><th>Dealer</th><th>DSR</th><th>Beat Day</th><th>DT</th>' + mfdbMonthlyHeadersHtml_(monthKeys) + '</tr>';
+      if (!gi) {
+        bodyEl.innerHTML = '<tr><td colspan="' + (4 + monthKeys.length) + '" style="text-align:center;color:var(--ink-muted);">No data for this item.</td></tr>';
+        if (footEl) footEl.textContent = '';
+        return;
+      }
+      // Same DSR Group filter the byGroup view's dealer list uses below -
+      // shared element, works identically here (narrows this item's
+      // dealer list down to one DSR Group).
+      var selItemDsr = (groupDsrFilter && groupDsrFilter.value) || '';
+      // Row set is the UNION across every month shown (18 Oct 2026 - see
+      // mfdbUnionDealerRecords_()'s own comment), not just gi.byDealer
+      // (the displayed month alone) - a dealer who bought last month but
+      // nothing so far this month still gets a row, with 0 in that column.
+      var itemDealerRecords = mfdbUnionDealerRecords_(selItem, 'byItem', monthKeys, displayedMonthKey, idx);
+      var dealerNormsForItem = Object.keys(itemDealerRecords)
+        .filter(function (norm) { return !selItemDsr || itemDealerRecords[norm].dsrName === selItemDsr; })
+        .sort(function (a, b) {
+          var bLtr = gi.byDealer[b] ? gi.byDealer[b].ltr : 0;
+          var aLtr = gi.byDealer[a] ? gi.byDealer[a].ltr : 0;
+          return bLtr - aLtr;
+        });
+      if (!dealerNormsForItem.length) {
+        bodyEl.innerHTML = '<tr><td colspan="' + (4 + monthKeys.length) + '" style="text-align:center;color:var(--ink-muted);">No dealers for this item under ' + mfEscapeHtml_(selItemDsr) + '.</td></tr>';
+      } else {
+        // Grand Total row below is computed PER MONTH from that month's
+        // own data (same DSR-filter logic, re-applied to each month's
+        // byDealer map) rather than just summing this month's row values -
+        // a dealer can move in/out of the filtered set month to month.
+        var itemMonthTotal = function (mIdx) {
+          var mgi = mIdx.byItem[selItem];
+          if (!mgi) return 0;
+          if (!selItemDsr) return mgi.total;
+          return Object.keys(mgi.byDealer).reduce(function (sum, n) {
+            return mgi.byDealer[n].dsrName === selItemDsr ? sum + mgi.byDealer[n].ltr : sum;
+          }, 0);
+        };
+        bodyEl.innerHTML = dealerNormsForItem.map(function (norm) {
+          var recLabel = (gi.byDealer[norm] && gi.byDealer[norm].label) || itemDealerRecords[norm].label;
+          var cells = mfdbMonthlyCellsHtml_(monthKeys, displayedMonthKey, idx, function (mIdx) {
+            var mgi = mIdx.byItem[selItem];
+            return mgi && mgi.byDealer[norm] && mgi.byDealer[norm].ltr;
+          });
+          return '<tr>' + mfdbDealerCellsHtml_(recLabel, idx.mfByNorm, norm) + cells + '</tr>';
+        }).join('') + '<tr class="age-table-total"><td colspan="4">Grand Total</td>' + mfdbMonthlyCellsHtml_(monthKeys, displayedMonthKey, idx, itemMonthTotal) + '</tr>';
+      }
+      var unmatchedItemCount = dealerNormsForItem.filter(function (n) { return !idx.mfByNorm[n]; }).length;
+      if (footEl) footEl.textContent = unmatchedItemCount
+        ? (unmatchedItemCount + ' dealer name(s) above didn’t match the Plan — likely a spelling/short-form difference; use the exact Tally ledger name in the Plan to fix.')
+        : '';
+      renderMfdbMomStrip_(selItem, idx.byItem);
+      return;
+    }
+
     // byGroup (default view)
     var selGroup = (groupPicker && groupPicker.value) || groupNames[0];
     var g = idx.byGroup[selGroup];
-    headEl.innerHTML = '<tr><th>Dealer</th><th>DSR</th><th>Beat Day</th><th>DT</th><th>' + mfEscapeHtml_(selGroup || '') + ' (Ltr)</th></tr>';
+    headEl.innerHTML = '<tr><th>Dealer</th><th>DSR</th><th>Beat Day</th><th>DT</th>' + mfdbMonthlyHeadersHtml_(monthKeys) + '</tr>';
     if (!g) {
-      bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--ink-muted);">No data for this item group.</td></tr>';
+      bodyEl.innerHTML = '<tr><td colspan="' + (4 + monthKeys.length) + '" style="text-align:center;color:var(--ink-muted);">No data for this item group.</td></tr>';
       if (footEl) footEl.textContent = '';
       return;
     }
@@ -5577,23 +5777,283 @@
     // the owner picks one; "" (All DSR Groups) shows every dealer, same
     // as before this filter existed.
     var selGroupDsr = (groupDsrFilter && groupDsrFilter.value) || '';
-    var dealerNormsForGroup = Object.keys(g.byDealer)
-      .filter(function (norm) { return !selGroupDsr || g.byDealer[norm].dsrName === selGroupDsr; })
-      .sort(function (a, b) { return g.byDealer[b].ltr - g.byDealer[a].ltr; });
+    // Row set is the UNION across every month shown (18 Oct 2026 - see
+    // mfdbUnionDealerRecords_()'s own comment), not just g.byDealer (the
+    // displayed month alone) - a dealer who bought last month but nothing
+    // so far this month still gets a row, with 0 in that column.
+    var groupDealerRecords = mfdbUnionDealerRecords_(selGroup, 'byGroup', monthKeys, displayedMonthKey, idx);
+    var dealerNormsForGroup = Object.keys(groupDealerRecords)
+      .filter(function (norm) { return !selGroupDsr || groupDealerRecords[norm].dsrName === selGroupDsr; })
+      .sort(function (a, b) {
+        var bLtr = g.byDealer[b] ? g.byDealer[b].ltr : 0;
+        var aLtr = g.byDealer[a] ? g.byDealer[a].ltr : 0;
+        return bLtr - aLtr;
+      });
     if (!dealerNormsForGroup.length) {
-      bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--ink-muted);">No dealers for this item group under ' + mfEscapeHtml_(selGroupDsr) + '.</td></tr>';
+      bodyEl.innerHTML = '<tr><td colspan="' + (4 + monthKeys.length) + '" style="text-align:center;color:var(--ink-muted);">No dealers for this item group under ' + mfEscapeHtml_(selGroupDsr) + '.</td></tr>';
       if (footEl) footEl.textContent = '';
       return;
     }
-    var filteredTotal = dealerNormsForGroup.reduce(function (sum, norm) { return sum + g.byDealer[norm].ltr; }, 0);
+    // Grand Total row below is computed PER MONTH from that month's own
+    // data (same DSR-filter logic, re-applied to each month's byDealer
+    // map), same convention as the "By Item" view's own Grand Total.
+    var groupMonthTotal = function (mIdx) {
+      var mg = mIdx.byGroup[selGroup];
+      if (!mg) return 0;
+      if (!selGroupDsr) return mg.total;
+      return Object.keys(mg.byDealer).reduce(function (sum, n) {
+        return mg.byDealer[n].dsrName === selGroupDsr ? sum + mg.byDealer[n].ltr : sum;
+      }, 0);
+    };
     bodyEl.innerHTML = dealerNormsForGroup.map(function (norm) {
-      var rec = g.byDealer[norm];
-      return '<tr>' + mfdbDealerCellsHtml_(rec.label, idx.mfByNorm, norm) + '<td class="num">' + fmt(rec.ltr) + '</td></tr>';
-    }).join('') + '<tr class="age-table-total"><td colspan="4">Grand Total</td><td class="num">' + fmt(filteredTotal) + '</td></tr>';
+      var recLabel = (g.byDealer[norm] && g.byDealer[norm].label) || groupDealerRecords[norm].label;
+      var cells = mfdbMonthlyCellsHtml_(monthKeys, displayedMonthKey, idx, function (mIdx) {
+        var mg = mIdx.byGroup[selGroup];
+        return mg && mg.byDealer[norm] && mg.byDealer[norm].ltr;
+      });
+      return '<tr>' + mfdbDealerCellsHtml_(recLabel, idx.mfByNorm, norm) + cells + '</tr>';
+    }).join('') + '<tr class="age-table-total"><td colspan="4">Grand Total</td>' + mfdbMonthlyCellsHtml_(monthKeys, displayedMonthKey, idx, groupMonthTotal) + '</tr>';
     var unmatchedCount = dealerNormsForGroup.filter(function (n) { return !idx.mfByNorm[n]; }).length;
     if (footEl) footEl.textContent = unmatchedCount
       ? (unmatchedCount + ' dealer name(s) above didn’t match the Plan — likely a spelling/short-form difference; use the exact Tally ledger name in the Plan to fix.')
       : '';
+  }
+
+  // Item search box (type-to-search) for the "By Item" view, added 18 Oct
+  // 2026 - same pattern as the Dealer Lookup card's own #lookupInput/
+  // #lookupDropdown far below (renderLookupDropdown_()), just scoped to
+  // this panel's own item list (idx.byItem) instead of the dealer roster.
+  // Called fresh on every keystroke with a freshly-built idx (cheap - same
+  // single month's already-loaded daybookItemGroupRows every other mfdb*
+  // render already re-aggregates on each call).
+  function mfdbItemSearchRender_(idx) {
+    var input = document.getElementById('mfdbItemSearchInput');
+    var dropdown = document.getElementById('mfdbItemSearchDropdown');
+    if (!input || !dropdown) return;
+    var term = (input.value || '').trim().toLowerCase();
+    if (!term) { dropdown.hidden = true; dropdown.innerHTML = ''; return; }
+    var itemNames = Object.keys(idx.byItem).sort(function (a, b) { return idx.byItem[b].total - idx.byItem[a].total; });
+    var matches = itemNames.filter(function (name) { return name.toLowerCase().indexOf(term) !== -1; }).slice(0, 12);
+    if (!matches.length) {
+      dropdown.hidden = false;
+      dropdown.innerHTML = '<div class="mfdb-item-search-row" style="color:var(--ink-muted);cursor:default;">No matching item this month.</div>';
+      return;
+    }
+    dropdown.innerHTML = matches.map(function (name) {
+      return '<div class="mfdb-item-search-row" data-item="' + mfEscapeHtml_(name) + '">' + mfEscapeHtml_(name) +
+        '<span class="num">' + fmt(idx.byItem[name].total) + ' Ltr</span></div>';
+    }).join('');
+    dropdown.hidden = false;
+    dropdown.querySelectorAll('.mfdb-item-search-row[data-item]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        MFDB_SELECTED_ITEM_ = el.getAttribute('data-item');
+        input.value = MFDB_SELECTED_ITEM_;
+        dropdown.hidden = true;
+        renderMfDaybookSummary_();
+      });
+    });
+  }
+
+  // Month-on-month strip (Item-wise & Dealer-wise Summary, "By Item" view
+  // only), added 18 Oct 2026 at the owner's request ("can it add month on
+  // month near by also , that we have live data from sep"). Reads the
+  // SAME ?type=daybookMonth endpoint the panel's own current-month data
+  // and the Day Book export button already use - just one extra read per
+  // PAST month (the real current month is already loaded, see below, so
+  // that one is free). Cached per month in mfdbMonthlyItemTotals_ so
+  // switching between items never re-fetches a month already seen this
+  // session; mfdbMonthlyItemFetchPromise_ de-dupes a month fetch already
+  // in flight. Calendar months only (Jan-Dec), never an Apr-Mar financial
+  // year - the owner's explicit note, matching the "Report period"
+  // Quarter/Year convention already established elsewhere on this
+  // dashboard (2 Oct 2026, "this year means full 2026 (jan to dec) no
+  // financial year").
+  // Per-month full index cache, generalized 18 Oct 2026 from the original
+  // item-totals-only cache (owner: "all month wise in table also... in
+  // all the selection i need like that" - every view in this panel needs
+  // month-wise columns, not just "By Item", so this now caches the SAME
+  // {byGroup,byItem,byDealer,byDsr} shape mfdbBuildIndexes_() returns for
+  // the live month, just built from a PAST month's raw rows instead (see
+  // mfdbAccumulateRows_() above). Still just one extra read per past
+  // month - the displayed month itself is always free (already loaded).
+  var mfdbMonthlyIdx_ = {};        // monthKey -> {byGroup,byItem,byDealer,byDsr} | null (fetch failed) | undefined (not fetched yet)
+  var mfdbMonthlyIdxFetchPromise_ = {};  // monthKey -> in-flight Promise, de-dupes concurrent fetches
+  function mfdbMomMonthKeys_() {
+    // Oldest -> newest, DAYBOOK_FIRST_MONTH_ (Sep 2026) .. the real
+    // current month - same range reportMonthOptionsList_() already builds
+    // (newest-first, for the Week/Quarter/Year report picker), just
+    // reversed. Always the REAL current month, not whatever past month
+    // might be frozen/viewed elsewhere on the dashboard right now - this
+    // strip is a standing trend, not a per-view snapshot.
+    return reportMonthOptionsList_().map(function (o) { return o.value; }).reverse();
+  }
+  // Current month FIRST, each earlier month next to it going right -
+  // added 18 Oct 2026 at the owner's explicit request for the table
+  // columns (the strip above keeps the older oldest-first reading, which
+  // he separately confirmed is fine as it stands).
+  function mfdbMonthColumnsList_() {
+    return mfdbMomMonthKeys_().slice().reverse();
+  }
+  function mfdbShortMonthLabel_(monthKey) {
+    var parts = monthKey.split('-');
+    var d = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
+    return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+  }
+  function mfdbFetchMonthIdx_(monthKey) {
+    if (mfdbMonthlyIdx_[monthKey] !== undefined) return Promise.resolve(mfdbMonthlyIdx_[monthKey]);
+    if (mfdbMonthlyIdxFetchPromise_[monthKey]) return mfdbMonthlyIdxFetchPromise_[monthKey];
+    var url = ORDERS_API_URL + '?type=daybookMonth&month=' + encodeURIComponent(monthKey) + '&_ts=' + Date.now();
+    var dealerDsr = knownDealerDsrMap_();
+    var p = fetchJson_(url, 2, 30000)
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'Server error');
+        mfdbMonthlyIdx_[monthKey] = mfdbAccumulateRows_(res.rows || [], dealerDsr);
+        return mfdbMonthlyIdx_[monthKey];
+      })
+      .catch(function () {
+        mfdbMonthlyIdx_[monthKey] = null;
+        return null;
+      });
+    p.then(function () { delete mfdbMonthlyIdxFetchPromise_[monthKey]; });
+    mfdbMonthlyIdxFetchPromise_[monthKey] = p;
+    return p;
+  }
+  // Kicks off a fetch for every month in monthKeys that isn't cached yet
+  // (skipping displayedMonthKey - that one's already sitting in the live
+  // idx the caller just built, no extra read needed), and re-renders the
+  // whole panel once each lands so every view's month columns fill in as
+  // the data arrives, same "fetch once, cache for the session" dedupe
+  // mfdbFetchMonthIdx_() already gives per month.
+  function mfdbEnsureMonthlyIdxLoaded_(monthKeys, displayedMonthKey) {
+    monthKeys.forEach(function (mk) {
+      if (mk === displayedMonthKey) return;
+      if (mfdbMonthlyIdx_[mk] !== undefined) return;
+      mfdbFetchMonthIdx_(mk).then(function () { renderMfDaybookSummary_(); });
+    });
+  }
+  // Looks up one (month, row) cell's value via extractFn(monthIdx), using
+  // the already-built live idx for whichever month is on screen right now
+  // and the mfdbMonthlyIdx_ cache for every other month.
+  function mfdbMonthlyCellValue_(monthKey, displayedMonthKey, liveIdx, extractFn) {
+    var monthIdx, failed = false;
+    if (monthKey === displayedMonthKey) {
+      monthIdx = liveIdx;
+    } else {
+      var cached = mfdbMonthlyIdx_[monthKey];
+      if (cached === undefined) return { loaded: false };
+      if (cached === null) return { loaded: true, failed: true };
+      monthIdx = cached;
+    }
+    return { loaded: true, val: extractFn(monthIdx) || 0 };
+  }
+  function mfdbMonthlyHeadersHtml_(monthKeys) {
+    var realCur = currentMonthKey_();
+    return monthKeys.map(function (mk) {
+      var label = mfdbShortMonthLabel_(mk) + (mk === realCur ? ' (so far)' : '');
+      return '<th' + (mk === realCur ? ' class="current-month"' : '') + '>' + mfEscapeHtml_(label) + '</th>';
+    }).join('');
+  }
+  function mfdbMonthlyCellsHtml_(monthKeys, displayedMonthKey, liveIdx, extractFn) {
+    var realCur = currentMonthKey_();
+    return monthKeys.map(function (mk) {
+      var r = mfdbMonthlyCellValue_(mk, displayedMonthKey, liveIdx, extractFn);
+      var text = !r.loaded ? '…' : (r.failed ? '—' : fmt(r.val));
+      // Zero-flag added 18 Oct 2026 ("where all zero is there make a
+      // background colour... to easy identify the zeros") - only once
+      // the month has actually loaded and the value is a real, confirmed
+      // zero (never on "…" still-loading or "—" failed-fetch cells).
+      var isZero = r.loaded && !r.failed && r.val === 0;
+      var cls = 'num' + (mk === realCur ? ' current-month' : '') + (isZero ? ' zero-cell' : '');
+      return '<td class="' + cls + '">' + text + '</td>';
+    }).join('');
+  }
+  // Union of every dealer who bought `selKey` (an item or an item group,
+  // picked by byType = 'byItem'/'byGroup') in ANY of monthKeys, not just
+  // the displayed month - added 18 Oct 2026 ("if this month a dealer did
+  // not purchase but last month the purchase is there show that dealer
+  // also and put this month as zero"). Without this, a dealer who bought
+  // last month but nothing so far this month would silently vanish from
+  // the row list the moment the view opens on the current month, instead
+  // of showing up with a 0 in that column. Only scans months that are
+  // actually loaded (cached or the live/displayed one) - an unfetched
+  // past month simply can't contribute a dealer yet, and its row(s) will
+  // appear once mfdbEnsureMonthlyIdxLoaded_() lands it and re-renders.
+  // Returns { normName: {label, dsrName} }, first month found wins (same
+  // dealer name/DSR roster join regardless of which month it came from).
+  function mfdbUnionDealerRecords_(selKey, byType, monthKeys, displayedMonthKey, liveIdx) {
+    var out = {};
+    monthKeys.forEach(function (mk) {
+      var mIdx = (mk === displayedMonthKey) ? liveIdx : mfdbMonthlyIdx_[mk];
+      if (!mIdx) return; // not loaded yet, or that month's fetch failed
+      var rec = mIdx[byType][selKey];
+      if (!rec) return;
+      Object.keys(rec.byDealer).forEach(function (norm) {
+        if (!out[norm]) out[norm] = { label: rec.byDealer[norm].label, dsrName: rec.byDealer[norm].dsrName };
+      });
+    });
+    return out;
+  }
+  function renderMfdbMomStrip_(itemName, idxByItem) {
+    var wrap = document.getElementById('mfdbMomWrap');
+    if (!wrap) return;
+    if (!itemName) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    var monthKeys = mfdbMomMonthKeys_();
+    var realCurrentKey = currentMonthKey_();
+    var points = monthKeys.map(function (mk) {
+      if (mk === realCurrentKey && !CURRENT_VIEW_FROZEN_MONTH) {
+        // Already-loaded current-month data (idxByItem, from the same
+        // mfdbBuildIndexes_() call the table itself just used) - no extra
+        // fetch needed for this one point.
+        var rec = idxByItem[itemName];
+        return { monthKey: mk, val: rec ? rec.total : 0, loaded: true };
+      }
+      var cached = mfdbMonthlyIdx_[mk];
+      if (cached === undefined) return { monthKey: mk, val: null, loaded: false };
+      if (cached === null) return { monthKey: mk, val: null, loaded: true, failed: true };
+      var cachedItem = cached.byItem[itemName];
+      return { monthKey: mk, val: cachedItem ? cachedItem.total : 0, loaded: true };
+    });
+    var maxVal = points.reduce(function (m, p) { return (p.val && p.val > m) ? p.val : m; }, 0);
+    var html = '<div class="mfdb-mom-head"><span class="mfdb-mom-title">Month on month</span>' +
+      '<span class="mfdb-mom-item-name">' + mfEscapeHtml_(itemName) + ' · all dealers combined</span></div>';
+    html += '<div class="mfdb-mom-row">';
+    points.forEach(function (p, i) {
+      if (i > 0) {
+        var prev = points[i - 1];
+        if (prev.loaded && p.loaded && !prev.failed && !p.failed && prev.val !== null && p.val !== null) {
+          if (prev.val > 0) {
+            var pct = Math.round(((p.val - prev.val) / prev.val) * 100);
+            var cls = pct >= 0 ? 'up' : 'down';
+            var arrow = pct >= 0 ? '▲' : '▼';
+            html += '<div class="mfdb-mom-arrow"><span class="mfdb-mom-change ' + cls + '">' + arrow + ' ' + Math.abs(pct) + '%</span></div>';
+          } else if (p.val > 0) {
+            html += '<div class="mfdb-mom-arrow"><span class="mfdb-mom-change up">▲ new</span></div>';
+          } else {
+            html += '<div class="mfdb-mom-arrow"><span class="mfdb-mom-change">—</span></div>';
+          }
+        } else {
+          html += '<div class="mfdb-mom-arrow"><span class="mfdb-mom-change">…</span></div>';
+        }
+      }
+      var shortLabel = mfdbShortMonthLabel_(p.monthKey) + (p.monthKey === realCurrentKey ? ' (so far)' : '');
+      var valueText = !p.loaded ? '…' : (p.failed ? '—' : fmt(p.val) + ' Ltr');
+      var barPct = (p.loaded && !p.failed && maxVal > 0) ? Math.round(((p.val || 0) / maxVal) * 100) : 0;
+      html += '<div class="mfdb-mom-month"><span class="mfdb-mom-month-label">' + mfEscapeHtml_(shortLabel) + '</span>' +
+        '<span class="mfdb-mom-month-value">' + valueText + '</span>' +
+        '<div class="mfdb-mom-bar-track"><div class="mfdb-mom-bar-fill" style="width:' + barPct + '%"></div></div></div>';
+    });
+    html += '</div>';
+    html += '<p class="mfdb-mom-note">' + (monthKeys.length > 1
+      ? 'The latest month is month-to-date, not finished yet — its % change will settle as the month closes. Day Book has been live since ' + mfdbShortMonthLabel_(DAYBOOK_FIRST_MONTH_) + '; new months appear here on their own.'
+      : 'Day Book has been live since ' + mfdbShortMonthLabel_(DAYBOOK_FIRST_MONTH_) + ' — more months will appear here as they pass.') + '</p>';
+    wrap.innerHTML = html;
+
+    // No per-strip fetch loop here any more (18 Oct 2026 cleanup) - every
+    // uncached month in range now gets fetched once per full render via
+    // mfdbEnsureMonthlyIdxLoaded_() in renderMfDaybookSummary_(), which
+    // re-renders the whole panel (this strip included) as each lands.
+    // Same de-duped mfdbFetchMonthIdx_() either way, just one call site.
   }
 
   // Static catalog baseline - identical to claude/item-catalog.json /
@@ -9050,12 +9510,15 @@
 
   // Plan + Day Book summary panel wiring, added 11 Oct 2026 - view-mode
   // toggle swaps which picker is visible (byGroup shows the Item Group
-  // picker, byDealer shows the Dealer picker, byDsr shows the new DSR
-  // Group picker) and re-renders; either picker changing just re-renders
-  // against the already-built indexes.
+  // picker, byItem shows the item search box, byDealer shows the Dealer
+  // picker, byDsr shows the new DSR Group picker) and re-renders; either
+  // picker changing just re-renders against the already-built indexes.
+  // "byItem" added 18 Oct 2026 ("can we add item name also" -> "lets go
+  // with option c").
   (function () {
     var viewModeEl = document.getElementById("mfdbViewMode");
     var groupPickerWrap = document.getElementById("mfdbGroupPickerWrap");
+    var itemPickerWrap = document.getElementById("mfdbItemPickerWrap");
     var groupDsrFilterWrap = document.getElementById("mfdbGroupDsrFilterWrap");
     var dealerPickerWrap = document.getElementById("mfdbDealerPickerWrap");
     var dsrPickerWrap = document.getElementById("mfdbDsrPickerWrap");
@@ -9063,12 +9526,16 @@
     var groupDsrFilterEl = document.getElementById("mfdbGroupDsrFilter");
     var dealerPickerEl = document.getElementById("mfdbDealerPicker");
     var dsrPickerEl = document.getElementById("mfdbDsrPicker");
+    var itemSearchInput = document.getElementById("mfdbItemSearchInput");
+    var itemSearchDropdown = document.getElementById("mfdbItemSearchDropdown");
     if (viewModeEl) viewModeEl.addEventListener("change", function () {
-      MFDB_VIEW_MODE_ = viewModeEl.value === "byDealer" ? "byDealer" : (viewModeEl.value === "byDsr" ? "byDsr" : "byGroup");
+      MFDB_VIEW_MODE_ = viewModeEl.value === "byDealer" ? "byDealer" : (viewModeEl.value === "byDsr" ? "byDsr" : (viewModeEl.value === "byItem" ? "byItem" : "byGroup"));
       if (groupPickerWrap) groupPickerWrap.hidden = MFDB_VIEW_MODE_ !== "byGroup";
-      // DSR filter travels with the Item Group picker - only meaningful in
-      // byGroup mode (added 11 Oct 2026, "by item group - dsr also needed").
-      if (groupDsrFilterWrap) groupDsrFilterWrap.hidden = MFDB_VIEW_MODE_ !== "byGroup";
+      if (itemPickerWrap) itemPickerWrap.hidden = MFDB_VIEW_MODE_ !== "byItem";
+      // DSR filter travels with the Item Group picker/item search box -
+      // only meaningful in byGroup/byItem mode (added 11 Oct 2026, "by
+      // item group - dsr also needed"; extended to byItem 18 Oct 2026).
+      if (groupDsrFilterWrap) groupDsrFilterWrap.hidden = (MFDB_VIEW_MODE_ !== "byGroup" && MFDB_VIEW_MODE_ !== "byItem");
       if (dealerPickerWrap) dealerPickerWrap.hidden = MFDB_VIEW_MODE_ !== "byDealer";
       if (dsrPickerWrap) dsrPickerWrap.hidden = MFDB_VIEW_MODE_ !== "byDsr";
       renderMfDaybookSummary_();
@@ -9077,6 +9544,23 @@
     if (groupDsrFilterEl) groupDsrFilterEl.addEventListener("change", renderMfDaybookSummary_);
     if (dealerPickerEl) dealerPickerEl.addEventListener("change", renderMfDaybookSummary_);
     if (dsrPickerEl) dsrPickerEl.addEventListener("change", renderMfDaybookSummary_);
+    // Item search box (type-to-search), added 18 Oct 2026 - same
+    // input/focus/outside-click pattern as the Dealer Lookup card's own
+    // #lookupInput far below.
+    if (itemSearchInput) {
+      itemSearchInput.addEventListener("input", function () {
+        if (daybookItemGroupRows === null) return;
+        mfdbItemSearchRender_(mfdbBuildIndexes_());
+      });
+      itemSearchInput.addEventListener("focus", function () {
+        if (itemSearchInput.value && daybookItemGroupRows !== null) mfdbItemSearchRender_(mfdbBuildIndexes_());
+      });
+    }
+    document.addEventListener("click", function (e) {
+      if (itemSearchDropdown && !itemSearchDropdown.hidden && !e.target.closest(".mfdb-item-search-wrap")) {
+        itemSearchDropdown.hidden = true;
+      }
+    });
   })();
   // WhatsApp share + Excel download for the Item-wise & Dealer-wise
   // Summary panel, added 11 Oct 2026 ("need share or download button is
