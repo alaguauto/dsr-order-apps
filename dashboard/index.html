@@ -727,6 +727,29 @@
   .task-due-line { font-size:11.5px; color: var(--ink-muted); margin-top:4px; }
   .task-due-line.overdue { color: var(--warn); font-weight:600; }
 
+  /* "Reorder Level & Sales Status", added 21 Oct 2026 - see the big HTML
+     comment above #captureReorder for the full feature. Badge colors
+     reuse the same semantic tokens already used elsewhere on this
+     dashboard (warn=red for "needs action now", good=green for
+     "healthy", live=blue for "surplus stock", ink-muted=gray for "no
+     sales signal") rather than inventing new ones, same convention as
+     .task-type-badge above. */
+  .reorder-note { font-size:11.5px; color: var(--ink-muted); margin:10px 18px 2px; }
+  .reorder-legend { display:flex; gap:8px; flex-wrap:wrap; margin:6px 18px 10px; }
+  .reorder-badge { font-size:10.5px; font-weight:600; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+  .reorder-badge.now { background: var(--warn-soft); color: var(--warn); }
+  .reorder-badge.ok { background: var(--good-soft); color: var(--good); }
+  .reorder-badge.over { background: var(--live-soft); color: var(--live); }
+  .reorder-badge.nosale { background: var(--surface-alt, #f0ece2); color: var(--ink-muted); }
+  /* "Months to Keep" per-group input, added 21 Oct 2026 at the owner's
+     request ("add a coloumn to ask how many month stock to keep in each
+     group") - sits in each group's summary row, so it's reachable
+     without expanding the group, same row as its status badge. Reuses
+     .mf-edit-input's look (Master File's own inline-edit inputs) rather
+     than inventing new input styling. */
+  .reorder-months-field { display:inline-flex; align-items:center; gap:4px; margin-right:8px; font-size:11px; color: var(--ink-muted); }
+  .reorder-months-input { width:40px; padding:3px 4px; border-radius:5px; border:1px solid var(--border); font-size:12px; text-align:center; background: var(--surface); color: var(--ink); }
+
   /* Long dealer/item names (e.g. "SRI MEENAKSHI AUTO STORES,APT (OIL)")
      were pushing the numeric columns off-screen on mobile, hiding the
      figures the owner actually needs while scrolling - added 25 Sep 2026.
@@ -2654,6 +2677,85 @@
       </div>
       <div id="vrList"><p class="vr-empty">Open this card to load visit remarks.</p></div>
       <p style="font-size:11px;color:var(--ink-muted);margin:4px 18px 12px;">Open follow-ups = each shop's latest visit where payment was promised, an order is pending, price/scheme was asked, the shop was closed or the DSR didn't check out. <a id="vrOpenSheetLink" href="#" target="_blank" rel="noopener" style="color:inherit;">Open the Google Sheet</a></p>
+    </div>
+  </details>
+</div>
+
+<!-- "Reorder Level & Sales Status", added 21 Oct 2026 at the owner's
+     request - "make order name of item grp wise, closing stock, reorder
+     level (avg of 6 month sales - that means we are ready to keep 6
+     month stock in hand) - order to be placed". Computed entirely
+     client-side from data already flowing elsewhere on this dashboard -
+     no new backend endpoint needed:
+       - Closing Stock: the same live CATALOG_ITEMS/stockMap/
+         liveCatalogItems_()/stockCatalogItemLtr_() already powering
+         "Current Stock, MRP & Nett Price" above (the full ~180-item
+         catalog, not filtered to Petronas-group-prefixed items only).
+       - Sales history: the same per-item Day Book monthly index already
+         built for "Item-wise & Dealer-wise Summary" above
+         (mfdbMonthlyIdx_/mfdbAccumulateRows_'s .byItem, keyed by the
+         exact same item name as the catalog). Day Book only goes back
+         to Sep 2026, so there are only 2 real months to average right
+         now, not 6 - confirmed with the owner (AskUserQuestion, same
+         day) to average whatever months exist today rather than hide
+         the card until a full 6 months of history exists; it grows into
+         a true 6-month average on its own as more months close. See
+         reorderItemsStats_()/renderReorderPanel_() below for both this
+         and the item-GROUP-vs-Day-Book-item-group naming mismatch this
+         avoids by rolling groups up from items instead.
+     One row per item GROUP (the catalog's own `group` field), each
+     expandable to its own item-level breakdown - same nested <details>
+     "+/-" convention as "Current Stock" above (renderStockCatalog_()).
+     Hidden for a restricted Area Manager login the same way Stocks/Day
+     Book themselves were hidden before 1 Oct 2026's sectionHidden_()
+     rework (see afterLogin_() below) - 'reorder' isn't one of
+     SECTION_VIS_KEYS/Code.gs's known section-visibility keys yet, so
+     this uses the simpler blanket !!CURRENT_ALLOWED_AREAS check rather
+     than a no-op sectionHidden_('reorder') call; wiring it into the
+     real per-role Admin toggle is a reasonable later follow-up, not
+     done here since it needs a matching Code.gs change this file can't
+     make on its own.
+
+     Two follow-ups added the same day, after the owner asked to
+     recheck the math and add a per-group input:
+       1. "Months to Keep" is now editable PER ITEM GROUP (not a fixed
+          6 for everyone) - the small number input in each group's own
+          row (see reorderMonthsOverride_/reorderMonthsForGroup_ below).
+          Saved to this browser's localStorage only (no backend write
+          endpoint exists for this yet), so it's per-device, not synced
+          across the owner's/managers' different logins or devices.
+       2. The averaging itself was skewed: the REAL current calendar
+          month (today, still in progress - e.g. 21 of 31 days into
+          October) was being averaged in on equal footing with fully-
+          closed past months, understating true monthly demand (a
+          partial month's total always looks lower than a full month's
+          just because the month isn't over). Fixed to only average
+          over fully CLOSED months - the in-progress month is excluded
+          from Reorder Level/Order to Place entirely (Closing Stock
+          itself still reflects live stock as always). A month viewed
+          via the dashboard's own "frozen month" picker elsewhere IS a
+          closed month, so it's still included normally. -->
+<div id="captureReorder">
+  <details class="dsr-row" id="reorderDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Reorder Level &amp; Sales Status</span>
+        <span class="card-territory" id="reorderSummaryLine">Loading…</span></span>
+      <span class="dsr-row-headright">
+        <button type="button" class="share-icon-btn small" id="exportReorderXlsxBtn" title="Export as Excel" style="margin-left:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        </button>
+      </span>
+    </summary>
+    <div class="dsr-row-body">
+      <p class="reorder-note" id="reorderNote"></p>
+      <div class="reorder-legend">
+        <span class="reorder-badge now">Reorder Now</span>
+        <span class="reorder-badge ok">OK</span>
+        <span class="reorder-badge over" title="Shown on an actual item/group as the real number of months of stock on hand, e.g. &quot;7.2 mo stock&quot;, instead of this word">Overstocked</span>
+        <span class="reorder-badge nosale">No Sale</span>
+      </div>
+      <div class="dsr-list" id="reorderWrap"></div>
     </div>
   </details>
 </div>
@@ -5955,7 +6057,18 @@
     monthKeys.forEach(function (mk) {
       if (mk === displayedMonthKey) return;
       if (mfdbMonthlyIdx_[mk] !== undefined) return;
-      mfdbFetchMonthIdx_(mk).then(function () { renderMfDaybookSummary_(); });
+      // Re-renders BOTH callers of this shared month cache once a month
+      // actually lands - added 21 Oct 2026 for "Reorder Level & Sales
+      // Status" (renderReorderPanel_ below), which calls this same
+      // function with its own monthKeys/displayedMonthKey and would
+      // otherwise stay stuck showing only however many months had
+      // already loaded at whichever moment IT first ran, never picking
+      // up a month that finishes loading afterwards (the Item-wise panel
+      // was fine before this since it was the only caller).
+      mfdbFetchMonthIdx_(mk).then(function () {
+        renderMfDaybookSummary_();
+        if (typeof renderReorderPanel_ === 'function') renderReorderPanel_();
+      });
     });
   }
   // Looks up one (month, row) cell's value via extractFn(monthIdx), using
@@ -6195,6 +6308,332 @@
     if (totalEl) totalEl.textContent = 'Total ALT QTY ' + fmt(grandLtr) + ' Ltr';
   }
 
+  // ----- Reorder Level & Sales Status, added 21 Oct 2026 -----
+  // See the big HTML comment above #captureReorder for the full
+  // feature/owner-request writeup. Per-item stats first, then rolled up
+  // into item-group rows for display (see renderReorderPanel_() below) -
+  // computing bottom-up from items avoids needing Day Book's raw Tally
+  // item-group string ("Petronas MCO - SPRINTA (1)") to string-match the
+  // catalog's own `group` field ("MCO - SPRINTA"), which nothing here
+  // has confirmed holds for all 12 catalog groups (only the ~180 item
+  // NAMES are confirmed to match exactly between the two).
+  // Per-item-GROUP "months of stock to keep" override, added 21 Oct
+  // 2026 at the owner's request ("add a coloumn to ask how many month
+  // stock to keep in each group of item , so i give input there and
+  // calculate according to my input") - defaults to 2 (changed from the
+  // original 6 the same day, per the owner's follow-up "change default
+  // to 2 month stock") for any group that hasn't been given its own
+  // value. Stored in THIS BROWSER's localStorage only, keyed by group
+  // name - there's no backend write endpoint for a per-group setting
+  // like this yet, so it's per-device (same pattern as the dashboard's
+  // own "stay signed in" remember-token, which is also device-local).
+  var REORDER_MONTHS_DEFAULT_ = 2;
+  var REORDER_MONTHS_KEY_ = 'aaaReorderMonthsPerGroup';
+  function loadReorderMonthsOverride_() {
+    try {
+      var raw = localStorage.getItem(REORDER_MONTHS_KEY_);
+      var parsed = raw ? JSON.parse(raw) : null;
+      return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch (e) { return {}; }
+  }
+  var reorderMonthsOverride_ = loadReorderMonthsOverride_();
+  function saveReorderMonthsOverride_() {
+    try { localStorage.setItem(REORDER_MONTHS_KEY_, JSON.stringify(reorderMonthsOverride_)); } catch (e) { /* private browsing / storage disabled - ignore */ }
+  }
+  function reorderMonthsForGroup_(group) {
+    var v = reorderMonthsOverride_[group];
+    return (typeof v === 'number' && v > 0) ? v : REORDER_MONTHS_DEFAULT_;
+  }
+
+  function reorderItemsStats_() {
+    if (daybookItemGroupRows === null || stockMap === null) return null;
+    // Capped at the most recent 6 months (mfdbMonthColumnsList_() is
+    // current-month-first) - once Day Book has more than 6 months of
+    // history, averaging should stay a trailing 6-month window, not
+    // all-time. Right now (Day Book since Sep 2026) this is a no-op.
+    // (A group whose own "months to keep" override is set above 6 still
+    // only ever averages over up to 6 real months of history - the
+    // override controls the stock-cover TARGET, not how far back the
+    // average itself looks.)
+    var monthKeys = mfdbMonthColumnsList_().slice(0, 6);
+    var displayedMonthKey = currentViewMonthKey_();
+    // The REAL current calendar month (today - not a past month being
+    // viewed via the dashboard's own "frozen month" picker) is still
+    // IN PROGRESS, so its running total is always lower than a finished
+    // month's just because the month isn't over yet (e.g. 21 of 31 days
+    // in). Averaging it in on equal footing with fully-closed months
+    // understated true monthly demand - found while rechecking this
+    // math at the owner's request (21 Oct 2026). Fixed below by
+    // excluding it from the average entirely; a FROZEN past month
+    // (displayedMonthKey !== today's real month) is a closed month and
+    // stays included normally.
+    var liveMonthInProgress = (displayedMonthKey === currentMonthKey_());
+    mfdbEnsureMonthlyIdxLoaded_(monthKeys, displayedMonthKey);
+    // dealerDsr passed as {} - this only needs .byItem's own .total per
+    // item, never .byDealer/.byGroup/.byDsr, so the dealer-DSR map
+    // mfdbAccumulateRows_ otherwise tags each row with is irrelevant
+    // here (and skipping knownDealerDsrMap_() means this never depends
+    // on MASTER_FILE_DATA_/dealerRoster being loaded yet, unlike the
+    // Item-wise panel above).
+    var liveByItem = mfdbAccumulateRows_(daybookItemGroupRows, {}).byItem;
+    var items = liveCatalogItems_();
+    return items.map(function (it) {
+      var groupName = it.group || 'Other';
+      var monthsToKeep = reorderMonthsForGroup_(groupName);
+      var stockLtr = stockCatalogItemLtr_(it);
+      var sumLtr = 0, monthsUsed = 0;
+      monthKeys.forEach(function (mk) {
+        var mByItem;
+        if (mk === displayedMonthKey) {
+          if (liveMonthInProgress) return; // in-progress month - excluded, see comment above
+          mByItem = liveByItem;
+        } else {
+          var cached = mfdbMonthlyIdx_[mk];
+          // undefined = not loaded yet, null = that month's fetch
+          // failed - either way, skip rather than counting it as a
+          // confirmed zero-sales month (mfdbEnsureMonthlyIdxLoaded_
+          // above re-renders this whole panel once it lands).
+          if (cached === undefined || cached === null) return;
+          mByItem = cached.byItem;
+        }
+        monthsUsed++;
+        var rec = mByItem[it.name];
+        sumLtr += rec ? rec.total : 0;
+      });
+      var avgMonthlyLtr = monthsUsed ? (sumLtr / monthsUsed) : 0;
+      var reorderLevelLtr = avgMonthlyLtr * monthsToKeep;
+      // Only recommend an order when there's actual recent demand to
+      // base it on (avgMonthlyLtr > 0) - a handful of real catalog
+      // items carry NEGATIVE closing stock (Tally backorder/correction
+      // lag, confirmed via Playwright on "TATA MOTORS CH4 15W40 GENUINE
+      // OIL 4 LIT (4)": stock -276 Ltr), and without this guard
+      // Math.max(0, 0 - (-276)) = 276 would show a phantom "Order to
+      // place: 276 Ltr" under a item that's flagged "No Sale" and has
+      // no sales history to justify ordering anything.
+      var orderLtr = avgMonthlyLtr > 0 ? Math.max(0, reorderLevelLtr - stockLtr) : 0;
+      // No sales in any loaded month -> flagged separately from "OK"/
+      // "Overstocked" (a genuine reorder signal is impossible either
+      // way without at least some sales to average), regardless of
+      // current stock level.
+      var status = !avgMonthlyLtr ? 'nosale'
+        : (stockLtr < reorderLevelLtr) ? 'now'
+        : (stockLtr >= reorderLevelLtr * 1.5) ? 'over'
+        : 'ok';
+      // Order quantity shown the way it'll actually be placed with
+      // Petronas - whole cases (using the catalog's own nosPerUnit),
+      // or whole pieces for a Barrel/Drum/Bucket item sold singly
+      // (no nosPerUnit) - never a fractional Ltr figure.
+      var orderText;
+      if (orderLtr <= 0) {
+        orderText = '—';
+      } else if (it.nosPerUnit && it.sizeLtr) {
+        var cases = Math.ceil(orderLtr / (it.nosPerUnit * it.sizeLtr));
+        orderText = fmt(cases) + ' case' + (cases === 1 ? '' : 's');
+      } else if (it.sizeLtr) {
+        var pcs = Math.ceil(orderLtr / it.sizeLtr);
+        orderText = fmt(pcs) + ' pc' + (pcs === 1 ? '' : 's');
+      } else {
+        orderText = fmt(orderLtr) + ' Ltr';
+      }
+      return {
+        name: it.name, group: groupName, stockLtr: stockLtr,
+        avgMonthlyLtr: avgMonthlyLtr, reorderLevelLtr: reorderLevelLtr,
+        orderLtr: orderLtr, orderText: orderText, status: status,
+        monthsUsed: monthsUsed, monthsToKeep: monthsToKeep
+      };
+    });
+  }
+
+  // Months of stock currently on hand (Closing Stock ÷ average monthly
+  // sales) - added 21 Oct 2026 at the owner's request ("instead of
+  // write overstocked can u write there how much month stock is
+  // there"): for an "Overstocked" item/group, the badge now shows the
+  // actual number of months of stock sitting on the shelf instead of
+  // just the word "Overstocked", e.g. "7.2 mo stock" - a real number
+  // the owner can act on, same spirit as Reorder Level already being a
+  // number rather than a plain label. Other statuses (Reorder Now/OK/No
+  // Sale) are unchanged - only "Overstocked" was asked to change.
+  function reorderMonthsOnHand_(stockLtr, avgMonthlyLtr) {
+    return avgMonthlyLtr > 0 ? (stockLtr / avgMonthlyLtr) : null;
+  }
+  function reorderMonthsOnHandText_(months) {
+    if (months === null) return null;
+    var oneDp = months.toFixed(1);
+    return (oneDp.indexOf('.0') === oneDp.length - 2 ? oneDp.slice(0, -2) : oneDp) + ' mo stock';
+  }
+  function reorderStatusLabel_(status, monthsOnHand) {
+    if (status === 'over') {
+      var onHandText = (typeof monthsOnHand === 'number') ? reorderMonthsOnHandText_(monthsOnHand) : null;
+      return onHandText || 'Overstocked'; // falls back to the word if months can't be computed (shouldn't happen for a real 'over' row - avgMonthlyLtr > 0 is required to reach 'over' at all)
+    }
+    return status === 'now' ? 'Reorder Now' : status === 'nosale' ? 'No Sale' : 'OK';
+  }
+  var REORDER_STATUS_RANK_ = { now: 0, ok: 1, over: 2, nosale: 3 };
+  var REORDER_TABLE_HEAD_ = '<thead><tr><th>Item</th><th>Closing Stock</th><th>Reorder Level</th><th>Order to Place</th><th>Status</th></tr></thead>';
+
+  function reorderItemRowHtml_(s) {
+    var monthsOnHand = reorderMonthsOnHand_(s.stockLtr, s.avgMonthlyLtr);
+    return '<tr><td style="text-align:left;">' + mfEscapeHtml_(s.name) + '</td>' +
+      '<td class="num">' + fmt(s.stockLtr) + ' Ltr</td>' +
+      '<td class="num">' + fmt(s.reorderLevelLtr) + ' Ltr</td>' +
+      '<td class="num">' + s.orderText + '</td>' +
+      '<td class="num"><span class="reorder-badge ' + s.status + '">' + reorderStatusLabel_(s.status, monthsOnHand) + '</span></td></tr>';
+  }
+
+  // Display order of the group rows, held stable across re-renders -
+  // see the "stable order" block inside renderReorderPanel_() below for
+  // why (the owner asked the list to stop re-sorting itself every time
+  // a group's own "months to keep" number is edited).
+  var reorderGroupOrder_ = null;
+
+  // Groups are rolled up from the item-level stats above (sum of
+  // Closing Stock, sum of average monthly Ltr - NOT an average of
+  // averages, since this is a total demand rate), with the group's own
+  // Reorder Level/Order to Place/Status recomputed from THOSE sums,
+  // same "whole-equals-sum-of-parts" rule the Item-wise panel's Grand
+  // Total rows already use elsewhere on this dashboard. No case-
+  // rounding at group level (a group mixes many different pack sizes -
+  // that only makes sense per item, see reorderItemRowHtml_() above).
+  function renderReorderPanel_() {
+    var wrap = document.getElementById('reorderWrap');
+    var summaryEl = document.getElementById('reorderSummaryLine');
+    var noteEl = document.getElementById('reorderNote');
+    if (!wrap) return;
+    var items = reorderItemsStats_();
+    if (items === null) {
+      wrap.innerHTML = '';
+      if (summaryEl) summaryEl.textContent = 'Loading…';
+      if (noteEl) noteEl.textContent = '';
+      return;
+    }
+    // Preserve which groups are expanded across this rebuild (editing
+    // one group's "months to keep" input re-renders every group row,
+    // since sort order/status can shift for any of them - without this
+    // every expanded group would snap shut on each edit).
+    var openGroups = {};
+    var existingDetails = wrap.querySelectorAll('details[data-group]');
+    for (var oi = 0; oi < existingDetails.length; oi++) {
+      if (existingDetails[oi].open) openGroups[existingDetails[oi].getAttribute('data-group')] = true;
+    }
+    var byGroup = {};
+    items.forEach(function (s) { (byGroup[s.group] = byGroup[s.group] || []).push(s); });
+    var groupKeys = Object.keys(byGroup);
+    var groupStatsByName_ = {};
+    groupKeys.forEach(function (g) {
+      var rows = byGroup[g];
+      var monthsToKeep = reorderMonthsForGroup_(g);
+      var stockLtr = rows.reduce(function (s, r) { return s + r.stockLtr; }, 0);
+      var avgMonthlyLtr = rows.reduce(function (s, r) { return s + r.avgMonthlyLtr; }, 0);
+      var reorderLevelLtr = avgMonthlyLtr * monthsToKeep;
+      // "Order to place" is the SUM of each SKU's own shortfall (each
+      // item's orderLtr is already max(0, itsReorderLevel - itsStock)),
+      // NOT aggregate-reorder-level-minus-aggregate-stock - a group like
+      // "MCO - SPRINTA" has ~30 pack sizes, and a surplus of one pack
+      // size can't cover a shortage of another, so netting them against
+      // each other understates what actually needs ordering.
+      var orderLtr = rows.reduce(function (s, r) { return s + r.orderLtr; }, 0);
+      var needCount = rows.filter(function (r) { return r.status === 'now'; }).length;
+      // Status reflects whether THIS GROUP needs attention, driven by
+      // the worst-off item inside it - not the aggregate stock-vs-sales
+      // math above, which can bury one critically-low SKU under a pile
+      // of healthy stock on every other pack size in the same group
+      // (confirmed via Playwright: a mocked low-stock SPRINTA 1L pack
+      // showed per-item status "now" correctly, but the group's own
+      // aggregate came out "Overstocked" because the other ~29 SPRINTA
+      // pack sizes carry real, untouched, much larger stock - so the
+      // old aggregate-only status/summary silently buried it). Priority
+      // order once nothing needs reordering: any item still selling at
+      // a healthy level ('ok') outranks a merely-overstocked one, which
+      // outranks a group where every item has zero sales ('nosale').
+      var status = needCount > 0 ? 'now'
+        : rows.some(function (r) { return r.status === 'ok'; }) ? 'ok'
+        : rows.some(function (r) { return r.status === 'over'; }) ? 'over'
+        : 'nosale';
+      groupStatsByName_[g] = {
+        group: g, stockLtr: stockLtr, avgMonthlyLtr: avgMonthlyLtr, reorderLevelLtr: reorderLevelLtr, orderLtr: orderLtr,
+        status: status, needCount: needCount, monthsToKeep: monthsToKeep,
+        items: rows.slice().sort(function (a, b) { return REORDER_STATUS_RANK_[a.status] - REORDER_STATUS_RANK_[b.status] || b.orderLtr - a.orderLtr; })
+      };
+    });
+    // Stable row order, added 21 Oct 2026 at the owner's request ("do
+    // not allign acending order if i change the month number") - only
+    // recompute the status/Order-to-Place sort when the SET of groups
+    // itself has changed (first load, or the catalog gaining/losing a
+    // group); editing one group's own "months to keep" input re-renders
+    // every row's numbers but must NOT reshuffle their positions, or the
+    // row the owner is actively editing jumps elsewhere on every change.
+    var sameGroupSet = reorderGroupOrder_ && reorderGroupOrder_.length === groupKeys.length &&
+      reorderGroupOrder_.every(function (g) { return groupStatsByName_.hasOwnProperty(g); });
+    if (!sameGroupSet) {
+      reorderGroupOrder_ = groupKeys.slice().sort(function (a, b) {
+        return REORDER_STATUS_RANK_[groupStatsByName_[a].status] - REORDER_STATUS_RANK_[groupStatsByName_[b].status] || groupStatsByName_[b].orderLtr - groupStatsByName_[a].orderLtr;
+      });
+    }
+    var groupRows = reorderGroupOrder_.map(function (g) { return groupStatsByName_[g]; });
+
+    wrap.innerHTML = groupRows.map(function (gr) {
+      var rowsHtml = gr.items.map(reorderItemRowHtml_).join('');
+      var groupMonthsOnHand = reorderMonthsOnHand_(gr.stockLtr, gr.avgMonthlyLtr);
+      var subLine = (gr.needCount ? (gr.needCount + ' item(s) need reordering') : reorderStatusLabel_(gr.status, groupMonthsOnHand)) +
+        ' · Order to place: ' + (gr.orderLtr > 0 ? fmt(gr.orderLtr) + ' Ltr' : 'None');
+      var groupAttr = mfEscapeHtml_(gr.group);
+      return '<details class="dsr-row" data-group="' + groupAttr + '">' +
+        '<summary class="dsr-row-summary"><span class="dsr-row-toggle" aria-hidden="true"></span>' +
+        '<span class="dsr-row-headtext"><span class="card-name">' + groupAttr + '</span>' +
+        '<span class="card-territory">' + subLine + '</span></span>' +
+        '<span class="dsr-row-headright">' +
+        '<span class="reorder-months-field" title="Months of stock to keep for this group (default 2) - your own input, saved on this device">' +
+        '<input type="number" class="reorder-months-input" data-group="' + groupAttr + '" value="' + gr.monthsToKeep + '" min="1" max="24" step="1">' +
+        '<span class="reorder-months-label">mo</span></span>' +
+        '<span class="reorder-badge ' + gr.status + '">' + reorderStatusLabel_(gr.status, groupMonthsOnHand) + '</span></span></summary>' +
+        '<div class="dsr-row-body">' + ageTableWrap_(REORDER_TABLE_HEAD_, rowsHtml, 'namecol') + '</div></details>';
+    }).join('');
+    // Re-open whichever groups were open before this rebuild (see
+    // openGroups above) - data-group lookup, not position, since sort
+    // order can change on every edit.
+    var newDetails = wrap.querySelectorAll('details[data-group]');
+    for (var ni = 0; ni < newDetails.length; ni++) {
+      var dg = newDetails[ni].getAttribute('data-group');
+      if (openGroups[dg]) newDetails[ni].open = true;
+    }
+
+    var needNow = groupRows.filter(function (g) { return g.status === 'now'; }).length;
+    if (summaryEl) summaryEl.textContent = needNow ? (needNow + ' item group(s) need reordering') : 'All stocked up';
+    if (noteEl) {
+      var monthsUsed = items.length ? items[0].monthsUsed : 0;
+      noteEl.textContent = 'Reorder Level = average monthly sales (over the ' + monthsUsed + ' fully-closed month' + (monthsUsed === 1 ? '' : 's') + ' of Day Book history so far) × "Months to Keep" (default 2 - edit the box next to any group above to use your own target for that group; saved on this device). The in-progress current month isn\'t counted in the average yet - Day Book history started Sep 2026, so this sharpens as more months close.';
+    }
+  }
+
+  // Delegated on #reorderWrap (bound once here, persists across every
+  // renderReorderPanel_() rebuild since only wrap's innerHTML is
+  // replaced, not the wrap element itself - same pattern as
+  // bindActivityNamesClicks_() above) rather than re-bound per input:
+  //   1. "click" on the months input must not toggle its parent
+  //      <details>/<summary> open/closed (the input sits inside the
+  //      group's own summary row, same reason exportReorderXlsxBtn's
+  //      own click handler below calls preventDefault()).
+  //   2. "change" (fires on blur/Enter, not every keystroke - avoids
+  //      re-rendering the whole panel while the owner is still typing)
+  //      applies the new value for that one group and re-renders.
+  (function () {
+    var wrap = document.getElementById('reorderWrap');
+    if (!wrap) return;
+    wrap.addEventListener('click', function (e) {
+      if (e.target.classList && e.target.classList.contains('reorder-months-input')) e.preventDefault();
+    });
+    wrap.addEventListener('change', function (e) {
+      if (!e.target.classList || !e.target.classList.contains('reorder-months-input')) return;
+      var group = e.target.getAttribute('data-group');
+      var n = parseInt(e.target.value, 10);
+      if (!n || n < 1) n = REORDER_MONTHS_DEFAULT_;
+      if (n > 24) n = 24;
+      reorderMonthsOverride_[group] = n;
+      saveReorderMonthsOverride_();
+      renderReorderPanel_();
+    });
+  })();
+
   // "Petronas Business Summary" - Jan-Aug 2026 is a STATIC, owner-
   // confirmed snapshot (his own corrected screenshot figures, sent 1 Oct
   // 2026 - superseding the earlier 30 Sep 2026 hand-baked Apr-Sep numbers,
@@ -6415,6 +6854,42 @@
       var dd = d.getDate(); if (dd < 10) dd = '0' + dd;
       var stamp = d.getFullYear() + '-' + mm + '-' + dd;
       XLSX.writeFile(wb, 'AAA_Stock_MRP_NettPrice_' + stamp + '.xlsx');
+    });
+  })();
+
+  // Export as Excel, "Reorder Level & Sales Status" - same client-side
+  // SheetJS pattern as exportStockXlsxBtn just above, exporting every
+  // catalog item's reorder stats (not just whichever groups are
+  // currently expanded on screen).
+  (function () {
+    var btn = document.getElementById('exportReorderXlsxBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof XLSX === 'undefined') {
+        alert('Excel export isn\'t available right now — the export library didn\'t load. Check your connection and try again.');
+        return;
+      }
+      var items = reorderItemsStats_();
+      if (!items) {
+        alert('Still loading — try again in a moment.');
+        return;
+      }
+      var rows = [['Item Name', 'Item Group', 'Months to Keep', 'Closing Stock (Ltr)', 'Reorder Level (Ltr)', 'Order to Place', 'Months of Stock on Hand', 'Status', 'Months Averaged']];
+      items.forEach(function (s) {
+        var monthsOnHand = reorderMonthsOnHand_(s.stockLtr, s.avgMonthlyLtr);
+        rows.push([s.name, s.group, s.monthsToKeep, Math.round(s.stockLtr), Math.round(s.reorderLevelLtr), s.orderText, monthsOnHand === null ? '' : Number(monthsOnHand.toFixed(1)), reorderStatusLabel_(s.status, monthsOnHand), s.monthsUsed]);
+      });
+      var ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 55 }, { wch: 28 }, { wch: 13 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 12 }];
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Reorder');
+      var d = new Date();
+      var mm = d.getMonth() + 1; if (mm < 10) mm = '0' + mm;
+      var dd = d.getDate(); if (dd < 10) dd = '0' + dd;
+      var stamp = d.getFullYear() + '-' + mm + '-' + dd;
+      XLSX.writeFile(wb, 'AAA_Reorder_Level_' + stamp + '.xlsx');
     });
   })();
 
@@ -6733,6 +7208,7 @@
     renderCollectionRatio_(); renderLookupCard_(); renderSalesCollectionHeatmap_();
     renderPetronasAreaTable_(); renderPetronasCollectionAreaTable_(); renderStockCatalog_();
     renderGroupSummaryTable_(); renderDaybookItemGroupSummary_(); renderMfDaybookSummary_();
+    renderReorderPanel_();
     // Jan-Aug is a static snapshot (PETRONAS_SUMMARY_DATA_ never changes
     // at runtime) but Sep 2026 onward is live (petronasSummaryLive, synced
     // separately inside fetchLive() - see its own comment there) - this
@@ -10588,6 +11064,20 @@
     if (stockDetails) stockDetails.hidden = sectionHidden_('stocks');
     var petronasSummaryBlock = document.getElementById('capturePetronasSummary');
     if (petronasSummaryBlock) petronasSummaryBlock.hidden = sectionHidden_('petronasSummary');
+    // "Reorder Level & Sales Status", added 21 Oct 2026 - company-wide
+    // stock-in-hand + purchasing figures, same sensitivity class as
+    // Stocks/Day Book/Petronas Business Summary above, but 'reorder'
+    // isn't a recognized SECTION_VIS_KEYS/Code.gs key yet so
+    // sectionHidden_('reorder') would always return false (not hidden)
+    // regardless of role. Uses the simpler blanket !!CURRENT_ALLOWED_
+    // AREAS check instead - exactly how Stocks/Day Book themselves were
+    // gated before 1 Oct 2026's sectionHidden_() rework (see that
+    // rework's own comment above dayBookRow for its one known gap: a
+    // restricted account whose AllowedAreas field is blank wouldn't be
+    // caught). Good enough as a default; a real per-role Admin toggle
+    // for this needs a Code.gs change this file can't make on its own.
+    var reorderBlock = document.getElementById('captureReorder');
+    if (reorderBlock) reorderBlock.hidden = !!CURRENT_ALLOWED_AREAS;
     // Master File - added 6 Oct 2026, hard-coded Owner-only for now (NOT
     // wired through sectionHidden_()/the Admin panel's per-role toggle,
     // unlike the blocks above) per the owner's explicit instruction:
