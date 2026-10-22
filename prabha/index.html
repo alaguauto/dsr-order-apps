@@ -1061,6 +1061,43 @@
   .visit-tag-not-checked-out { color: var(--danger); background: var(--danger-soft); }
   .visit-note-box { margin-top: 6px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
   .visit-note-row + .visit-note-row { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+/* Sales/Collection weekday heatmap, added 22 Oct 2026 - ported from the
+   manager dashboard's own "Sales / Collection — by weekday" panel
+   (dashboard_index.html's captureHeatmap, built 11 Oct 2026, reworked 15
+   Oct 2026 for week/day totals + fixed 1-7/8-14 week buckets). This app
+   is a single DSR's own page, so there is no DSR picker here - the grid
+   is always just this DSR's own figures (document.getElementById("dsrName").value),
+   same data source (salesTrendByDsr/collectionTrendByDsr, straight off
+   the ?type=live response this app already polls for every other live
+   figure - see fetchLiveOverlay_()/applyLiveOverlay_()). Colors reuse
+   this app's own --text/--text-muted/--accent variable names (the
+   dashboard uses --ink/--ink-muted/--accent-ink, which don't exist
+   here) - same hex values as the dashboard's own heat scale. */
+.heatmap-tabs { display: flex; gap: 6px; margin: 0 0 10px; }
+.heatmap-tab { font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); background: var(--surface-2); cursor: pointer; }
+.heatmap-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.heatmap-grid { display: grid; grid-template-columns: 50px repeat(7, 1fr) 1.1fr; gap: 4px; font-size: 11px; }
+.heatmap-wk-label { color: var(--text-muted); font-size: 10px; line-height: 1.25; display: flex; flex-direction: column; justify-content: center; }
+.heatmap-wk-range { font-weight: 400; opacity: .8; }
+.heatmap-day-label { text-align: center; color: var(--text-muted); font-size: 10.5px; font-weight: 700; padding-bottom: 2px; }
+.heatmap-cell { border-radius: 7px; padding: 6px 2px; text-align: center; font-weight: 700; }
+.heatmap-cell-date { display: block; font-size: 9px; font-weight: 600; opacity: .65; margin-bottom: 1px; }
+.heatmap-cell.h0 { background: var(--surface-2); color: var(--text-muted); font-weight: 400; }
+.heatmap-cell.h1 { background: #d9ecdf; color: #1c4631; }
+.heatmap-cell.h2 { background: #a9d6ba; color: #1c4631; }
+.heatmap-cell.h3 { background: #6fb68f; color: #0d2b1c; }
+.heatmap-cell.h4 { background: #2f7d5a; color: #fff; }
+@media (prefers-color-scheme: dark) {
+  .heatmap-cell.h1 { background: #1c3226; color: #d9ecdf; }
+  .heatmap-cell.h2 { background: #28492f; color: #d9ecdf; }
+  .heatmap-cell.h3 { background: #366a3f; color: #fff; }
+  .heatmap-cell.h4 { background: #56b087; color: #0a1f12; }
+}
+.heatmap-total-cell { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.heatmap-total-label { font-weight: 700; color: var(--text); }
+.heatmap-grand-total { font-weight: 800; }
+.heatmap-legend { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 10.5px; color: var(--text-muted); }
+.heatmap-legend .sw { width: 14px; height: 10px; border-radius: 3px; display: inline-block; }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a4a44">
@@ -1187,6 +1224,34 @@
       </div>
     </details>
   </section>
+
+  <!-- Sales/Collection weekday heatmap, added 22 Oct 2026, rolled out to
+       all 8 DSR apps same day - ported from the manager dashboard's "Sales
+       / Collection — by weekday" panel (see renderSalesCollectionHeatmap_()
+       below for the full history/why). No DSR picker - this page only
+       ever shows this DSR's own figures. No Share button on the DSR apps
+       (owner: "no need share option for dsr app") - the dashboard keeps
+       its own share button, this is DSR-app-only. -->
+  <section style="padding-bottom:0;">
+    <details class="manage" id="heatmapDetails">
+      <summary>Sales / Collection — by weekday</summary>
+      <div class="manage-body" id="captureHeatmap">
+        <div class="heatmap-tabs">
+          <span class="heatmap-tab active" data-heatmap-tab="sales">Sales</span>
+          <span class="heatmap-tab" data-heatmap-tab="collection">Collection</span>
+        </div>
+        <div id="heatmapGridWrap"></div>
+        <div class="heatmap-legend">Less
+          <span class="sw" style="background:var(--surface-2);"></span>
+          <span class="sw" style="background:#d9ecdf;"></span>
+          <span class="sw" style="background:#a9d6ba;"></span>
+          <span class="sw" style="background:#6fb68f;"></span>
+          <span class="sw" style="background:#2f7d5a;"></span>
+        More</div>
+      </div>
+    </details>
+  </section>
+
 
   <!-- Visit follow-ups, added 14 Oct 2026 (pilot on Arun's app) - open
        follow-ups from this DSR's own Shop Visit Summary remarks, read from
@@ -2759,6 +2824,114 @@
   // docstring / dashboard/index.html's same rollout).
   var lastLiveCreditLimit_ = null;
 
+  // Sales/Collection weekday heatmap - ported 22 Oct 2026 from the manager
+  // dashboard's own captureHeatmap panel (dashboard_index.html, built 11
+  // Oct 2026, reworked 15 Oct 2026 for week/day totals + fixed 1-7/8-14
+  // week buckets - see that file's own comments for the full history).
+  // Proven on AAA Direct first (per the standing new-feature scope rule),
+  // rolled out to all 8 DSR apps same day. salesTrendByDsrList_/
+  // collectionTrendByDsrList_ are flat {dsrName, date, ltr|rs} arrays
+  // straight off ?type=live's own response (same field every DSR app
+  // already receives every poll via fetchLiveOverlay_(), just not read
+  // until now) - filtered down to just this DSR's own long name
+  // (document.getElementById("dsrName").value, baked into this app) at
+  // render time, since there is no DSR picker on a DSR's own app.
+  var HEATMAP_TAB_ = 'sales';
+  var salesTrendByDsrList_ = null;
+  var collectionTrendByDsrList_ = null;
+  function renderSalesCollectionHeatmap_() {
+    var gridWrap = document.getElementById('heatmapGridWrap');
+    if (!gridWrap) return;
+    var list = HEATMAP_TAB_ === 'collection' ? collectionTrendByDsrList_ : salesTrendByDsrList_;
+    var valueKey = HEATMAP_TAB_ === 'collection' ? 'rs' : 'ltr';
+    if (list === null) {
+      gridWrap.innerHTML = '<p style="padding:10px 4px;color:var(--text-muted);font-size:12px;">Loading…</p>';
+      return;
+    }
+    var myDsrName = document.getElementById("dsrName").value || "";
+    var byDate = {};
+    list.forEach(function (r) {
+      if (r.dsrName !== myDsrName) return;
+      byDate[r.date] = (byDate[r.date] || 0) + (Number(r[valueKey]) || 0);
+    });
+
+    // Current calendar month only - daily_totals_by_dsr itself only ever
+    // carries this month + last month, same as the dashboard's own version.
+    var now = new Date();
+    var y = now.getFullYear(), m = now.getMonth();
+    var daysInMonth = new Date(y, m + 1, 0).getDate();
+
+    // Fixed 7-date week buckets anchored to the 1st (1-7, 8-14, 15-21,
+    // 22-28, 29-end) - matches the dashboard's own "owner's week
+    // calculation" convention, not real Mon-Sun calendar weeks.
+    var WEEK_BUCKET_SIZE = 7;
+    var weeks = [];
+    for (var startDay = 1; startDay <= daysInMonth; startDay += WEEK_BUCKET_SIZE) {
+      var endDay = Math.min(startDay + WEEK_BUCKET_SIZE - 1, daysInMonth);
+      var days = [];
+      for (var day = startDay; day <= endDay; day++) {
+        var iso = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        days.push({ day: day, iso: iso, val: byDate[iso] || 0 });
+      }
+      weeks.push({ startDay: startDay, endDay: endDay, days: days });
+    }
+
+    // maxVal drives bucketClass_()'s relative shading below - only from
+    // individual day cells, never from the week-total/day-total cells, so
+    // a big total can never skew the color scale for the real daily values.
+    var maxVal = 0;
+    weeks.forEach(function (w) {
+      w.days.forEach(function (cell) { if (cell.val > maxVal) maxVal = cell.val; });
+    });
+
+    function bucketClass_(v) {
+      if (!v || !maxVal) return 'h0';
+      var ratio = v / maxVal;
+      if (ratio > 0.75) return 'h4';
+      if (ratio > 0.5) return 'h3';
+      if (ratio > 0.25) return 'h2';
+      return 'h1';
+    }
+
+    var WEEKDAY_ABBR_ = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var firstDow = new Date(y, m, 1).getDay();
+
+    var dayTotals = new Array(WEEK_BUCKET_SIZE).fill(0);
+    var grandTotal = 0;
+
+    var html = '<div class="heatmap-grid">';
+    html += '<div></div>';
+    for (var p = 0; p < WEEK_BUCKET_SIZE; p++) { html += '<div class="heatmap-day-label">' + WEEKDAY_ABBR_[(firstDow + p) % 7] + '</div>'; }
+    html += '<div class="heatmap-day-label heatmap-total-label">Total</div>';
+    weeks.forEach(function (w, wi) {
+      var weekTotal = 0;
+      html += '<div class="heatmap-wk-label">Wk ' + (wi + 1) + '<span class="heatmap-wk-range">(' + w.startDay + '–' + w.endDay + ')</span></div>';
+      for (var pp = 0; pp < WEEK_BUCKET_SIZE; pp++) {
+        var cell = w.days[pp];
+        if (!cell) { html += '<div></div>'; continue; }
+        weekTotal += cell.val;
+        dayTotals[pp] += cell.val;
+        html += '<div class="heatmap-cell ' + bucketClass_(cell.val) + '" title="' + cell.iso + '"><span class="heatmap-cell-date">' + cell.day + '</span>' + Math.round(cell.val).toLocaleString("en-IN") + '</div>';
+      }
+      grandTotal += weekTotal;
+      html += '<div class="heatmap-cell heatmap-total-cell" title="Week ' + (wi + 1) + ' total (' + w.startDay + '–' + w.endDay + ')">' + Math.round(weekTotal).toLocaleString("en-IN") + '</div>';
+    });
+    html += '<div class="heatmap-wk-label heatmap-total-label">Total</div>';
+    dayTotals.forEach(function (t) { html += '<div class="heatmap-cell heatmap-total-cell">' + Math.round(t).toLocaleString("en-IN") + '</div>'; });
+    html += '<div class="heatmap-cell heatmap-total-cell heatmap-grand-total" title="Month total so far">' + Math.round(grandTotal).toLocaleString("en-IN") + '</div>';
+    html += '</div>';
+    gridWrap.innerHTML = html;
+  }
+  (function () {
+    document.querySelectorAll(".heatmap-tab").forEach(function (tabEl) {
+      tabEl.addEventListener("click", function () {
+        HEATMAP_TAB_ = tabEl.getAttribute("data-heatmap-tab") === "collection" ? "collection" : "sales";
+        document.querySelectorAll(".heatmap-tab").forEach(function (t) { t.classList.toggle("active", t === tabEl); });
+        renderSalesCollectionHeatmap_();
+      });
+    });
+  })();
+
   function applyLiveOverlay_(data) {
     if (!data) return;
     var stockChanged = false;
@@ -3098,6 +3271,15 @@
     if (data.creditLimit) lastLiveCreditLimit_ = data.creditLimit;
     if ((data.salesByDealer || data.collectionByDealer || data.creditLimit) && lookupSelectedDealer_ && typeof renderLookupCard_ === "function") {
       renderLookupCard_();
+    }
+    // Sales/Collection weekday heatmap - added 22 Oct 2026, same "remember
+    // the whole array, re-render every poll" pattern as salesByDealer/
+    // collectionByDealer just above (the dashboard does the same with its
+    // own salesTrendByDsrList/collectionTrendByDsrList).
+    if (data.salesTrendByDsr) salesTrendByDsrList_ = data.salesTrendByDsr;
+    if (data.collectionTrendByDsr) collectionTrendByDsrList_ = data.collectionTrendByDsr;
+    if ((data.salesTrendByDsr || data.collectionTrendByDsr) && typeof renderSalesCollectionHeatmap_ === "function") {
+      renderSalesCollectionHeatmap_();
     }
     if (stockChanged && typeof renderItemList === "function") renderItemList();
     if (dealersChanged) {
@@ -5358,6 +5540,7 @@
   renderOrdersAndTarget();
   renderCollection();
   renderCollectionHealth();
+  renderSalesCollectionHeatmap_();
   renderDormant();
   // ===================================================================
   // Dealer Targets + My Tasks - added 6 Oct 2026. Live-wired to the new
