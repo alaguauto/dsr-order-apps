@@ -846,6 +846,25 @@
   .share-icon-btn.small svg { width: 14px; height: 14px; }
   .section-label-row { display: flex; align-items: center; justify-content: space-between; margin: 22px 0 12px; }
   .section-label-row .section-label { margin: 0; }
+  #momCards { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+  #momCards[hidden] { display: none; }
+  .mom-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .mom-empty { padding: 10px 18px; color: var(--ink-muted); font-size: 12px; margin: 0; }
+  .mom-table { border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; width: 100%; }
+  .mom-table th, .mom-table td { padding: 6px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
+  .mom-table th { font-weight: 600; color: var(--ink-muted); background: var(--surface); position: sticky; top: 0; }
+  .mom-table th:first-child, .mom-table td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); z-index: 1; }
+  .mom-table tr.l0 td { font-weight: 600; color: var(--ink); }
+  .mom-table tr.l1 td:first-child { padding-left: 18px; color: var(--ink-secondary); }
+  .mom-table tr.grand td { font-weight: 700; border-top: 2px solid var(--border); border-bottom: none; }
+  .mom-table td.cur { background: var(--surface-2); }
+  .mom-table td.tot, .mom-table th.tot { border-left: 1px solid var(--border); }
+  .mom-live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); vertical-align: middle; margin-left: 3px; }
+  .mom-foot { font-size: 11px; color: var(--ink-muted); margin: 0 4px; line-height: 1.5; }
+  .mom-rs-toggle { font: inherit; font-size: 11.5px; font-weight: 600; color: var(--ink-secondary); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 5px 9px; cursor: pointer; }
+  .perf-link-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--accent-ink); background: var(--accent); border-radius: 8px; padding: 7px 12px; text-decoration: none; white-space: nowrap; flex-shrink: 0; }
+  .perf-link-btn svg { width: 14px; height: 14px; }
+  .perf-link-btn[hidden] { display: none; }
   .section-label-row:first-of-type { margin-top: 0; }
   .share-sheet-text { white-space: pre-wrap; font-family: inherit; font-size: 13px; background: var(--surface-2); border-radius: 10px; padding: 12px; max-height: 340px; overflow-y: auto; margin: 0 0 12px; }
   .share-sheet-actions { display: flex; gap: 8px; }
@@ -1700,8 +1719,60 @@
     <div id="inactiveVsBilledWrap"></div>
   </div>
 
-  <p class="section-label">By DSR — tap a name to expand</p>
+  <!-- "DSR Performance" link, added 22 Oct 2026 at the owner's request
+       (Option 1): opens the owner's private Claude dashboard (tiles,
+       leaderboard, date range, daily charts, month-on-month Tally-style
+       sales + collection) in a new tab. That page reads Google Sheets
+       through the viewer's own Claude account, so it only works for the
+       Owner - the button is therefore Owner-only, gated in afterLogin_()
+       the same way as #archiveBlock. -->
+  <div class="section-label-row">
+    <p class="section-label">By DSR — tap a name to expand</p>
+    <a class="perf-link-btn" id="dsrPerfLink" href="https://claude.ai/artifact/9mj6T88noDKFY9vwtxCwaf" target="_blank" rel="noopener" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="20" x2="6" y2="13"/><line x1="12" y1="20" x2="12" y2="8"/><line x1="18" y1="20" x2="18" y2="4"/></svg>
+      <span>DSR Performance</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg>
+    </a>
+  </div>
   <div class="dsr-list" id="dsrList"></div>
+
+  <!-- Month-on-month Tally-style cards, added 22 Oct 2026 at the owner's
+       request ("for all managers"): Monthly sales (litres) and Monthly
+       collection (Rs), Jan-Dec by area, same rows as Tally's Group Monthly
+       Sales / Collection reports. Closed months come from the owner's
+       "AAA Monthly History" Google Sheet via ?type=monthlyHistory (see
+       handleMonthlyHistoryGet_() in Code.gs); the current month comes live
+       from the same ?type=live payload as everything else (sales /
+       collection maps, groupSummary for live closing). Collapsed by
+       default, loads only when first opened. Shown to Owner / Manager /
+       Area Manager (gated in afterLogin_()); an Area Manager sees only the
+       rows for their own areas. -->
+  <div id="momCards" hidden>
+    <details class="dsr-row" id="momSalesDetails">
+      <summary class="dsr-row-summary">
+        <span class="dsr-row-toggle" aria-hidden="true"></span>
+        <span class="dsr-row-headtext"><span class="card-name">Monthly sales (litres)</span>
+          <span class="card-territory">Jan–Dec by area · Sales - PETRONAS · same as Tally</span></span>
+      </summary>
+      <div class="dsr-row-body" style="padding:0;gap:0;">
+        <div class="mom-scroll" id="momSalesBox"><p class="mom-empty">Open this card to load.</p></div>
+      </div>
+    </details>
+    <details class="dsr-row" id="momCollDetails">
+      <summary class="dsr-row-summary">
+        <span class="dsr-row-toggle" aria-hidden="true"></span>
+        <span class="dsr-row-headtext"><span class="card-name">Monthly collection (₹)</span>
+          <span class="card-territory">Opening · Jan–Dec · Closing by area · same as Tally</span></span>
+        <span class="dsr-row-headright">
+          <button type="button" class="mom-rs-toggle" id="momRsToggle" title="Switch between lakhs and full rupees">Full ₹</button>
+        </span>
+      </summary>
+      <div class="dsr-row-body" style="padding:0;gap:0;">
+        <div class="mom-scroll" id="momCollBox"><p class="mom-empty">Open this card to load.</p></div>
+      </div>
+    </details>
+    <p class="mom-foot"><span class="mom-live-dot"></span> = live this month from Tally sync. Earlier months from the AAA Monthly History sheet (filled from Tally's Group Monthly reports, saved automatically on the 2nd of every month). Opening = outstanding on 1 Jan; Closing = live for the area totals, otherwise the last saved figure.</p>
+  </div>
 
   <!-- Needs Attention's own expand-to-20 modal, added 19 Sep 2026 - same
        overlay/sheet styling as the Dormant modal (shared CSS classes),
@@ -11026,6 +11097,16 @@
     // to be shared with the team).
     var teamSummaryBlock = document.getElementById('teamSummaryBlock');
     if (teamSummaryBlock) teamSummaryBlock.hidden = (role !== 'Owner');
+    // "DSR Performance" link next to "By DSR" - Owner only (see the HTML
+    // comment above #dsrPerfLink: the page it opens needs the Owner's own
+    // Claude login + Google Sheets access).
+    var dsrPerfLink = document.getElementById('dsrPerfLink');
+    if (dsrPerfLink) dsrPerfLink.hidden = (role !== 'Owner');
+    // Month-on-month Tally-style cards (#momCards) - every manager role
+    // (Owner / Manager / Area Manager), per the owner's 22 Oct 2026 "for
+    // all managers". Area Manager rows are scoped inside the module itself.
+    var momCards = document.getElementById('momCards');
+    if (momCards) momCards.hidden = !(role === 'Owner' || role === 'Manager' || role === 'Area Manager');
     // Day Book / Collection Group Summary / Stocks / Petronas Business
     // Summary / Report period picker - 5 company-wide, all-dealer sections
     // with no per-area breakdown at all (unlike everything visibleDsrs_()
@@ -11506,6 +11587,9 @@
   // same shape) - so there is exactly one place that could ever drift out
   // of sync with the backend's field names, not two.
   function applyLivePayloadToState_(res) {
+    // Kept for the month-on-month cards (see the MOM module near the
+    // Visit Remarks card) - same payload, nothing else reads this.
+    if (res && res.ok) { MOM_LIVE = { sales: res.sales || null, collection: res.collection || null, groupSummary: res.groupSummary || null }; if (typeof momRerender_ === 'function') momRerender_(); }
     // See LIVE_CACHED_AT_ISO's own comment above.
     LIVE_CACHED_AT_ISO = (res && res.ok && res._cachedAt) ? res._cachedAt : null;
     var collection = (res && res.ok && res.collection) ? res.collection : null;
@@ -12834,6 +12918,164 @@
     quarterSel.addEventListener('change', function () { applyReportPeriodSelection_('quarter'); });
     quarterYearSel.addEventListener('change', function () { applyReportPeriodSelection_('quarter'); });
     yearSel.addEventListener('change', function () { applyReportPeriodSelection_('year'); });
+  })();
+
+  // ----- Month-on-month Tally-style cards, added 22 Oct 2026 -----
+  // See the HTML comment above #momCards. History rows: {group, month,
+  // ltr, rs, source} where source "Tally" = a closed month; anything else
+  // (e.g. "Tally 22-10-2026") is a part-month snapshot that live data or
+  // last month's "Last Month Full" replaces.
+  var MOM_LIVE = null;
+  var momRerender_ = null;
+  (function () {
+    var ROWS = [
+      ['PETRONAS AAA DIRECT AREA SALES', 0, 'AAA Direct'], ['PETRONAS MADURAI TOTAL AREA', 0, null],
+      ['PETRONAS DHARAPURAM AREA (ARUN)', 1, 'Arun'], ['PETRONAS DINDIGUL AREA (ARUN)', 1, 'Arun'],
+      ['PETRONAS MDU AREA (CHELLAMANI)', 1, 'Chellamani'], ['PETRONAS MDU AREA (SARAVANAN)', 1, 'Saravanan'],
+      ['PETRONAS THENI AREA (PRABHA)', 1, 'Prabha'], ['PETRONAS OTHER AREA', 0, null],
+      ['PETRONAS RAMNAD AREA (PIONEER)', 0, null], ['PETRONAS TIRUNELVELI TOTAL AREA', 0, null],
+      ['PETRONAS NKL AREA (MADHU)', 1, 'Madhu'], ['PETRONAS TVL1 AREA (ANANDH)', 1, 'Anandh'],
+      ['PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)', 1, 'Nagaraj']
+    ];
+    var KIDS = {
+      'PETRONAS MADURAI TOTAL AREA': ['PETRONAS DINDIGUL AREA (ARUN)', 'PETRONAS MDU AREA (CHELLAMANI)', 'PETRONAS MDU AREA (SARAVANAN)', 'PETRONAS THENI AREA (PRABHA)'],
+      'PETRONAS TIRUNELVELI TOTAL AREA': ['PETRONAS NKL AREA (MADHU)', 'PETRONAS TVL1 AREA (ANANDH)', 'PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)']
+    };
+    // Only these come live from the Tally sync's LiveSales / LiveCollection
+    // (Saravanan's row there stopped updating 18 Sep 2026, so it stays on
+    // the history sheet like Dharapuram / Other / Ramnad).
+    var LIVE_GROUPS = ['PETRONAS THENI AREA (PRABHA)', 'PETRONAS DINDIGUL AREA (ARUN)', 'PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)', 'PETRONAS MDU AREA (CHELLAMANI)', 'PETRONAS TVL1 AREA (ANANDH)', 'PETRONAS NKL AREA (MADHU)', 'PETRONAS AAA DIRECT AREA SALES'];
+    var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    var salesDet = document.getElementById('momSalesDetails');
+    var collDet = document.getElementById('momCollDetails');
+    var salesBox = document.getElementById('momSalesBox');
+    var collBox = document.getElementById('momCollBox');
+    var rsBtn = document.getElementById('momRsToggle');
+    if (!salesDet || !collDet) return;
+
+    var hist = null, bal = null, loading = false, loadErr = null, fullRs = false;
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function monthKey(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2); }
+    function prevKey(k) { var y = +k.slice(0, 4), m = +k.slice(5); m -= 1; if (!m) { m = 12; y -= 1; } return y + '-' + ('0' + m).slice(-2); }
+    function ltr(v) { return v == null || v === 0 ? '' : Math.round(v).toLocaleString('en-IN'); }
+    function rs(v) {
+      if (v == null || v === 0) return '';
+      if (fullRs) return Math.round(v).toLocaleString('en-IN');
+      var a = Math.abs(v);
+      return a >= 1e5 ? (v / 1e5).toFixed(2) + ' L' : a >= 1e3 ? (v / 1e3).toFixed(2) + ' K' : Math.round(v).toLocaleString('en-IN');
+    }
+    function label(g) { return g.replace(/^PETRONAS /, ''); }
+
+    function visibleRows() {
+      if (typeof CURRENT_ALLOWED_AREAS === 'undefined' || !CURRENT_ALLOWED_AREAS) return { rows: ROWS, scoped: false };
+      return { rows: ROWS.filter(function (r) { return r[2] && CURRENT_ALLOWED_AREAS.indexOf(r[2]) !== -1; }).map(function (r) { return [r[0], 0, r[2]]; }), scoped: true };
+    }
+
+    function build() {
+      var cur = monthKey(new Date());
+      var prev = prevKey(cur);
+      var cell = {};
+      function put(g, m) { var k = g + '|' + m; if (!cell[k]) cell[k] = { ltr: null, rs: null, ltrLive: false, rsLive: false, closed: false }; return cell[k]; }
+      (hist || []).forEach(function (h) { var c = put(h.group, h.month); c.ltr = h.ltr; c.rs = h.rs; c.closed = h.source === 'Tally'; });
+      var live = MOM_LIVE || {};
+      LIVE_GROUPS.forEach(function (g) {
+        var s = live.sales && live.sales[g];
+        if (s) {
+          if (s.month != null) { var c = put(g, cur); c.ltr = s.month; c.ltrLive = true; }
+          var p = put(g, prev); if (!p.closed && s.lastMonthFullLtr != null) { p.ltr = s.lastMonthFullLtr; p.ltrLive = true; }
+        }
+        var co = live.collection && live.collection[g];
+        if (co) {
+          if (co.month != null) { var c2 = put(g, cur); c2.rs = co.month; c2.rsLive = true; }
+          var p2 = put(g, prev); if (!p2.closed && co.lastMonthFull != null) { p2.rs = co.lastMonthFull; p2.rsLive = true; }
+        }
+      });
+      Object.keys(KIDS).forEach(function (t) {
+        [cur, prev].forEach(function (m) {
+          var ch = KIDS[t].map(function (k) { return cell[k + '|' + m]; }).filter(Boolean);
+          var tc = put(t, m);
+          if (ch.some(function (c) { return c.ltrLive; })) { tc.ltr = ch.reduce(function (a, c) { return a + (c.ltr || 0); }, 0); tc.ltrLive = true; }
+          if (ch.some(function (c) { return c.rsLive; })) { tc.rs = ch.reduce(function (a, c) { return a + (c.rs || 0); }, 0); tc.rsLive = true; }
+        });
+      });
+      // Closing: latest groupSummary row per group (live), else the history sheet's saved closing.
+      var latest = {};
+      ((live.groupSummary) || []).forEach(function (r) {
+        var p = latest[r.group];
+        if (!p || r.monthKey > p.monthKey || (r.monthKey === p.monthKey && String(r.updatedAt) >= String(p.updatedAt))) latest[r.group] = r;
+      });
+      var balances = {};
+      (bal || []).forEach(function (b) {
+        var g = latest[b.group];
+        var liveC = g && g.closing != null;
+        balances[b.group] = { opening: b.opening, closing: liveC ? -g.closing : b.closing, asOf: liveC ? String(g.updatedAt || '').slice(0, 10) : b.asOf, live: liveC };
+      });
+      return { cell: cell, cur: cur, balances: balances };
+    }
+
+    function dot(on) { return on ? '<span class="mom-live-dot"></span>' : ''; }
+
+    function render() {
+      if (!salesDet.open && !collDet.open) return;
+      if (loadErr) { var m = '<p class="mom-empty">Couldn\'t load the monthly history (' + esc(loadErr) + '). Close and reopen this card to try again.</p>'; salesBox.innerHTML = m; collBox.innerHTML = m; return; }
+      if (!hist) { salesBox.innerHTML = collBox.innerHTML = '<p class="mom-empty">Loading…</p>'; return; }
+      var d = build();
+      var year = d.cur.slice(0, 4);
+      var mks = MONTHS.map(function (_, i) { return year + '-' + ('0' + (i + 1)).slice(-2); });
+      var vr = visibleRows();
+      var rows = vr.rows;
+      var tops = vr.scoped ? rows.map(function (r) { return r[0]; }) : rows.filter(function (r) { return r[1] === 0; }).map(function (r) { return r[0]; });
+      function cl(m) { return m === d.cur ? ' class="cur"' : ''; }
+
+      // Sales
+      var h = '<table class="mom-table"><thead><tr><th>Particulars</th>' + MONTHS.map(function (m) { return '<th>' + m + '</th>'; }).join('') + '<th class="tot">Total</th></tr></thead><tbody>';
+      rows.forEach(function (r) {
+        var tot = 0;
+        h += '<tr class="l' + r[1] + '"><td>' + esc(label(r[0])) + '</td>';
+        mks.forEach(function (m) { var c = d.cell[r[0] + '|' + m]; var v = c ? c.ltr : null; tot += v || 0; h += '<td' + cl(m) + '>' + ltr(v) + (c && v ? dot(c.ltrLive) : '') + '</td>'; });
+        h += '<td class="tot">' + ltr(tot) + '</td></tr>';
+      });
+      var gt = 0;
+      h += '<tr class="grand"><td>' + (vr.scoped ? 'Total (your areas)' : 'Grand total') + '</td>';
+      mks.forEach(function (m) { var v = 0, lv = false; tops.forEach(function (g) { var c = d.cell[g + '|' + m]; if (c) { v += c.ltr || 0; lv = lv || c.ltrLive; } }); gt += v; h += '<td' + cl(m) + '>' + ltr(v) + (v ? dot(lv) : '') + '</td>'; });
+      h += '<td class="tot">' + ltr(gt) + '</td></tr></tbody></table>';
+      salesBox.innerHTML = h;
+
+      // Collection
+      var c = '<table class="mom-table"><thead><tr><th>Particulars</th><th class="tot">Opening</th>' + MONTHS.map(function (m) { return '<th>' + m + '</th>'; }).join('') + '<th class="tot">Total</th><th class="tot">Closing</th></tr></thead><tbody>';
+      var og = 0, cg = 0, cgLive = true;
+      rows.forEach(function (r) {
+        var b = d.balances[r[0]] || {};
+        var tot = 0;
+        c += '<tr class="l' + r[1] + '"><td>' + esc(label(r[0])) + '</td><td class="tot">' + (b.opening ? rs(b.opening) + ' Dr' : '') + '</td>';
+        mks.forEach(function (m) { var x = d.cell[r[0] + '|' + m]; var v = x ? x.rs : null; tot += v || 0; c += '<td' + cl(m) + '>' + rs(v) + (x && v ? dot(x.rsLive) : '') + '</td>'; });
+        c += '<td class="tot">' + rs(tot) + '</td><td class="tot"' + (b.asOf ? ' title="As on ' + esc(b.asOf) + '"' : '') + '>' + (b.closing != null ? rs(b.closing) + ' Dr' + dot(b.live) : '') + '</td></tr>';
+      });
+      tops.forEach(function (g) { var b = d.balances[g] || {}; og += b.opening || 0; cg += b.closing || 0; cgLive = cgLive && !!b.live; });
+      var ct = 0;
+      c += '<tr class="grand"><td>' + (vr.scoped ? 'Total (your areas)' : 'Grand total') + '</td><td class="tot">' + (og ? rs(og) + ' Dr' : '') + '</td>';
+      mks.forEach(function (m) { var v = 0, lv = false; tops.forEach(function (g) { var x = d.cell[g + '|' + m]; if (x) { v += x.rs || 0; lv = lv || x.rsLive; } }); ct += v; c += '<td' + cl(m) + '>' + rs(v) + (v ? dot(lv) : '') + '</td>'; });
+      c += '<td class="tot">' + rs(ct) + '</td><td class="tot">' + (cg ? rs(cg) + ' Dr' + dot(cgLive) : '') + '</td></tr></tbody></table>';
+      collBox.innerHTML = c;
+    }
+    momRerender_ = render;
+
+    function load() {
+      if (hist || loading) { render(); return; }
+      loading = true; loadErr = null; render();
+      fetchJson_(ORDERS_API_URL + '?type=monthlyHistory&_ts=' + Date.now(), 3, 30000)
+        .then(function (res) {
+          if (!res || !res.ok) throw new Error((res && res.error) || 'bad reply');
+          hist = res.history || []; bal = res.balances || [];
+        })
+        .catch(function (e) { loadErr = (e && e.message) || 'network error'; })
+        .then(function () { loading = false; render(); });
+    }
+    salesDet.addEventListener('toggle', function () { if (salesDet.open) { if (loadErr) { loadErr = null; } load(); } });
+    collDet.addEventListener('toggle', function () { if (collDet.open) { if (loadErr) { loadErr = null; } load(); } });
+    if (rsBtn) rsBtn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); fullRs = !fullRs; rsBtn.textContent = fullRs ? 'In lakhs' : 'Full ₹'; render(); });
   })();
 
   // ----- DSR Visit Remarks card, added 14 Oct 2026 -----
