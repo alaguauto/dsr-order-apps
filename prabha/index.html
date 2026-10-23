@@ -1079,7 +1079,8 @@
 .heatmap-grid { display: grid; grid-template-columns: 50px repeat(7, 1fr) 1.1fr; gap: 4px; font-size: 11px; }
 .heatmap-wk-label { color: var(--text-muted); font-size: 10px; line-height: 1.25; display: flex; flex-direction: column; justify-content: center; }
 .heatmap-wk-range { font-weight: 400; opacity: .8; }
-.heatmap-day-label { text-align: center; color: var(--text-muted); font-size: 10.5px; font-weight: 700; padding-bottom: 2px; }
+.heatmap-day-label { text-align: center; color: var(--text-muted); font-size: 10.5px; font-weight: 700; padding-bottom: 2px; min-width: 0; overflow: hidden; }
+.heatmap-day-area { display: block; font-weight: 400; font-size: 8px; color: var(--text-muted); opacity: .85; line-height: 1.2; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .heatmap-cell { border-radius: 7px; padding: 6px 2px; text-align: center; font-weight: 700; }
 .heatmap-cell-date { display: block; font-size: 9px; font-weight: 600; opacity: .65; margin-bottom: 1px; }
 .heatmap-cell.h0 { background: var(--surface-2); color: var(--text-muted); font-weight: 400; }
@@ -1251,6 +1252,55 @@
       </div>
     </details>
   </section>
+
+  <!-- Bank Deposit, added 23 Oct 2026 ("add a column as bank deposit date,
+       in that want to ask input from dsr paid amount, date, paid thro
+       bank (cash deposit/ATM deposit/transfer), cash direct to office,
+       cash thro, paid receipt number from/to") - sits right next to the
+       heatmap above, per that request. A DSR logs their own cash
+       deposits/handovers here; the dashboard shows the same last-5 list
+       per DSR in its own "Bank Deposits" panel (see renderBankDeposit_()
+       below for the full field list and backend). -->
+  <section style="padding-bottom:0;">
+    <details class="manage" id="bankDepositDetails">
+      <summary>Bank Deposit</summary>
+      <div class="manage-body">
+        <p class="hint">Log a cash deposit or handover so the office knows it was paid in.</p>
+        <div id="bdForm">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <span style="flex:1 1 140px;"><label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Date *</label><input type="date" id="bdDate" required style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);"></span>
+            <span style="flex:1 1 140px;"><label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Amount (₹) *</label><input type="number" id="bdAmount" min="0" step="1" placeholder="0" required style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);"></span>
+          </div>
+          <div style="margin-top:8px;">
+            <label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Paid Through *</label>
+            <select id="bdPaidThrough" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+              <option value="">Select…</option>
+              <option value="Bank — Cash Deposit">Bank — Cash Deposit</option>
+              <option value="Bank — ATM Deposit">Bank — ATM Deposit</option>
+              <option value="Bank — Transfer">Bank — Transfer</option>
+              <option value="Cash — Direct to Office">Cash — Direct to Office</option>
+              <option value="Cash — Thro">Cash — Thro (another person)</option>
+            </select>
+          </div>
+          <!-- Only shown for "Cash — Thro" - who physically carried the
+               cash. See bdPaidThroughEl's change listener below. -->
+          <div id="bdThroNameWrap" hidden style="margin-top:8px;">
+            <label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Thro (name)</label>
+            <input type="text" id="bdThroName" placeholder="Who carried it" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+            <span style="flex:1 1 140px;"><label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Receipt No. From</label><input type="text" id="bdReceiptFrom" placeholder="optional" style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);"></span>
+            <span style="flex:1 1 140px;"><label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Receipt No. To</label><input type="text" id="bdReceiptTo" placeholder="optional" style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);"></span>
+          </div>
+          <p class="bd-error" id="bdError" hidden style="color:var(--danger);font-size:12px;margin:8px 0 0;"></p>
+          <button type="button" class="task-icon-btn" id="bdSaveBtn" style="margin-top:10px;width:100%;">Save</button>
+        </div>
+        <p class="hint" style="margin-top:16px;">Last 5 payments</p>
+        <div id="bdLastList"><div class="task-empty-note">Loading…</div></div>
+      </div>
+    </details>
+  </section>
+
 
 
   <!-- Visit follow-ups, added 14 Oct 2026 (pilot on Arun's app) - open
@@ -2839,6 +2889,26 @@
   var HEATMAP_TAB_ = 'sales';
   var salesTrendByDsrList_ = null;
   var collectionTrendByDsrList_ = null;
+
+  // Beat area names per weekday, per DSR - added 23 Oct 2026, from the
+  // owner's published Google Sheet ("DSR ORDER LOG : BeatAreaNames",
+  // https://docs.google.com/spreadsheets/d/e/2PACX-1vQvDGuHf-aKYVNXpFvanE_k70hKRrdmAUYzJ3FisccA-oRR2Ey1_kctbLXhP2BAvXams6R3AUcUrBEM/pubhtml?gid=1444028775).
+  // Keyed by each DSR's own full dsrName (same string already baked into
+  // every app/dashboard as the "DSR Name" identity) so no short-name
+  // parsing is needed at the lookup site. Sunday intentionally has no key
+  // anywhere here (and the sheet itself has no Sunday column) - matches
+  // this project's standing "Sunday is never a beat day" convention, so a
+  // Sunday column in the heatmap always renders with no area name, same
+  // as a DSR with no row in the sheet at all (AAA Direct, Saravanan - both
+  // intentionally absent below until the owner fills in their beats).
+  var BEAT_AREA_NAMES_ = {
+    "PETRONAS DINDIGUL AREA (ARUN)": { Mon: "Dindigul", Tue: "Nilakottai", Wed: "Vedasandur", Thu: "Oddanchatram", Fri: "Vadamadurai", Sat: "Natham" },
+    "PETRONAS THENI AREA (PRABHA)": { Mon: "Theni", Tue: "Aundipatti", Wed: "Chinnamanur", Thu: "Cumbum", Fri: "Periyakulam", Sat: "Chinnamanur" },
+    "PETRONAS NKL AREA (MADHU)": { Mon: "Nagercoil", Tue: "Marthandam", Wed: "Nagercoil", Thu: "Nagercoil", Fri: "Valliyur" },
+    "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)": { Mon: "Kovilpatti", Tue: "Virudhunagar", Wed: "Sivakasi", Thu: "Dhalavaipuram", Fri: "Srivilliputhur", Sat: "Rajapalayam" },
+    "PETRONAS MDU AREA (CHELLAMANI)": { Mon: "Simmakkal", Tue: "Annanagar", Wed: "Villapuram", Thu: "Melur", Fri: "Usilampatti", Sat: "Thirumangalam" },
+    "PETRONAS TVL1 AREA (ANANDH)": { Mon: "Tirunelveli", Tue: "Tenkasi", Wed: "Surandai", Thu: "Ambasamudram", Fri: "Sankarankovil", Sat: "Tirunelveli (other side)" }
+  };
   function renderSalesCollectionHeatmap_() {
     var gridWrap = document.getElementById('heatmapGridWrap');
     if (!gridWrap) return;
@@ -2901,7 +2971,11 @@
 
     var html = '<div class="heatmap-grid">';
     html += '<div></div>';
-    for (var p = 0; p < WEEK_BUCKET_SIZE; p++) { html += '<div class="heatmap-day-label">' + WEEKDAY_ABBR_[(firstDow + p) % 7] + '</div>'; }
+    for (var p = 0; p < WEEK_BUCKET_SIZE; p++) {
+      var dowAbbr_ = WEEKDAY_ABBR_[(firstDow + p) % 7];
+      var beatArea_ = (BEAT_AREA_NAMES_[myDsrName] || {})[dowAbbr_] || '';
+      html += '<div class="heatmap-day-label"' + (beatArea_ ? ' title="' + beatArea_ + '"' : '') + '>' + dowAbbr_ + (beatArea_ ? '<span class="heatmap-day-area">' + beatArea_ + '</span>' : '') + '</div>';
+    }
     html += '<div class="heatmap-day-label heatmap-total-label">Total</div>';
     weeks.forEach(function (w, wi) {
       var weekTotal = 0;
@@ -2930,6 +3004,118 @@
         renderSalesCollectionHeatmap_();
       });
     });
+  })();
+
+  // Bank Deposit - added 23 Oct 2026, see bankDepositDetails' own markup
+  // comment above for the full feature/request. A DSR-entered log, NOT
+  // derived from Tally like everything else on this page - its own
+  // ?type=bankDeposits / action:"bankDepositAdd" endpoint (see Code.gs's
+  // handleBankDepositsGet_()/handleBankDepositAdd_()). escapeHtml()/
+  // todayISO()/apiConfigured()/postToApi() are this app's own existing
+  // helpers, reused as-is.
+  var bdDateEl = document.getElementById("bdDate");
+  var bdAmountEl = document.getElementById("bdAmount");
+  var bdPaidThroughEl = document.getElementById("bdPaidThrough");
+  var bdThroNameWrapEl = document.getElementById("bdThroNameWrap");
+  var bdThroNameEl = document.getElementById("bdThroName");
+  var bdReceiptFromEl = document.getElementById("bdReceiptFrom");
+  var bdReceiptToEl = document.getElementById("bdReceiptTo");
+  var bdErrorEl = document.getElementById("bdError");
+  var bdSaveBtnEl = document.getElementById("bdSaveBtn");
+  var bdLastListEl = document.getElementById("bdLastList");
+  var bankDepositDetailsEl = document.getElementById("bankDepositDetails");
+
+  function bdFmtDate_(iso) {
+    if (!iso) return "";
+    var d = new Date(iso + "T00:00:00");
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  }
+
+  function renderBankDepositList_(deposits) {
+    if (!bdLastListEl) return;
+    if (!deposits || !deposits.length) {
+      bdLastListEl.innerHTML = '<div class="task-empty-note">No payments logged yet.</div>';
+      return;
+    }
+    bdLastListEl.innerHTML = deposits.map(function (d) {
+      var receiptLine = (d.receiptFrom || d.receiptTo)
+        ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Receipt ' + escapeHtml(d.receiptFrom || "?") + (d.receiptTo ? (" – " + escapeHtml(d.receiptTo)) : "") + '</div>'
+        : '';
+      var throLine = d.throName ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Thro ' + escapeHtml(d.throName) + '</div>' : '';
+      return '<div style="padding:8px 0;border-top:1px solid var(--border);">' +
+        '<div style="display:flex;justify-content:space-between;gap:8px;"><strong>₹' + Math.round(d.amount).toLocaleString("en-IN") + '</strong><span style="font-size:12px;color:var(--text-muted);">' + bdFmtDate_(d.date) + '</span></div>' +
+        '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">' + escapeHtml(d.paidThrough || "") + '</div>' +
+        throLine + receiptLine +
+        '</div>';
+    }).join("");
+  }
+
+  function fetchBankDeposits_() {
+    if (!apiConfigured() || !bdLastListEl) return;
+    var myDsrName = document.getElementById("dsrName").value || "";
+    fetch(ORDERS_API_URL + "?type=bankDeposits&dsrName=" + encodeURIComponent(myDsrName) + "&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) { bdLastListEl.innerHTML = '<div class="task-empty-note">Could not load.</div>'; return; }
+        renderBankDepositList_(data.deposits || []);
+      })
+      .catch(function () { bdLastListEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>'; });
+  }
+
+  (function () {
+    if (bdDateEl && !bdDateEl.value) bdDateEl.value = todayISO();
+    if (bdPaidThroughEl) {
+      bdPaidThroughEl.addEventListener("change", function () {
+        if (bdThroNameWrapEl) bdThroNameWrapEl.hidden = bdPaidThroughEl.value !== "Cash — Thro";
+      });
+    }
+    if (bankDepositDetailsEl) {
+      bankDepositDetailsEl.addEventListener("toggle", function () { if (bankDepositDetailsEl.open) fetchBankDeposits_(); });
+    }
+    if (bdSaveBtnEl) {
+      bdSaveBtnEl.addEventListener("click", function () {
+        if (bdErrorEl) bdErrorEl.hidden = true;
+        var date = bdDateEl ? bdDateEl.value : "";
+        var amount = bdAmountEl ? Number(bdAmountEl.value) : 0;
+        var paidThrough = bdPaidThroughEl ? bdPaidThroughEl.value : "";
+        if (!date || !amount || amount <= 0 || !paidThrough) {
+          if (bdErrorEl) { bdErrorEl.textContent = "Date, amount and paid through are required."; bdErrorEl.hidden = false; }
+          return;
+        }
+        var myDsrName = document.getElementById("dsrName").value || "";
+        bdSaveBtnEl.disabled = true;
+        bdSaveBtnEl.textContent = "Saving…";
+        postToApi("bankDepositAdd", {
+          dsrName: myDsrName,
+          date: date,
+          amount: amount,
+          paidThrough: paidThrough,
+          throName: paidThrough === "Cash — Thro" ? (bdThroNameEl ? bdThroNameEl.value : "") : "",
+          receiptFrom: bdReceiptFromEl ? bdReceiptFromEl.value : "",
+          receiptTo: bdReceiptToEl ? bdReceiptToEl.value : ""
+        }).then(function (res) {
+          bdSaveBtnEl.disabled = false;
+          bdSaveBtnEl.textContent = "Save";
+          if (!res || !res.ok) {
+            if (bdErrorEl) { bdErrorEl.textContent = (res && res.error) || "Could not save - try again."; bdErrorEl.hidden = false; }
+            return;
+          }
+          if (bdAmountEl) bdAmountEl.value = "";
+          if (bdPaidThroughEl) bdPaidThroughEl.value = "";
+          if (bdThroNameEl) bdThroNameEl.value = "";
+          if (bdThroNameWrapEl) bdThroNameWrapEl.hidden = true;
+          if (bdReceiptFromEl) bdReceiptFromEl.value = "";
+          if (bdReceiptToEl) bdReceiptToEl.value = "";
+          if (bdDateEl) bdDateEl.value = todayISO();
+          fetchBankDeposits_();
+        }).catch(function () {
+          bdSaveBtnEl.disabled = false;
+          bdSaveBtnEl.textContent = "Save";
+          if (bdErrorEl) { bdErrorEl.textContent = "Could not reach the server - check your connection."; bdErrorEl.hidden = false; }
+        });
+      });
+    }
   })();
 
   function applyLiveOverlay_(data) {
@@ -5953,6 +6139,11 @@
       fetchLiveOverlay_();
       checkLastMonthReport_();
       setInterval(fetchLiveOverlay_, LIVE_OVERLAY_POLL_MS);
+      // Bank Deposit - added 23 Oct 2026. A DSR-entered log, not live Tally
+      // data, so no repeat poll like fetchLiveOverlay_() above - just once
+      // on login, plus a re-fetch after every save and on the panel's own
+      // toggle-open (see the wiring IIFE near renderBankDepositList_()).
+      if (typeof fetchBankDeposits_ === "function") fetchBankDeposits_();
       fetchVisitRemarks_(); // Visit follow-ups - added 14 Oct 2026; sheet updates nightly, so once per app open is enough
       // My Tasks - ported from AAA Direct's app 6 Oct 2026, so a reminder
       // can fire even if this DSR never opens the My Tasks panel

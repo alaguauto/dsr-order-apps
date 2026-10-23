@@ -393,7 +393,8 @@
   .heatmap-grid { display: grid; grid-template-columns: 50px repeat(7, 1fr) 1.1fr; gap: 4px; font-size: 11px; }
   .heatmap-wk-label { color: var(--ink-muted); font-size: 10px; line-height: 1.25; display: flex; flex-direction: column; justify-content: center; }
   .heatmap-wk-range { font-weight: 400; opacity: .8; }
-  .heatmap-day-label { text-align: center; color: var(--ink-muted); font-size: 10.5px; font-weight: 700; padding-bottom: 2px; }
+  .heatmap-day-label { text-align: center; color: var(--ink-muted); font-size: 10.5px; font-weight: 700; padding-bottom: 2px; min-width: 0; overflow: hidden; }
+.heatmap-day-area { display: block; font-weight: 400; font-size: 8px; color: var(--ink-muted); opacity: .85; line-height: 1.2; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .heatmap-cell { border-radius: 7px; padding: 6px 2px; text-align: center; font-weight: 700; }
   .heatmap-cell-date { display: block; font-size: 9px; font-weight: 600; opacity: .65; margin-bottom: 1px; }
   .heatmap-cell.h0 { background: var(--surface-2); color: var(--ink-muted); font-weight: 400; }
@@ -1610,6 +1611,29 @@
         <span class="sw" style="background:#6fb68f;"></span>
         <span class="sw" style="background:#2f7d5a;"></span>
       More</div>
+    </div>
+  </div>
+
+  <!-- Bank Deposits, added 23 Oct 2026 ("want to add a column as bank
+       deposit date, in that want to ask input from dsr paid amount, date,
+       paid thro bank (cash deposit/ATM deposit/transfer), cash direct to
+       office, cash thro, paid receipt number from/to ... this has to show
+       in dashboard also, last 5 paid transaction has to be shown in
+       both") - sits right next to the heatmap above, per that request.
+       Read-only here (a DSR submits from their own app); same DSR picker
+       pattern as the heatmap, "All DSRs" as the first/default option
+       showing the last 5 across the whole team, same
+       ?type=bankDeposits endpoint the DSR apps use (see
+       renderBankDeposits_() below for the full field list and backend). -->
+  <div id="captureBankDeposits">
+    <div class="section-label-row">
+      <p class="section-label">Bank Deposits</p>
+    </div>
+    <div class="leaderboard-panel">
+      <div class="master-file-filters" style="padding:0 0 10px;">
+        <span><label>DSR</label><select id="bdDsrFilter"></select></span>
+      </div>
+      <div id="bdDashList"><p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Loading…</p></div>
     </div>
   </div>
 
@@ -4010,6 +4034,30 @@
   // <option> until the person picks another one - no extra "selected"
   // attribute or JS needed for that part).
   var HEATMAP_TOTAL_VALUE_ = '__TOTAL__';
+
+  // Beat area names per weekday, per DSR - added 23 Oct 2026, from the
+  // owner's published Google Sheet ("DSR ORDER LOG : BeatAreaNames",
+  // https://docs.google.com/spreadsheets/d/e/2PACX-1vQvDGuHf-aKYVNXpFvanE_k70hKRrdmAUYzJ3FisccA-oRR2Ey1_kctbLXhP2BAvXams6R3AUcUrBEM/pubhtml?gid=1444028775).
+  // Keyed by each DSR's own full dsrName, same string the heatmap's own
+  // DSR picker already uses as each <option>'s value (see
+  // renderSalesCollectionHeatmap_ below) - no short-name parsing needed.
+  // Shown only when one specific DSR is picked (not the "Total (all
+  // DSRs)" default), per the owner's own choice - mixing several DSRs'
+  // routes on one combined view wouldn't mean anything. Sunday
+  // intentionally has no key anywhere here (sheet has no Sunday column
+  // either) - matches this project's standing "Sunday is never a beat
+  // day" convention. AAA Direct and Saravanan intentionally absent below
+  // (no beat areas set yet in the sheet) - Saravanan isn't even
+  // selectable here anyway (his Tally figures are folded into
+  // Chellamani's, see the DSRS comment above).
+  var BEAT_AREA_NAMES_ = {
+    "PETRONAS DINDIGUL AREA (ARUN)": { Mon: "Dindigul", Tue: "Nilakottai", Wed: "Vedasandur", Thu: "Oddanchatram", Fri: "Vadamadurai", Sat: "Natham" },
+    "PETRONAS THENI AREA (PRABHA)": { Mon: "Theni", Tue: "Aundipatti", Wed: "Chinnamanur", Thu: "Cumbum", Fri: "Periyakulam", Sat: "Chinnamanur" },
+    "PETRONAS NKL AREA (MADHU)": { Mon: "Nagercoil", Tue: "Marthandam", Wed: "Nagercoil", Thu: "Nagercoil", Fri: "Valliyur" },
+    "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)": { Mon: "Kovilpatti", Tue: "Virudhunagar", Wed: "Sivakasi", Thu: "Dhalavaipuram", Fri: "Srivilliputhur", Sat: "Rajapalayam" },
+    "PETRONAS MDU AREA (CHELLAMANI)": { Mon: "Simmakkal", Tue: "Annanagar", Wed: "Villapuram", Thu: "Melur", Fri: "Usilampatti", Sat: "Thirumangalam" },
+    "PETRONAS TVL1 AREA (ANANDH)": { Mon: "Tirunelveli", Tue: "Tenkasi", Wed: "Surandai", Thu: "Ambasamudram", Fri: "Sankarankovil", Sat: "Tirunelveli (other side)" }
+  };
   function renderSalesCollectionHeatmap_() {
     var dsrSel = document.getElementById('heatmapDsrFilter');
     var gridWrap = document.getElementById('heatmapGridWrap');
@@ -4112,7 +4160,11 @@
 
     var html = '<div class="heatmap-grid">';
     html += '<div></div>';
-    for (var p = 0; p < WEEK_BUCKET_SIZE; p++) { html += '<div class="heatmap-day-label">' + WEEKDAY_ABBR_[(firstDow + p) % 7] + '</div>'; }
+    for (var p = 0; p < WEEK_BUCKET_SIZE; p++) {
+      var dowAbbr_ = WEEKDAY_ABBR_[(firstDow + p) % 7];
+      var beatArea_ = (selDsr !== HEATMAP_TOTAL_VALUE_ && BEAT_AREA_NAMES_[selDsr]) ? (BEAT_AREA_NAMES_[selDsr][dowAbbr_] || '') : '';
+      html += '<div class="heatmap-day-label"' + (beatArea_ ? ' title="' + beatArea_ + '"' : '') + '>' + dowAbbr_ + (beatArea_ ? '<span class="heatmap-day-area">' + beatArea_ + '</span>' : '') + '</div>';
+    }
     html += '<div class="heatmap-day-label heatmap-total-label">Total</div>';
     weeks.forEach(function (w, wi) {
       var weekTotal = 0;
@@ -4133,6 +4185,63 @@
     html += '</div>';
     gridWrap.innerHTML = html;
   }
+
+  // Bank Deposits, added 23 Oct 2026 - see captureBankDeposits' own markup
+  // comment above for the full feature/request. Read-only here (a DSR
+  // submits from their own app) - same ?type=bankDeposits endpoint, same
+  // DSR-picker-with-"All DSRs"-default pattern as the heatmap just above.
+  var BD_ALL_VALUE_ = '__ALL__';
+  function bdFmtDate_(iso) {
+    if (!iso) return '';
+    var d = new Date(iso + 'T00:00:00');
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+  function bdDsrShortName_(longName) {
+    var match = DSRS.filter(function (d) { return d.dsrName === longName; });
+    return match.length ? match[0].name : longName;
+  }
+  function renderBankDeposits_() {
+    var dsrSel = document.getElementById('bdDsrFilter');
+    var listEl = document.getElementById('bdDashList');
+    if (!dsrSel || !listEl) return;
+    if (dsrSel.getAttribute('data-built') !== '1') {
+      dsrSel.innerHTML = '<option value="' + BD_ALL_VALUE_ + '">All DSRs</option>' +
+        DSRS.map(function (d) { return '<option value="' + mfEscapeHtml_(d.dsrName) + '">' + mfEscapeHtml_(d.name) + '</option>'; }).join('');
+      dsrSel.setAttribute('data-built', '1');
+    }
+    var selDsr = dsrSel.value || BD_ALL_VALUE_;
+    listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Loading…</p>';
+    var url = ORDERS_API_URL + '?type=bankDeposits&_ts=' + Date.now() +
+      (selDsr === BD_ALL_VALUE_ ? '' : '&dsrName=' + encodeURIComponent(selDsr));
+    fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) { listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Could not load.</p>'; return; }
+        var deposits = data.deposits || [];
+        if (!deposits.length) { listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">No payments logged yet.</p>'; return; }
+        listEl.innerHTML = deposits.map(function (d) {
+          var receiptLine = (d.receiptFrom || d.receiptTo)
+            ? '<div style="font-size:11px;color:var(--ink-muted);margin-top:2px;">Receipt ' + mfEscapeHtml_(d.receiptFrom || '?') + (d.receiptTo ? (' – ' + mfEscapeHtml_(d.receiptTo)) : '') + '</div>'
+            : '';
+          var throLine = d.throName ? '<div style="font-size:11px;color:var(--ink-muted);margin-top:2px;">Thro ' + mfEscapeHtml_(d.throName) + '</div>' : '';
+          // DSR name only shown in the "All DSRs" view - redundant once a
+          // specific DSR is already picked in the filter above.
+          var dsrLine = (selDsr === BD_ALL_VALUE_) ? '<div style="font-size:12px;font-weight:600;margin-top:2px;">' + mfEscapeHtml_(bdDsrShortName_(d.dsrName)) + '</div>' : '';
+          return '<div style="padding:8px 0;border-top:1px solid var(--border);">' +
+            '<div style="display:flex;justify-content:space-between;gap:8px;"><strong>₹' + Math.round(d.amount).toLocaleString('en-IN') + '</strong><span style="font-size:12px;color:var(--ink-muted);">' + bdFmtDate_(d.date) + '</span></div>' +
+            dsrLine +
+            '<div style="font-size:12px;color:var(--ink-muted);margin-top:2px;">' + mfEscapeHtml_(d.paidThrough || '') + '</div>' +
+            throLine + receiptLine +
+            '</div>';
+        }).join('');
+      })
+      .catch(function () { listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Could not reach the server.</p>'; });
+  }
+  (function () {
+    var dsrSel = document.getElementById('bdDsrFilter');
+    if (dsrSel) dsrSel.addEventListener('change', renderBankDeposits_);
+  })();
 
   // Top 5 panels, added 17 Sep 2026, switched to Tally-live Sales data on
   // 18 Sep 2026 - Items sold and Top customers (Sales) are now sorted here
@@ -11198,6 +11307,11 @@
     // script has parsed) now starts here instead of unconditionally at
     // page load - see the removed bare refreshAll() call near the bottom.
     if (typeof refreshAll === 'function') refreshAll();
+    // Bank Deposits - added 23 Oct 2026. A DSR-entered log, not part of
+    // ?type=live, so it isn't pulled into the refreshAll()/render() cycle
+    // above - just once on login, plus on the panel's own DSR-filter
+    // change (see the wiring IIFE near renderBankDeposits_()).
+    if (typeof renderBankDeposits_ === 'function') renderBankDeposits_();
   }
 
   // "Stay signed in on this device" - added 10 Oct 2026, same design as the
