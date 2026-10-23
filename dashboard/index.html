@@ -1628,6 +1628,9 @@
   <div id="captureBankDeposits">
     <div class="section-label-row">
       <p class="section-label">Bank Deposits</p>
+      <button type="button" class="share-icon-btn small" id="shareBankDepositsBtn" title="Share on WhatsApp">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+      </button>
     </div>
     <div class="leaderboard-panel">
       <div class="master-file-filters" style="padding:0 0 10px;">
@@ -4225,6 +4228,7 @@
             ? '<div style="font-size:11px;color:var(--ink-muted);margin-top:2px;">Receipt ' + mfEscapeHtml_(d.receiptFrom || '?') + (d.receiptTo ? (' – ' + mfEscapeHtml_(d.receiptTo)) : '') + '</div>'
             : '';
           var throLine = d.throName ? '<div style="font-size:11px;color:var(--ink-muted);margin-top:2px;">Thro ' + mfEscapeHtml_(d.throName) + '</div>' : '';
+          var remarksLine = d.remarks ? '<div style="font-size:11px;color:var(--ink-muted);margin-top:2px;">Remarks: ' + mfEscapeHtml_(d.remarks) + '</div>' : '';
           // DSR name only shown in the "All DSRs" view - redundant once a
           // specific DSR is already picked in the filter above.
           var dsrLine = (selDsr === BD_ALL_VALUE_) ? '<div style="font-size:12px;font-weight:600;margin-top:2px;">' + mfEscapeHtml_(bdDsrShortName_(d.dsrName)) + '</div>' : '';
@@ -4232,7 +4236,7 @@
             '<div style="display:flex;justify-content:space-between;gap:8px;"><strong>₹' + Math.round(d.amount).toLocaleString('en-IN') + '</strong><span style="font-size:12px;color:var(--ink-muted);">' + bdFmtDate_(d.date) + '</span></div>' +
             dsrLine +
             '<div style="font-size:12px;color:var(--ink-muted);margin-top:2px;">' + mfEscapeHtml_(d.paidThrough || '') + '</div>' +
-            throLine + receiptLine +
+            throLine + receiptLine + remarksLine +
             '</div>';
         }).join('');
       })
@@ -4242,6 +4246,25 @@
     var dsrSel = document.getElementById('bdDsrFilter');
     if (dsrSel) dsrSel.addEventListener('change', renderBankDeposits_);
   })();
+  // WhatsApp share for Bank Deposits, added 23 Oct 2026 ("make it as
+  // share in whatsapp") - same image-capture pattern as every other
+  // panel's own share-icon-btn (captureElementToBlob_ + openShareSheet_;
+  // .capturing hides this button itself from the shot, see the CSS rule
+  // comment above captureElementToBlob_). Text names whichever DSR is
+  // currently picked so it still makes sense out of context in a
+  // WhatsApp chat.
+  function buildShareTextBankDeposits_() {
+    var dsrSel = document.getElementById('bdDsrFilter');
+    var dsrLabel = (dsrSel && dsrSel.selectedOptions && dsrSel.selectedOptions[0]) ? dsrSel.selectedOptions[0].textContent : 'All DSRs';
+    return 'Bank Deposits — ' + dsrLabel + ' — ' + dateHeaderLine_();
+  }
+  var shareBankDepositsBtnEl = document.getElementById('shareBankDepositsBtn');
+  if (shareBankDepositsBtnEl) {
+    shareBankDepositsBtnEl.addEventListener('click', function () {
+      openShareSheet_('Share Bank Deposits', document.getElementById('captureBankDeposits'),
+        'Bank Deposits — ' + dateHeaderLine_(), buildShareTextBankDeposits_());
+    });
+  }
 
   // Top 5 panels, added 17 Sep 2026, switched to Tally-live Sales data on
   // 18 Sep 2026 - Items sold and Top customers (Sales) are now sorted here

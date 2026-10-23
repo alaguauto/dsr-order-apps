@@ -1203,6 +1203,16 @@
             <span style="flex:1 1 140px;"><label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Receipt No. From</label><input type="text" id="bdReceiptFrom" placeholder="optional" style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);"></span>
             <span style="flex:1 1 140px;"><label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Receipt No. To</label><input type="text" id="bdReceiptTo" placeholder="optional" style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);"></span>
           </div>
+          <!-- Only shown (and required) for "Bank — Transfer" - added 23
+               Oct 2026 ("add remarks in bank transfer ... thats also
+               must"). A transfer has no paper receipt number, so Remarks
+               (transaction ref/UTR or any note) is this mode's own
+               required identifying field instead. See bdPaidThroughEl's
+               change listener below. -->
+          <div id="bdRemarksWrap" hidden style="margin-top:8px;">
+            <label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Remarks *</label>
+            <input type="text" id="bdRemarks" placeholder="Transfer reference / note" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+          </div>
           <p class="bd-error" id="bdError" hidden style="color:var(--danger);font-size:12px;margin:8px 0 0;"></p>
           <button type="button" class="task-icon-btn" id="bdSaveBtn" style="margin-top:10px;width:100%;">Save</button>
         </div>
@@ -2764,6 +2774,8 @@
   var bdThroNameEl = document.getElementById("bdThroName");
   var bdReceiptFromEl = document.getElementById("bdReceiptFrom");
   var bdReceiptToEl = document.getElementById("bdReceiptTo");
+  var bdRemarksWrapEl = document.getElementById("bdRemarksWrap");
+  var bdRemarksEl = document.getElementById("bdRemarks");
   var bdErrorEl = document.getElementById("bdError");
   var bdSaveBtnEl = document.getElementById("bdSaveBtn");
   var bdLastListEl = document.getElementById("bdLastList");
@@ -2787,10 +2799,11 @@
         ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Receipt ' + escapeHtml(d.receiptFrom || "?") + (d.receiptTo ? (" – " + escapeHtml(d.receiptTo)) : "") + '</div>'
         : '';
       var throLine = d.throName ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Thro ' + escapeHtml(d.throName) + '</div>' : '';
+      var remarksLine = d.remarks ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Remarks: ' + escapeHtml(d.remarks) + '</div>' : '';
       return '<div style="padding:8px 0;border-top:1px solid var(--border);">' +
         '<div style="display:flex;justify-content:space-between;gap:8px;"><strong>₹' + Math.round(d.amount).toLocaleString("en-IN") + '</strong><span style="font-size:12px;color:var(--text-muted);">' + bdFmtDate_(d.date) + '</span></div>' +
         '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">' + escapeHtml(d.paidThrough || "") + '</div>' +
-        throLine + receiptLine +
+        throLine + receiptLine + remarksLine +
         '</div>';
     }).join("");
   }
@@ -2812,6 +2825,7 @@
     if (bdPaidThroughEl) {
       bdPaidThroughEl.addEventListener("change", function () {
         if (bdThroNameWrapEl) bdThroNameWrapEl.hidden = bdPaidThroughEl.value !== "Cash — Thro";
+        if (bdRemarksWrapEl) bdRemarksWrapEl.hidden = bdPaidThroughEl.value !== "Bank — Transfer";
       });
     }
     if (bankDepositDetailsEl) {
@@ -2823,8 +2837,13 @@
         var date = bdDateEl ? bdDateEl.value : "";
         var amount = bdAmountEl ? Number(bdAmountEl.value) : 0;
         var paidThrough = bdPaidThroughEl ? bdPaidThroughEl.value : "";
+        var remarks = bdRemarksEl ? bdRemarksEl.value.trim() : "";
         if (!date || !amount || amount <= 0 || !paidThrough) {
           if (bdErrorEl) { bdErrorEl.textContent = "Date, amount and paid through are required."; bdErrorEl.hidden = false; }
+          return;
+        }
+        if (paidThrough === "Bank — Transfer" && !remarks) {
+          if (bdErrorEl) { bdErrorEl.textContent = "Remarks are required for Bank — Transfer."; bdErrorEl.hidden = false; }
           return;
         }
         var myDsrName = document.getElementById("dsrName").value || "";
@@ -2837,7 +2856,8 @@
           paidThrough: paidThrough,
           throName: paidThrough === "Cash — Thro" ? (bdThroNameEl ? bdThroNameEl.value : "") : "",
           receiptFrom: bdReceiptFromEl ? bdReceiptFromEl.value : "",
-          receiptTo: bdReceiptToEl ? bdReceiptToEl.value : ""
+          receiptTo: bdReceiptToEl ? bdReceiptToEl.value : "",
+          remarks: paidThrough === "Bank — Transfer" ? remarks : ""
         }).then(function (res) {
           bdSaveBtnEl.disabled = false;
           bdSaveBtnEl.textContent = "Save";
@@ -2851,6 +2871,8 @@
           if (bdThroNameWrapEl) bdThroNameWrapEl.hidden = true;
           if (bdReceiptFromEl) bdReceiptFromEl.value = "";
           if (bdReceiptToEl) bdReceiptToEl.value = "";
+          if (bdRemarksEl) bdRemarksEl.value = "";
+          if (bdRemarksWrapEl) bdRemarksWrapEl.hidden = true;
           if (bdDateEl) bdDateEl.value = todayISO();
           fetchBankDeposits_();
         }).catch(function () {
