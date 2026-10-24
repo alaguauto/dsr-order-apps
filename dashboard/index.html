@@ -9368,6 +9368,24 @@
     }
     function paragraph(text) {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5);
+      // Fixed 24 Oct 2026 ("some words are hidin inside, please allign
+      // properly") - root cause: every ₹ figure in these paragraphs
+      // comes from fmtRs(), and jsPDF's standard "helvetica" font (the
+      // built-in base-14 PDF font used throughout this report) has no
+      // glyph for the ₹ (Indian Rupee) character - it's outside that
+      // font's WinAnsi character set. That broke TWO things at once:
+      // the character itself rendered as the wrong glyph (the odd small
+      // "¹"-like mark in the owner's screenshot), AND - worse -
+      // splitTextToSize() below measures line width using that same
+      // font's character metrics, so every ₹ it hit threw its width
+      // calculation off, letting lines run past the page's right margin
+      // and get visually cut off/overlapping. Swapping ₹ for plain
+      // "Rs. " here (PDF text only - every other ₹ on this dashboard is
+      // normal HTML/CSS text in the browser, which renders ₹ fine, so
+      // nothing else needed to change) keeps every character inside
+      // Helvetica's supported set, so the width math - and the
+      // wrapping/margins it drives - is accurate again.
+      text = text.replace(/₹/g, 'Rs. ');
       var lines = doc.splitTextToSize(text, maxW);
       lines.forEach(function (line) {
         ensureSpace(14);
