@@ -336,6 +336,21 @@
   .pill.done { background: var(--good-soft); color: var(--good); }
   .pill.err { background: var(--warn-soft); color: var(--warn); }
   .pill.money { background: var(--money-soft); color: var(--money); }
+  /* "Today's Dealer Visit Check" badges/rows - added 26 Oct 2026. .pill.neutral
+     is deliberately NOT .pill.err/.pill.on - "no visit log today" is a real,
+     expected, non-error state (see the long HTML comment above
+     #captureDealerVisitCheck), so it gets its own muted/neutral styling,
+     never the warn-red used for a genuine Missed dealer. */
+  .pill.neutral { background: var(--surface-2); color: var(--ink-muted); border: 1px solid var(--border); }
+  .dvc-row { padding: 10px 0; border-top: 1px solid var(--border); }
+  .dvc-row:first-child { border-top: none; padding-top: 0; }
+  .dvc-row-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .dvc-dsr-name { font-weight: 600; font-size: 13.5px; margin-right: 2px; }
+  .dvc-row-note { font-size: 12px; color: var(--ink-muted); margin: 4px 0 0; }
+  .dvc-sub { margin-top: 6px; font-size: 12.5px; }
+  .dvc-sub summary { cursor: pointer; color: var(--ink-secondary); font-weight: 500; }
+  .dvc-list { margin: 6px 0 0; padding-left: 18px; }
+  .dvc-list li { margin: 2px 0; }
 
   .today-row { display: flex; align-items: baseline; gap: 8px; }
   .today-value { font-size: 28px; font-weight: 700; }
@@ -2463,6 +2478,47 @@
     <div class="dsr-row-body">
       <div id="petronasSummaryWrap"></div>
       <p style="font-size:11px;color:var(--ink-muted);margin:8px 4px 0;">Jan–Aug 2026: static snapshot, confirmed by the owner 1 Oct 2026. Sep 2026 onward: live, synced automatically from Tally.</p>
+    </div>
+  </details>
+</div>
+<!-- "Today's Dealer Visit Check" - added 26 Oct 2026 at the owner's request
+     ("by eve report if he did not sync with that dealer can u inform me in
+     dashboard with matching of todays dealer vs visited = missed dealer").
+     Compares each DSR's today's beat-plan dealers (DealerMeta's Beat Day)
+     against today's Shop Visit Remarks log (the daily mail-derived sheet,
+     NOT whether an order was saved in a DSR app - the owner was explicit
+     that "visited" means the mail/sheet check, confirmed via "THRO DAILY
+     MAIL CHECK"). See dealerVisitCheckLive_() in Code.gs for the full
+     matching design/calibration story (bigram Dice-coefficient name
+     similarity, calibrated against 5 real near-miss/genuine-match pairs).
+
+     A DSR with nothing logged yet today ("No visit log today") is shown as
+     its own neutral, non-accusatory state, NEVER folded into "missed" - a
+     real diagnostic run before building this found Chellamani (quit, route
+     vacant - a replacement will be hired later) and Nagaraj/Prabha (both
+     have broken phones, will resume once they get new ones) near-zero on
+     most sampled days for reasons that have nothing to do with that day's
+     actual work. Calling that "missed every dealer" would be false and
+     unfair to a DSR who simply isn't able to log anything right now.
+
+     Gated Owner-only the same way as #archiveBlock/#teamSummaryBlock above
+     (dealerVisitCheckBlock.hidden = (role !== 'Owner') in afterLogin_())
+     - a judgment call, not explicitly specified by the owner: made because
+     this surfaces DSR-level visit-compliance data comparably sensitive to
+     Run Full Archive's own figures, rather than the configurable per-role
+     SECTION_VIS_KEYS system used for Petronas Business Summary etc. See
+     the dsr-app-registry.md entry for this feature for the full reasoning
+     behind that choice. -->
+<div id="captureDealerVisitCheck">
+  <details class="dsr-row" id="dealerVisitCheckDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Today's Dealer Visit Check</span>
+        <span class="card-territory">Today's beat-plan dealers vs today's Shop Visit Remarks log · Owner only</span></span>
+    </summary>
+    <div class="dsr-row-body">
+      <div id="dealerVisitCheckWrap"></div>
+      <p style="font-size:11px;color:var(--ink-muted);margin:0;">Matching is automatic (name-similarity) and approximate - "Possible matches" are shown for a human glance, never silently resolved either way. "No visit log today" is a neutral state (nothing has synced yet, or that DSR isn't logging for a known reason) - not a missed-visit count.</p>
     </div>
   </details>
 </div>
@@ -7013,6 +7069,76 @@
       PETRONAS_SUMMARY_HEAD_ + '<tbody>' + rowsHtml + '</tbody></table></div>';
   }
 
+  // "Today's Dealer Visit Check" - added 26 Oct 2026, see the long HTML
+  // comment above #captureDealerVisitCheck for the full request/design
+  // story. Populated by fetchLive() below from the ?type=live response's
+  // dealerVisitCheck field (dealerVisitCheckLive_() in Code.gs). Always
+  // computed live for "today", never monthly-frozen - a past month has no
+  // "today" to check.
+  var dealerVisitCheckData_ = [];
+
+  // Shared HTML-escape helper for this feature - no reusable global one
+  // exists in this file (the two esc() helpers near the bottom are each
+  // function-scoped to their own render function), and dealer/shop names
+  // ultimately come from two Google Sheets, not from this file's own
+  // trusted constants, so this is defense-in-depth against a stray
+  // "&"/"<" in a typed dealer or shop name breaking the markup. Named
+  // uniquely (dvcEsc_) to avoid any collision with those other esc()s.
+  function dvcEsc_(s) {
+    return String(s === null || s === undefined ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  function dealerVisitCheckDsrRowHtml_(d) {
+    var name = dvcEsc_(d.dsr);
+    // "No visit log today" - its own neutral state, see the long HTML
+    // comment above #captureDealerVisitCheck for why this must never read
+    // as "missed every dealer" (Chellamani/Nagaraj/Prabha's real, known,
+    // non-bug reasons for near-zero logged visits on many days).
+    if (!d.loggedToday) {
+      return '<div class="dvc-row">' +
+        '<div class="dvc-row-head"><span class="dvc-dsr-name">' + name + '</span>' +
+        '<span class="pill neutral">No visit log today</span></div>' +
+        '<p class="dvc-row-note">No Shop Visit Remarks entries yet for ' + name +
+        ' today &mdash; this can mean nothing has synced yet, or (for a DSR not ' +
+        'currently logging, for a known reason) it is expected. Not a missed-visit count.</p>' +
+        '</div>';
+    }
+    var visitedCount = d.visited.length, possibleCount = d.possible.length, missedCount = d.missed.length;
+    var pills = '<span class="pill done">' + visitedCount + ' visited</span>' +
+      (possibleCount ? ' <span class="pill on">' + possibleCount + ' possible</span>' : '') +
+      (missedCount ? ' <span class="pill err">' + missedCount + ' missed</span>' : '');
+    var lists = '';
+    // Possible matches are ALWAYS shown side-by-side with the closest
+    // logged visit + score, never silently resolved either way - see the
+    // calibration story in dealerVisitCheckLive_()'s own comment in Code.gs.
+    if (possibleCount) {
+      lists += '<details class="dvc-sub"><summary>Possible matches (' + possibleCount + ') &ndash; worth a glance</summary><ul class="dvc-list">' +
+        d.possible.map(function (p) {
+          return '<li>' + dvcEsc_(p.dealer) + ' &mdash; closest logged visit: ' + dvcEsc_(p.matchedShop) + ' (' + p.score + '% match)</li>';
+        }).join('') + '</ul></details>';
+    }
+    if (missedCount) {
+      lists += '<details class="dvc-sub"><summary>Missed (' + missedCount + ')</summary><ul class="dvc-list">' +
+        d.missed.map(function (m) { return '<li>' + dvcEsc_(m) + '</li>'; }).join('') + '</ul></details>';
+    }
+    return '<div class="dvc-row">' +
+      '<div class="dvc-row-head"><span class="dvc-dsr-name">' + name + '</span>' + pills + '</div>' +
+      '<p class="dvc-row-note">' + d.plannedCount + ' dealer' + (d.plannedCount === 1 ? '' : 's') + ' on today&rsquo;s beat plan.</p>' +
+      lists + '</div>';
+  }
+
+  function renderDealerVisitCheck_() {
+    var wrap = document.getElementById('dealerVisitCheckWrap');
+    if (!wrap) return;
+    if (!dealerVisitCheckData_.length) {
+      wrap.innerHTML = '<p style="font-size:12.5px;color:var(--ink-muted);">No beat-day dealers found for today across the 7 DSRs &mdash; check back after today&rsquo;s beat plan is set, or the ?type=live response hasn&rsquo;t arrived yet.</p>';
+      return;
+    }
+    wrap.innerHTML = dealerVisitCheckData_.map(dealerVisitCheckDsrRowHtml_).join('');
+  }
+
   // "Export as Excel" button - builds a real .xlsx workbook client-side
   // via SheetJS (loaded from cdnjs, see the script tag near
   // html2canvas/jspdf above), covering EVERY catalog item across EVERY
@@ -11247,6 +11373,12 @@
     // to be shared with the team).
     var teamSummaryBlock = document.getElementById('teamSummaryBlock');
     if (teamSummaryBlock) teamSummaryBlock.hidden = (role !== 'Owner');
+    // "Today's Dealer Visit Check", added 26 Oct 2026 - Owner only, same
+    // gating as archiveBlock/teamSummaryBlock above (see the long HTML
+    // comment above #captureDealerVisitCheck for why - a judgment call,
+    // not explicitly specified by the owner, flagged in the registry).
+    var dealerVisitCheckBlock = document.getElementById('captureDealerVisitCheck');
+    if (dealerVisitCheckBlock) dealerVisitCheckBlock.hidden = (role !== 'Owner');
     // "DSR Performance" link next to "By DSR" - Owner only (see the HTML
     // comment above #dsrPerfLink: the page it opens needs the Owner's own
     // Claude login + Google Sheets access).
@@ -11850,6 +11982,17 @@
     if (res && res.ok && res.petronasSummary) {
       petronasSummaryLive = res.petronasSummary;
       renderPetronasSummary_();
+    }
+
+    // "Today's Dealer Visit Check", added 26 Oct 2026 - see the long HTML
+    // comment above #captureDealerVisitCheck and dealerVisitCheckData_'s
+    // own comment above for the full story. Always re-rendered on every
+    // live fetch, same as petronasSummary just above - "today" can change
+    // under a long-open tab (crossing midnight) and the figures are cheap
+    // to recompute (dealerVisitCheckLive_() in Code.gs, two Sheets reads).
+    if (res && res.ok && res.dealerVisitCheck) {
+      dealerVisitCheckData_ = res.dealerVisitCheck.byDsr || [];
+      renderDealerVisitCheck_();
     }
 
     // Sales + Collection trend, rebuilt 20 Sep 2026 on the same

@@ -1093,6 +1093,69 @@
     <div class="summary-strip" id="summaryStrip"></div>
   </header>
 
+  <!-- Today's Plan - added 26 Oct 2026 (owner: DSRs currently type a
+       "Good Morning" card by hand into WhatsApp every day - Date/DSR
+       Name/Area/Planned Dealers/Planned Mechanics/Sales Plan (Volume)/
+       Collection Plan/New Dealer Plan/Remarks - "can we add this also in
+       the order app with the data we having"). Mockup shown and approved
+       first ("send me a screenshot before proceed"), per this app's own
+       standing convention.
+       Planned Dealers/Sales Plan/Collection Plan are all derived from
+       data this app already fetches for Beat Plan/Dealer Targets - no
+       new network call, no Code.gs change:
+         - Planned Dealers reuses lastDealerTargetsData_ (same data Beat
+           Plan/Dealer Targets - Balance To Do already use) filtered to
+           TODAY's real weekday, same beatDay field Beat Plan filters by.
+         - Sales Plan (Volume)/Collection Plan are the SUM of each of
+           those dealers' own Balance To Do (Target/Plan minus done so
+           far, each clamped to 0 once a dealer's own target is already
+           met) - the exact same Balance To Do figure Beat Plan shows per
+           dealer, just totalled across today's route. Not a number
+           anyone currently tracks as a literal daily plan - flagged to
+           the owner as the best data-backed stand-in for it when the
+           mockup was shown, approved with a plain "OK".
+         - Area reuses BEAT_AREA_NAMES_ (built 23 Oct 2026 for the
+           Sales/Collection weekday heatmap - see renderSalesCollection
+           Heatmap_() below).
+       Planned Mechanics/New Dealer Plan/Remarks are NOT tracked anywhere
+       in DealerMeta/Master File at all - plain text inputs the DSR fills
+       in fresh each morning (saved to localStorage under today's date
+       only, so a reload the same day doesn't lose what was typed, but a
+       new day always starts blank - see TODAYS_PLAN_STORAGE_KEY_ below).
+       Share builds a colourful WhatsApp image card (see
+       buildTodaysPlanShareCaptureEl_()/shareTodaysPlanCard_() below),
+       falling back to a plain-text wa.me link if html2canvas/Web Share
+       aren't available. Rolled out from AAA Direct (where this was built
+       and proven first) to all 8 DSR apps - 26 Oct 2026, owner's "ok, go
+       ahead with all dsr". -->
+  <section style="padding-bottom:0;">
+    <details class="manage" id="todaysPlanDetails" open>
+      <summary>🌅 Today's Plan <span id="todaysPlanDateLabel" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">Planned Dealers/Sales Plan/Collection Plan fill in automatically from today's Beat Plan route. Mechanics/New Dealer/Remarks are for you to type, same as your WhatsApp morning card.</p>
+        <div id="todaysPlanStrip"></div>
+        <div id="todaysPlanDealerNote" class="hint" style="margin:8px 0 12px;"></div>
+        <div style="margin-top:4px;">
+          <label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Planned Mechanics</label>
+          <input type="text" id="tpMechanics" inputmode="numeric" placeholder="e.g. 3" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+        </div>
+        <div style="margin-top:8px;">
+          <label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">New Dealer Plan</label>
+          <input type="text" id="tpNewDealer" placeholder="optional — name a prospect to visit today" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+        </div>
+        <div style="margin-top:8px;">
+          <label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Remarks</label>
+          <input type="text" id="tpRemarks" placeholder="optional note for the office" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+        </div>
+        <button type="button" class="report-btn" id="todaysPlanShareBtn" title="Share Today's Plan on WhatsApp" style="width:100%;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px;">
+          <svg viewBox="0 0 24 24" fill="currentColor" style="width:15px;height:15px;"><path d="M17.6 6.3A8.86 8.86 0 0 0 12.06 4C7.4 4 3.6 7.8 3.6 12.45c0 1.5.4 2.96 1.14 4.25L3.5 21l4.4-1.15a8.9 8.9 0 0 0 4.16 1.05h.01c4.65 0 8.44-3.8 8.44-8.45 0-2.25-.88-4.37-2.9-6.15zM12.07 19.4a7 7 0 0 1-3.58-.98l-.26-.15-2.68.7.72-2.6-.17-.27a6.94 6.94 0 0 1-1.07-3.7c0-3.84 3.14-6.97 6.99-6.97a6.95 6.95 0 0 1 6.96 6.98c0 3.85-3.13 6.99-6.91 6.99zm3.83-5.23c-.21-.1-1.24-.61-1.43-.68-.19-.07-.33-.1-.47.1-.14.21-.54.68-.66.81-.12.14-.24.16-.45.05-.21-.1-.87-.32-1.66-1.02-.61-.55-1.03-1.22-1.15-1.43-.12-.21-.01-.32.09-.43.09-.09.21-.24.31-.35.1-.12.14-.21.21-.34.07-.14.03-.26-.02-.36-.05-.1-.47-1.12-.64-1.54-.17-.4-.34-.35-.47-.36h-.4c-.14 0-.36.05-.55.26-.19.21-.72.71-.72 1.72 0 1.02.74 2 .84 2.14.1.14 1.45 2.21 3.51 3.1.49.21.87.34 1.17.43.49.16.94.13 1.29.08.4-.06 1.24-.5 1.41-.99.17-.48.17-.9.12-.99-.05-.09-.19-.14-.4-.24z"></path></svg>
+          Share to WhatsApp
+        </button>
+      </div>
+    </details>
+  </section>
+
+
   <section style="padding-bottom:0;">
     <details class="manage" id="ordersDetails" open>
       <summary>Sales — Balance To Do <span id="ordersCountLabel" class="num" style="font-weight:500;"></span></summary>
@@ -3426,11 +3489,22 @@
   // dealers that already have a target set. See the HTML comment above
   // #dealerTargetsBalanceDetails for the full feature note.
   var dealerTargetsBalanceListEl = document.getElementById("dealerTargetsBalanceList");
+  // Today's Plan - added 26 Oct 2026. Reuses the same fetched
+  // dealerTargets data (lastDealerTargetsData_ below) - see the HTML
+  // comment above #todaysPlanDetails for the full feature note.
+  var todaysPlanDetailsEl = document.getElementById("todaysPlanDetails");
+  var todaysPlanDateLabelEl = document.getElementById("todaysPlanDateLabel");
+  var todaysPlanStripEl = document.getElementById("todaysPlanStrip");
+  var todaysPlanDealerNoteEl = document.getElementById("todaysPlanDealerNote");
+  var tpMechanicsEl = document.getElementById("tpMechanics");
+  var tpNewDealerEl = document.getElementById("tpNewDealer");
+  var tpRemarksEl = document.getElementById("tpRemarks");
+  var todaysPlanShareBtnEl = document.getElementById("todaysPlanShareBtn");
   var dealerTargetsBalanceCountEl = document.getElementById("dealerTargetsBalanceCount");
   var lastDealerTargetsData_ = [];
 
   function fetchDealerTargets_() {
-    if (!apiConfigured() || (!dealerTargetsListEl && !dealerTargetsBalanceListEl)) return;
+    if (!apiConfigured() || (!dealerTargetsListEl && !dealerTargetsBalanceListEl && !todaysPlanStripEl)) return;
     var month = currentMonthKeyISO_();
     fetch(ORDERS_API_URL + "?type=dealerTargets&month=" + encodeURIComponent(month) + "&dsrName=" + encodeURIComponent(DSR_SHORT_NAME) + "&_ts=" + Date.now(), { cache: "no-store" })
       .then(function (r) { return r.json(); })
@@ -3438,15 +3512,18 @@
         if (!data || !data.ok) {
           if (dealerTargetsListEl) dealerTargetsListEl.innerHTML = '<div class="task-empty-note">Could not load Dealer Targets.</div>';
           if (dealerTargetsBalanceListEl) dealerTargetsBalanceListEl.innerHTML = '<div class="task-empty-note">Could not load Dealer Targets.</div>';
+          if (todaysPlanStripEl) todaysPlanStripEl.innerHTML = '<div class="task-empty-note">Could not load Today\'s Plan.</div>';
           return;
         }
         lastDealerTargetsData_ = data.dealers || [];
         renderDealerTargets_();
         renderDealerTargetsBalance_();
+        renderTodaysPlan_();
       })
       .catch(function () {
         if (dealerTargetsListEl) dealerTargetsListEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>';
         if (dealerTargetsBalanceListEl) dealerTargetsBalanceListEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>';
+        if (todaysPlanStripEl) todaysPlanStripEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>';
       });
   }
 
@@ -3497,6 +3574,314 @@
     }
     dealerTargetsBalanceListEl.innerHTML = html;
   }
+
+  // Today's Plan - added 26 Oct 2026. Same day-filter as renderBeatPlan_()
+  // above (lastDealerTargetsData_ filtered to beatDay === today's real
+  // weekday) - just totalled into 3 stat chips instead of shown
+  // dealer-by-dealer (Beat Plan right below still has the full per-dealer
+  // breakdown). Sunday has no beat day anywhere in this project (DSRs'
+  // own leave day - see BEAT_AREA_NAMES_'s own comment above), so this
+  // shows an empty state rather than 0 dealers/0 plan on a Sunday.
+  var TODAYS_PLAN_STORAGE_KEY_ = "orderslip_todays_plan_v1_" + STORAGE_NS;
+  var WEEKDAY_FULL_NAMES_ = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  var WEEKDAY_ABBR_NAMES_ = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  var lastTodaysPlanRows_ = [];
+  var lastTodaysPlanArea_ = "";
+  // Whether the Sales Plan chip's per-dealer breakdown is currently open -
+  // added 26 Oct 2026, owner's request ("sales plan should expand after
+  // click it"). Kept as module state (not just a DOM toggle) so it
+  // survives renderTodaysPlan_() re-runs (e.g. reopening the panel).
+  var todaysPlanSalesExpanded_ = false;
+
+  // Loads whatever Mechanics/New Dealer/Remarks were typed EARLIER TODAY
+  // (survives a reload/reopen the same day) - a saved value from any
+  // other date is ignored, so a new day always starts these 3 fields
+  // blank again, same as the owner's own WhatsApp card every morning.
+  function todaysPlanLoadTyped_() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(TODAYS_PLAN_STORAGE_KEY_) || "null");
+      if (saved && saved.date === todayISO()) return saved;
+    } catch (e) { /* ignore */ }
+    return { date: todayISO(), mechanics: "", newDealer: "", remarks: "" };
+  }
+  function todaysPlanSaveTyped_() {
+    try {
+      localStorage.setItem(TODAYS_PLAN_STORAGE_KEY_, JSON.stringify({
+        date: todayISO(),
+        mechanics: tpMechanicsEl ? tpMechanicsEl.value : "",
+        newDealer: tpNewDealerEl ? tpNewDealerEl.value : "",
+        remarks: tpRemarksEl ? tpRemarksEl.value : ""
+      }));
+    } catch (e) { /* ignore */ }
+  }
+
+  // Per-dealer breakdown shown when the Sales Plan chip is clicked - same
+  // Target/Sales/Balance figures as each dealer's own Beat Plan row, just
+  // listed compactly here so the DSR can see which dealers make up
+  // today's total without scrolling down to Beat Plan - added 26 Oct 2026.
+  function buildTodaysPlanSalesBreakdownHtml_(rows) {
+    if (!rows.length) return "";
+    var items = rows.map(function (d) {
+      var bal = 0, met = false;
+      if (d.salesTargetLtr !== null && d.salesTargetLtr !== undefined) {
+        var sales = (d.salesLtr === null || d.salesLtr === undefined) ? 0 : d.salesLtr;
+        bal = d.salesTargetLtr - sales;
+        if (bal <= 0) met = true;
+      } else {
+        met = true; // no target set for this dealer - nothing to plan
+      }
+      return { name: d.dealer || "—", bal: bal, met: met };
+    });
+    items.sort(function (a, b) { return b.bal - a.bal; });
+    return items.map(function (it) {
+      return '<div class="manage-row" style="padding:4px 0;">' +
+        '<span class="manage-row-name">' + escapeHtml_(it.name) + '</span>' +
+        (it.met
+          ? '<span class="num" style="color:var(--qty);">Target reached</span>'
+          : '<span class="num">' + formatNum(it.bal) + ' Ltr</span>') +
+        '</div>';
+    }).join("");
+  }
+
+  function renderTodaysPlan_() {
+    if (!todaysPlanStripEl) return;
+    if (todaysPlanDateLabelEl) todaysPlanDateLabelEl.textContent = formatDateDisplay(todayISO());
+
+    var typed = todaysPlanLoadTyped_();
+    if (tpMechanicsEl && !tpMechanicsEl.value) tpMechanicsEl.value = typed.mechanics || "";
+    if (tpNewDealerEl && !tpNewDealerEl.value) tpNewDealerEl.value = typed.newDealer || "";
+    if (tpRemarksEl && !tpRemarksEl.value) tpRemarksEl.value = typed.remarks || "";
+
+    var dow = new Date().getDay();
+    if (dow === 0) {
+      lastTodaysPlanRows_ = [];
+      lastTodaysPlanArea_ = "";
+      todaysPlanStripEl.innerHTML = '<div class="task-empty-note">No beat day today (Sunday).</div>';
+      if (todaysPlanDealerNoteEl) todaysPlanDealerNoteEl.textContent = "";
+      return;
+    }
+    var today = WEEKDAY_FULL_NAMES_[dow];
+    var rows = lastDealerTargetsData_.filter(function (d) { return d.beatDay === today; });
+    lastTodaysPlanRows_ = rows;
+
+    var myDsrName = document.getElementById("dsrName").value || "";
+    lastTodaysPlanArea_ = (BEAT_AREA_NAMES_[myDsrName] || {})[WEEKDAY_ABBR_NAMES_[dow]] || "";
+
+    if (!rows.length) {
+      todaysPlanStripEl.innerHTML = '<div class="task-empty-note">No dealers set for ' + escapeHtml_(today) + ' yet.</div>';
+      if (todaysPlanDealerNoteEl) todaysPlanDealerNoteEl.textContent = "";
+      return;
+    }
+
+    // Sales Plan/Collection Plan = SUM of each dealer's own Balance To Do
+    // (same figure Beat Plan shows per dealer - see its own comment
+    // above), each clamped to 0 once that dealer's own target/plan is
+    // already met, so an over-target dealer never drags the team total
+    // negative.
+    var salesPlanLtr = 0, collectionPlanRs = 0;
+    rows.forEach(function (d) {
+      if (d.salesTargetLtr !== null && d.salesTargetLtr !== undefined) {
+        var sales = (d.salesLtr === null || d.salesLtr === undefined) ? 0 : d.salesLtr;
+        var bal = d.salesTargetLtr - sales;
+        if (bal > 0) salesPlanLtr += bal;
+      }
+      if (d.collectionPlanRs !== null && d.collectionPlanRs !== undefined) {
+        var collected = (d.collectedRs === null || d.collectedRs === undefined) ? 0 : d.collectedRs;
+        var balRs = d.collectionPlanRs - collected;
+        if (balRs > 0) collectionPlanRs += balRs;
+      }
+    });
+
+    todaysPlanStripEl.className = "target-strip";
+    todaysPlanStripEl.innerHTML =
+      '<div class="target-strip-row">' +
+      '<div class="target-chip">Planned Dealers <b>' + rows.length + '</b></div>' +
+      '<div class="target-chip expandable" id="tpSalesPlanChip" style="cursor:pointer;">Sales Plan <b>' + formatNum(salesPlanLtr) + ' Ltr</b> <span id="tpSalesPlanCaret">' + (todaysPlanSalesExpanded_ ? "▴" : "▾") + '</span></div>' +
+      '<div class="target-chip">Collection Plan <b>' + fmtMoney_(collectionPlanRs) + '</b></div>' +
+      '</div>' +
+      '<div id="tpSalesPlanDetail" style="display:' + (todaysPlanSalesExpanded_ ? "block" : "none") + ';margin-top:6px;">' +
+      buildTodaysPlanSalesBreakdownHtml_(rows) +
+      '</div>';
+
+    var tpSalesPlanChipEl = document.getElementById("tpSalesPlanChip");
+    if (tpSalesPlanChipEl) {
+      tpSalesPlanChipEl.addEventListener("click", function () {
+        todaysPlanSalesExpanded_ = !todaysPlanSalesExpanded_;
+        var detailEl = document.getElementById("tpSalesPlanDetail");
+        var caretEl = document.getElementById("tpSalesPlanCaret");
+        if (detailEl) detailEl.style.display = todaysPlanSalesExpanded_ ? "block" : "none";
+        if (caretEl) caretEl.textContent = todaysPlanSalesExpanded_ ? "▴" : "▾";
+      });
+    }
+
+    if (todaysPlanDealerNoteEl) {
+      var names = rows.map(function (d) { return d.dealer; });
+      var shown = names.slice(0, 4).join(", ");
+      var extra = names.length > 4 ? " +" + (names.length - 4) + " more" : "";
+      todaysPlanDealerNoteEl.textContent = "Today's (" + today + ") route: " + shown + extra;
+    }
+  }
+
+  // Builds the same plain-text "Good Morning" card the DSR currently
+  // types by hand into WhatsApp, for the Share button below - same
+  // wa.me plain-text pattern as buildReportText()'s own share (not an
+  // image - see the HTML comment above #todaysPlanDetails).
+  function buildTodaysPlanText_() {
+    // Was shortDsrName(dsr) on the raw #dsrName field - for every other DSR
+    // app that resolves to their own name (parenthesised part), but AAA
+    // Direct's dsrName has no "(NAME)" part at all, so it fell through to
+    // the full "PETRONAS AAA DIRECT AREA SALES" label - not what the
+    // owner's own approved mock/screenshot showed. Switched straight to
+    // DSR_SHORT_NAME ("AAA Direct"), the same short label this app already
+    // uses everywhere else (month report share text, task author, etc.) -
+    // 26 Oct 2026, owner's request to match the mock screenshot.
+    var dsr = DSR_SHORT_NAME;
+    var salesPlanLtr = 0, collectionPlanRs = 0;
+    lastTodaysPlanRows_.forEach(function (d) {
+      if (d.salesTargetLtr !== null && d.salesTargetLtr !== undefined) {
+        var sales = (d.salesLtr === null || d.salesLtr === undefined) ? 0 : d.salesLtr;
+        var bal = d.salesTargetLtr - sales;
+        if (bal > 0) salesPlanLtr += bal;
+      }
+      if (d.collectionPlanRs !== null && d.collectionPlanRs !== undefined) {
+        var collected = (d.collectedRs === null || d.collectedRs === undefined) ? 0 : d.collectedRs;
+        var balRs = d.collectionPlanRs - collected;
+        if (balRs > 0) collectionPlanRs += balRs;
+      }
+    });
+    // Order switched to Title -> DSR Name -> Date -> Area -> Planned
+    // Dealers (with short names) -> Sales -> Collection -> ... to match
+    // the reworked image card below - 26 Oct 2026, owner's request.
+    var dealerNames = lastTodaysPlanRows_.map(function (d) { return shortDealerName_(d.dealer); });
+    return [
+      "📋 Today's Plan",
+      "DSR Name: " + shortDsrName(dsr),
+      "Date: " + formatDateDisplay(todayISO()),
+      "Area: " + (lastTodaysPlanArea_ || "—"),
+      "Planned Dealers: " + lastTodaysPlanRows_.length + (dealerNames.length ? " (" + dealerNames.join(", ") + ")" : ""),
+      "Sales Plan (Volume): " + formatNum(salesPlanLtr) + " Ltr",
+      "Collection Plan: ₹" + formatNum(collectionPlanRs),
+      "Planned Mechanics: " + ((tpMechanicsEl && tpMechanicsEl.value.trim()) || "—"),
+      "New Dealer Plan: " + ((tpNewDealerEl && tpNewDealerEl.value.trim()) || "—"),
+      "Remarks: " + ((tpRemarksEl && tpRemarksEl.value.trim()) || "—")
+    ].join("\n");
+  }
+
+  // Colourful "Good Morning" card IMAGE version of the text above - added
+  // 26 Oct 2026, owner's request ("is the image possible" -> "Replace the
+  // text share with an image card"). Reuses the exact same html2canvas /
+  // Web Share capture pipeline already proven on the Dealer Lookup share
+  // button (safeFileSlug_/captureElementToBlob_/downloadBlob_/
+  // shareImageBlob_, all defined below for that feature - nothing new
+  // needed there). This card is built fresh each time from the same live
+  // numbers buildTodaysPlanText_() reads, so it can never drift out of
+  // sync with the on-screen panel. Deliberately NOT styled like the dev
+  // mockup shown for approval (no AUTO/TYPE badges, no "NEW" pill - those
+  // were only to flag which fields were automatic during review) - this
+  // is the actual card that gets sent, styled plainly like the DSRs' own
+  // real "Good Morning" WhatsApp cards.
+  function todaysPlanShareFieldRowHtml_(icon, label, value, valueColor) {
+    return '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">' +
+      '<span style="font-size:13.5px;color:var(--text);">' + icon + ' ' + escapeHtml_(label) + '</span>' +
+      '<span style="font-size:14px;font-weight:700;text-align:right;color:' + (valueColor || "var(--text)") + ';">' + escapeHtml_(String(value)) + '</span>' +
+      '</div>';
+  }
+  // Short form of a dealer name for the Planned Dealers chip list below -
+  // 26 Oct 2026, owner's request ("show in 2 lines min 8 dealers").
+  // IMPORTANT, fixed same day: this originally copied shortDsrName()'s
+  // "prefer the parenthesised part" rule, which is right for DSR names
+  // ("PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)" -> "NAGARAJ") but wrong for
+  // DEALER names - here the parenthesised part is a product/category tag
+  // like "(OIL)", not a short name, so several different dealers that all
+  // carry the same tag (e.g. "SIDDESH AUTO SPARES, DGL (OIL)") were all
+  // showing up as the identical chip "OIL", which the owner flagged as
+  // showing "the last name" instead of something that actually tells
+  // dealers apart. Fixed: the parenthetical tag is stripped outright
+  // (never read as the short name), then any trailing comma/dash segment
+  // (area/suffix text) is dropped, then the FIRST ~12 characters of what's
+  // left - the dealer's own shop name - are shown, per the owner's "make
+  // it as first few letters for easy understanding" request.
+  function shortDealerName_(name) {
+    var s = String(name || "—").trim();
+    s = s.replace(/\([^)]*\)/g, "").trim();
+    s = s.split(/[,–-]/)[0].trim();
+    if (!s) return "—";
+    return s.length > 12 ? s.slice(0, 11) + "…" : s;
+  }
+  // Planned Dealers block for the share card: the count (kept so it still
+  // matches buildTodaysPlanText_()) plus a wrapped row of short-name chips
+  // so the DSR can see today's route at a glance - 26 Oct 2026, owner's
+  // request ("planned dealers their counting (name in short form show in
+  // 2 lines min 8 dealers)").
+  function todaysPlanDealerListHtml_(rows) {
+    var chips = rows.map(function (d) {
+      return '<span style="display:inline-block;background:var(--border);color:var(--text);font-size:11px;font-weight:600;padding:3px 7px;border-radius:999px;margin:3px 4px 0 0;white-space:nowrap;">' +
+        escapeHtml_(shortDealerName_(d.dealer)) + '</span>';
+    }).join("");
+    return '<div style="padding:9px 0;border-bottom:1px solid var(--border);">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;">' +
+      '<span style="font-size:13.5px;color:var(--text);">🧺 Planned Dealers</span>' +
+      '<span style="font-size:14px;font-weight:700;color:var(--text);">' + rows.length + '</span>' +
+      '</div>' +
+      '<div style="margin-top:4px;line-height:1.9;">' + (chips || '<span style="font-size:12px;color:var(--text-muted);">—</span>') + '</div>' +
+      '</div>';
+  }
+  function buildTodaysPlanShareCaptureEl_() {
+    var dsr = DSR_SHORT_NAME;
+    var salesPlanLtr = 0, collectionPlanRs = 0;
+    lastTodaysPlanRows_.forEach(function (d) {
+      if (d.salesTargetLtr !== null && d.salesTargetLtr !== undefined) {
+        var sales = (d.salesLtr === null || d.salesLtr === undefined) ? 0 : d.salesLtr;
+        var bal = d.salesTargetLtr - sales;
+        if (bal > 0) salesPlanLtr += bal;
+      }
+      if (d.collectionPlanRs !== null && d.collectionPlanRs !== undefined) {
+        var collected = (d.collectedRs === null || d.collectedRs === undefined) ? 0 : d.collectedRs;
+        var balRs = d.collectionPlanRs - collected;
+        if (balRs > 0) collectionPlanRs += balRs;
+      }
+    });
+    var el = document.createElement("div");
+    el.style.cssText = "position:fixed;left:-9999px;top:0;width:560px;background:var(--surface);border-radius:14px;overflow:hidden;font-family:inherit;box-shadow:var(--shadow);";
+    // Order switched 26 Oct 2026 (owner's request): title first, then DSR
+    // Name moved down above the date line, then Planned Dealers shows its
+    // short-name chips, then Sales/Collection Plan.
+    el.innerHTML =
+      '<div style="background:var(--accent);color:#fff;padding:14px 18px;font-size:16px;font-weight:800;">📋 Today\'s Plan</div>' +
+      '<div style="padding:16px 18px 18px;">' +
+      '<div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;">👤 ' + escapeHtml_(shortDsrName(dsr)) + '</div>' +
+      '<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">' +
+      '📅 ' + escapeHtml_(formatDateDisplay(todayISO())) + ' &nbsp;·&nbsp; 📍 Area: ' + escapeHtml_(lastTodaysPlanArea_ || "—") +
+      '</div>' +
+      todaysPlanDealerListHtml_(lastTodaysPlanRows_) +
+      todaysPlanShareFieldRowHtml_("📦", "Sales Plan (Volume)", formatNum(salesPlanLtr) + " Ltr", "var(--accent)") +
+      todaysPlanShareFieldRowHtml_("💰", "Collection Plan", "₹" + formatNum(collectionPlanRs), "var(--accent)") +
+      todaysPlanShareFieldRowHtml_("🔧", "Planned Mechanics", (tpMechanicsEl && tpMechanicsEl.value.trim()) || "—") +
+      todaysPlanShareFieldRowHtml_("🆕", "New Dealer Plan", (tpNewDealerEl && tpNewDealerEl.value.trim()) || "—") +
+      todaysPlanShareFieldRowHtml_("📝", "Remarks", (tpRemarksEl && tpRemarksEl.value.trim()) || "—") +
+      '</div>';
+    document.body.appendChild(el);
+    return el;
+  }
+  function shareTodaysPlanCard_(btn) {
+    var origLabel = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = "…";
+    var captureEl = buildTodaysPlanShareCaptureEl_();
+    captureElementToBlob_(captureEl)
+      .then(function (blob) { return shareImageBlob_(blob, "todays-plan-" + todayISO() + ".png"); })
+      .catch(function () {
+        // html2canvas/share unavailable - fall back to the plain-text
+        // version rather than leaving the DSR with nothing to send.
+        window.open("https://wa.me/?text=" + encodeURIComponent(buildTodaysPlanText_()), "_blank", "noopener");
+      })
+      .then(function () {
+        if (captureEl.parentNode) captureEl.parentNode.removeChild(captureEl);
+        btn.disabled = false;
+        btn.innerHTML = origLabel;
+      });
+  }
+
 
   function renderDealerTargets_() {
     if (!dealerTargetsListEl) return;
@@ -3588,6 +3973,30 @@
   if (dealerTargetsDetailsEl) {
     dealerTargetsDetailsEl.addEventListener("toggle", function () { if (dealerTargetsDetailsEl.open) fetchDealerTargets_(); });
   }
+
+  // Today's Plan - added 26 Oct 2026. Same re-fetch-on-open pattern as
+  // Beat Plan above; the 3 typed fields save to localStorage on every
+  // keystroke (todaysPlanSaveTyped_()) so nothing's lost on an accidental
+  // reload the same day. Share builds the same plain-text "Good Morning"
+  // card the DSR types by hand today and opens it in WhatsApp via the
+  // same wa.me pattern as the existing sales-report/payment-reminder
+  // share buttons.
+  if (todaysPlanDetailsEl) {
+    todaysPlanDetailsEl.addEventListener("toggle", function () { if (todaysPlanDetailsEl.open) fetchDealerTargets_(); });
+  }
+  [tpMechanicsEl, tpNewDealerEl, tpRemarksEl].forEach(function (el) {
+    if (el) el.addEventListener("input", todaysPlanSaveTyped_);
+  });
+  if (todaysPlanShareBtnEl) {
+    // Switched from a plain-text wa.me link to a colourful image card -
+    // 26 Oct 2026, owner's request. shareTodaysPlanCard_() falls back to
+    // the old plain-text wa.me link itself if html2canvas/Web Share
+    // aren't available, so this never leaves the DSR with nothing to send.
+    todaysPlanShareBtnEl.addEventListener("click", function () {
+      shareTodaysPlanCard_(todaysPlanShareBtnEl);
+    });
+  }
+
 
   // Offline-resilience queue: a save/update/delete that fails (no signal in the field)
   // is kept in localStorage and retried automatically when the app comes back online or
