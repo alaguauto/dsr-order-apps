@@ -48,6 +48,8 @@
     --warn-soft: #f3ded6;
     --money: #2f6f5a;
     --money-soft: #dcece5;
+    --promo: #7c4fa0;
+    --promo-soft: #ece0f3;
     --shadow: 0 1px 2px rgba(28, 26, 22, 0.04), 0 8px 24px -12px rgba(28, 26, 22, 0.12);
   }
 
@@ -72,6 +74,8 @@
       --warn-soft: #35201a;
       --money: #5cc19f;
       --money-soft: #163229;
+      --promo: #c08fe0;
+      --promo-soft: #2e2338;
       --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
     }
   }
@@ -720,6 +724,9 @@
   .task-type-sales { background: var(--good-soft); color: var(--good); }
   .task-type-stock { background: var(--warn-soft); color: var(--warn); }
   .task-type-general { background: var(--surface-alt, #f0ece2); color: var(--ink-muted); }
+  .task-type-collection { background: var(--accent-soft); color: var(--accent); }
+  .task-type-visit { background: var(--live-soft); color: var(--live); }
+  .task-type-scheme { background: var(--promo-soft); color: var(--promo); }
   .task-pills { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; align-items: center; }
   .task-pill { font-size:10.5px; font-weight:600; padding:4px 10px; border-radius:999px; }
   .task-pill-type { background: var(--surface-alt, #f0ece2); color: var(--ink-muted); }
@@ -2793,7 +2800,7 @@
                part of removing the unreliable Dealer dropdown below - see
                that removal's comment for why. -->
           <span style="flex:3 1 420px;"><label>Task Name</label><input type="text" id="tcName" placeholder="Enter your Task Here" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
-          <span><label>Type</label><select id="tcType"><option>Sales</option><option>Stock</option><option>Payment</option><option>General</option><option>Others</option></select></span>
+          <span><label>Type</label><select id="tcType"><option value="" selected disabled>Select type</option><option>Sales</option><option>Payment</option><option>Collection Follow up</option><option>Dealer Visit</option><option>Scheme / Promotion</option><option>Stock / Inventory</option><option>Others</option></select></span>
           <!-- Due Date - required (8 Oct 2026, "do not accept any task"
                without one); defaults to today the moment the form opens
                (see taskManagerAddBtnEl's click handler below), same as a
@@ -2868,6 +2875,10 @@
              only") - still switchable here if the owner wants to check
              something completed. -->
         <span><label>Show</label><select id="tmFilter"><option value="all">All tasks</option><option value="open" selected>Open / In Progress / On Hold</option><option value="done">Completed</option></select></span>
+        <!-- DSR filter - 27 Oct 2026 ("add dsr wise dropdown here, make it before category") - narrows the list to one assignedTo value; options are built live from whatever DSR names actually appear in TASKS_DATA_ (see populateTmDsrFilterOptions_), so it never misses a name. Placed before Category per the owner's instruction. -->
+        <span><label>DSR</label><select id="tmDsrFilter"><option value="">All DSRs</option></select></span>
+        <!-- Category filter - 27 Oct 2026 ("split category wise in dashboard dropdown") - narrows the list to one Type; "All categories" (default) shows every task regardless of Type. -->
+        <span><label>Category</label><select id="tmCategoryFilter"><option value="">All categories</option><option>Sales</option><option>Payment</option><option>Collection Follow up</option><option>Dealer Visit</option><option>Scheme / Promotion</option><option>Stock / Inventory</option><option>Others</option></select></span>
       </div>
       <div id="taskManagerList"><p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">Loading…</p></div>
     </div>
@@ -10873,7 +10884,7 @@
 
   // ----- Task Manager -----
   var TASKS_DATA_ = [];
-  var TASK_TYPE_CLASS_DASH_ = { "Sales": "task-type-sales", "Stock": "task-type-stock", "Payment": "task-type-payment", "General": "task-type-general", "Others": "task-type-general" };
+  var TASK_TYPE_CLASS_DASH_ = { "Sales": "task-type-sales", "Payment": "task-type-payment", "Collection Follow up": "task-type-collection", "Dealer Visit": "task-type-visit", "Scheme / Promotion": "task-type-scheme", "Stock / Inventory": "task-type-stock", "Others": "task-type-general" };
   // Login task popup - added 11 Oct 2026, same feature as the DSR apps'
   // own version (see its matching comment on the DSR side for the full
   // "why") - fires once, right after the FIRST tasks fetch following
@@ -10881,6 +10892,40 @@
   // this viewer is allowed to see (TASKS_DATA_ is already scoped to that,
   // same as the reminder/render functions above).
   var loginTaskPopupCheckedDash_ = false;
+
+  // DSR filter options - 27 Oct 2026 ("add dsr wise dropdown here, make
+  // it before category"). Built live from whatever assignedTo values
+  // actually appear in the fetched tasks (known short names first, in
+  // the dashboard's usual 7-DSR order, then anything else found -
+  // e.g. a task assigned straight to a Manager/Area Manager name -
+  // appended alphabetically after) rather than a hardcoded list, so a
+  // real DSR name is never missing from the dropdown even if it
+  // doesn't match one of the 7 known short names. Re-run on every
+  // fetch (same cadence as the task list itself) but preserves the
+  // current selection when it's still a valid option, so the filter
+  // doesn't silently reset under the owner every 60 seconds.
+  var TM_DSR_KNOWN_ORDER_ = ["Prabha", "Arun", "Nagaraj", "Chellamani", "Anandh", "Madhu", "AAA Direct"];
+  function populateTmDsrFilterOptions_(tasks) {
+    var selEl = document.getElementById("tmDsrFilter");
+    if (!selEl) return;
+    var previousVal = selEl.value || "";
+    var seen = {};
+    var extras = [];
+    for (var i = 0; i < tasks.length; i++) {
+      var name = (tasks[i].assignedTo || "").trim();
+      if (!name || seen[name]) continue;
+      seen[name] = true;
+      if (TM_DSR_KNOWN_ORDER_.indexOf(name) === -1) extras.push(name);
+    }
+    extras.sort();
+    var ordered = TM_DSR_KNOWN_ORDER_.filter(function (n) { return seen[n]; }).concat(extras);
+    var html = '<option value="">All DSRs</option>';
+    for (var j = 0; j < ordered.length; j++) {
+      html += '<option' + (ordered[j] === previousVal ? " selected" : "") + '>' + mfEscapeHtml_(ordered[j]) + '</option>';
+    }
+    selEl.innerHTML = html;
+    if (previousVal && !seen[previousVal]) selEl.value = ""; // selected DSR has no tasks right now - fall back to All rather than show an empty, invisible selection
+  }
 
   function fetchTasks_() {
     var listEl = document.getElementById("taskManagerList");
@@ -10891,6 +10936,7 @@
       .then(function (data) {
         if (!data || !data.ok) { listEl.innerHTML = '<p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">Could not load tasks.</p>'; return; }
         TASKS_DATA_ = data.tasks || [];
+        populateTmDsrFilterOptions_(TASKS_DATA_);
         renderTaskManager_();
         if (typeof checkTaskRemindersDash_ === "function") checkTaskRemindersDash_(TASKS_DATA_);
         if (!loginTaskPopupCheckedDash_ && typeof showLoginTaskPopupIfDueDash_ === "function") {
@@ -10905,7 +10951,11 @@
     var listEl = document.getElementById("taskManagerList");
     if (!listEl) return;
     var filterVal = (document.getElementById("tmFilter") || {}).value || "open";
+    var dsrVal = (document.getElementById("tmDsrFilter") || {}).value || "";
+    var categoryVal = (document.getElementById("tmCategoryFilter") || {}).value || "";
     var tasks = TASKS_DATA_.filter(function (t) {
+      if (dsrVal && t.assignedTo !== dsrVal) return false;
+      if (categoryVal && t.type !== categoryVal) return false;
       if (filterVal === "open") return t.status !== "Completed";
       if (filterVal === "done") return t.status === "Completed";
       return true;
@@ -10989,6 +11039,10 @@
 
   var tmFilterEl = document.getElementById("tmFilter");
   if (tmFilterEl) tmFilterEl.addEventListener("change", renderTaskManager_);
+  var tmDsrFilterEl = document.getElementById("tmDsrFilter");
+  if (tmDsrFilterEl) tmDsrFilterEl.addEventListener("change", renderTaskManager_);
+  var tmCategoryFilterEl = document.getElementById("tmCategoryFilter");
+  if (tmCategoryFilterEl) tmCategoryFilterEl.addEventListener("change", renderTaskManager_);
   var taskManagerListEl = document.getElementById("taskManagerList");
   if (taskManagerListEl) {
     taskManagerListEl.addEventListener("change", function (e) {
@@ -11129,10 +11183,15 @@
       // one) - client-side check; handleTaskCreate_ also refuses a blank
       // dueDate server-side as a backstop.
       if (!dueDateVal) { window.alert("Pick a due date before creating the task."); return; }
+      // Type required - 27 Oct 2026 ("compulsory" category picker, no
+      // default) - client-side check only, same backstop pattern as Due
+      // Date above.
+      var typeVal = (document.getElementById("tcType") || {}).value || "";
+      if (!typeVal) { window.alert("Pick a task type before creating the task."); return; }
       var assignedToVal = (document.getElementById("tcAssignedTo") || {}).value || "";
       dashboardApiPost_("taskCreate", {
         name: name.trim(),
-        type: (document.getElementById("tcType") || {}).value || "General",
+        type: typeVal,
         status: "Open",
         dueDate: dueDateVal,
         createdBy: CURRENT_USER_NAME || "",
@@ -11161,6 +11220,7 @@
           document.getElementById("tcRemarks").value = "";
           document.getElementById("tcReminderTime").value = "";
           document.getElementById("tcDueDate").value = "";
+          document.getElementById("tcType").value = "";
           fetchTasks_();
         } else {
           window.alert("Could not create task: " + ((res && res.error) || "unknown error"));
@@ -14068,7 +14128,7 @@
     }
 
 
-    var VR_TASK_TYPE = { "Payment": "Payment", "Order": "Sales", "Price/Scheme": "Sales", "Supply": "Stock" };
+    var VR_TASK_TYPE = { "Payment": "Payment", "Order": "Sales", "Price/Scheme": "Sales", "Supply": "Stock / Inventory" };
     var vrShown = [];
     function openTaskFromVisit(v) {
       var tmDetails = document.getElementById("taskManagerDetails");
@@ -14097,7 +14157,7 @@
       var tag = VR_FOLLOWUP_CATS[v.cat] || "Visit";
       function setVal(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
       setVal("tcName", tag + " follow-up - " + v.shop);
-      setVal("tcType", VR_TASK_TYPE[tag] || "General");
+      setVal("tcType", VR_TASK_TYPE[tag] || "Others");
       var due = document.getElementById("tcDueDate");
       if (due) due.value = todayIso();
       setVal("tcRemarks", "Last visit " + showDate(v.date) + (v.loc ? " (" + v.loc + ")" : "") + ": " + (v.remarks || "(no remark)"));
