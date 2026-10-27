@@ -2508,17 +2508,42 @@
      Run Full Archive's own figures, rather than the configurable per-role
      SECTION_VIS_KEYS system used for Petronas Business Summary etc. See
      the dsr-app-registry.md entry for this feature for the full reasoning
-     behind that choice. -->
+     behind that choice.
+
+     Date picker + Excel export + WhatsApp share added 26 Oct 2026 at the
+     owner's request ("can i get date changing option inside and excel
+     download and whatsapp share option"). Date picker: a dedicated
+     ?type=dealerVisitCheck&date=YYYY-MM-DD route (see doGet in Code.gs)
+     re-runs the exact same dealerVisitCheckLive_() matching for any date -
+     ?type=live keeps always seeding TODAY's check unchanged, the picker
+     only kicks in once touched. Export: client-side SheetJS, same
+     no-server-round-trip pattern as exportStockXlsxBtn. Share: the
+     existing openShareSheet_()/captureElementToBlob_() image-capture
+     pattern used by every other panel here (e.g. shareMasterFileBtn,
+     shareBankDepositsBtn) - whatever is currently expanded/collapsed on
+     screen is what gets captured, same as those. -->
 <div id="captureDealerVisitCheck">
   <details class="dsr-row" id="dealerVisitCheckDetails">
     <summary class="dsr-row-summary">
       <span class="dsr-row-toggle" aria-hidden="true"></span>
       <span class="dsr-row-headtext"><span class="card-name">Today's Dealer Visit Check</span>
-        <span class="card-territory">Today's beat-plan dealers vs today's Shop Visit Remarks log · Owner only</span></span>
+        <span class="card-territory" id="dvcSubtitle">Today's beat-plan dealers vs today's Shop Visit Remarks log · Owner only</span></span>
+      <span class="dsr-row-headright">
+        <button type="button" class="share-icon-btn small" id="exportDealerVisitCheckXlsxBtn" title="Export as Excel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        </button>
+        <button type="button" class="share-icon-btn small" id="shareDealerVisitCheckBtn" title="Share on WhatsApp" style="margin-left:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+        </button>
+      </span>
     </summary>
     <div class="dsr-row-body">
+      <div class="master-file-filters" style="padding:0 0 10px;">
+        <span><label>Date</label><input type="date" id="dvcDateSelect"></span>
+        <span id="dvcDateStatus" style="font-size:11.5px;color:var(--ink-muted);"></span>
+      </div>
       <div id="dealerVisitCheckWrap"></div>
-      <p style="font-size:11px;color:var(--ink-muted);margin:0;">Matching is automatic (name-similarity) and approximate - "Possible matches" are shown for a human glance, never silently resolved either way. "No visit log today" is a neutral state (nothing has synced yet, or that DSR isn't logging for a known reason) - not a missed-visit count.</p>
+      <p style="font-size:11px;color:var(--ink-muted);margin:0;">Matching is automatic (name-similarity) and approximate - "Possible matches" are shown for a human glance, never silently resolved either way. "No visit log today" is a neutral state (nothing has synced yet, or that DSR isn't logging for a known reason) - not a missed-visit count. The date picker always uses each dealer's CURRENT Beat Day - beat day isn't tracked historically, so a past date from before a recent beat-day change may not reflect what applied back then.</p>
     </div>
   </details>
 </div>
@@ -7077,6 +7102,27 @@
   // "today" to check.
   var dealerVisitCheckData_ = [];
 
+  // Selected date for the date picker added 26 Oct 2026 ("date changing
+  // option inside") - null until either fetchLive()'s first ?type=live
+  // response seeds it to today (see applyLivePayloadToState_ below, which
+  // only does this the FIRST time - it must never stomp a date the user
+  // already picked every time live data refreshes) or the user actually
+  // changes #dvcDateSelect. Kept as the single source of truth so the
+  // subtitle text, the Excel filename and the WhatsApp share text always
+  // agree with whatever's on screen.
+  var dvcSelectedDateIso_ = null;
+
+  // Formats an ISO (YYYY-MM-DD) date the same "26 Oct 2026" style as
+  // dateHeaderLine_(), but for an arbitrary date rather than always today -
+  // dateHeaderLine_() itself can't be reused here since the picker lets the
+  // owner look at a date other than today.
+  function dvcFormatDateLabel_(iso) {
+    if (!iso) return '';
+    var d = new Date(iso + 'T00:00:00');
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
   // Shared HTML-escape helper for this feature - no reusable global one
   // exists in this file (the two esc() helpers near the bottom are each
   // function-scoped to their own render function), and dealer/shop names
@@ -7132,12 +7178,133 @@
   function renderDealerVisitCheck_() {
     var wrap = document.getElementById('dealerVisitCheckWrap');
     if (!wrap) return;
+    // Subtitle always reflects whichever date is actually on screen - "today's
+    // ... vs today's ..." stays as-is for today itself (unchanged wording,
+    // so nothing looks different until the picker is actually touched), and
+    // switches to the picked date's label once the owner picks another day.
+    var subtitleEl = document.getElementById('dvcSubtitle');
+    if (subtitleEl) {
+      var isToday = !dvcSelectedDateIso_ || dvcSelectedDateIso_ === todayISO();
+      subtitleEl.textContent = isToday
+        ? 'Today’s beat-plan dealers vs today’s Shop Visit Remarks log · Owner only'
+        : dvcFormatDateLabel_(dvcSelectedDateIso_) + '’s beat-plan dealers vs that day’s Shop Visit Remarks log · Owner only';
+    }
     if (!dealerVisitCheckData_.length) {
-      wrap.innerHTML = '<p style="font-size:12.5px;color:var(--ink-muted);">No beat-day dealers found for today across the 7 DSRs &mdash; check back after today&rsquo;s beat plan is set, or the ?type=live response hasn&rsquo;t arrived yet.</p>';
+      wrap.innerHTML = '<p style="font-size:12.5px;color:var(--ink-muted);">No beat-day dealers found for this date across the 7 DSRs &mdash; check back after the beat plan is set, or the response hasn&rsquo;t arrived yet.</p>';
       return;
     }
     wrap.innerHTML = dealerVisitCheckData_.map(dealerVisitCheckDsrRowHtml_).join('');
   }
+
+  // Re-fetches the dealer-visit check for an arbitrary date, added 26 Oct
+  // 2026 for the date picker - hits the dedicated ?type=dealerVisitCheck&
+  // date=YYYY-MM-DD route in Code.gs (dealerVisitCheckLive_(dateOverrideIso),
+  // the SAME matching logic ?type=live always runs for today, just re-run
+  // for whatever date is passed). Deliberately its own small fetch rather
+  // than re-running the whole heavy fetchLive() just to get this one field.
+  function fetchDealerVisitCheckForDate_(iso) {
+    var statusEl = document.getElementById('dvcDateStatus');
+    if (statusEl) statusEl.textContent = 'Loading…';
+    var url = ORDERS_API_URL + '?type=dealerVisitCheck&date=' + encodeURIComponent(iso) + '&_ts=' + Date.now();
+    fetchJson_(url, 2, 20000).then(function (res) {
+      if (!res || !res.ok || !res.dealerVisitCheck) {
+        if (statusEl) statusEl.textContent = 'Could not load that date — try again.';
+        return;
+      }
+      dvcSelectedDateIso_ = res.dealerVisitCheck.dateIso || iso;
+      dealerVisitCheckData_ = res.dealerVisitCheck.byDsr || [];
+      if (statusEl) statusEl.textContent = '';
+      renderDealerVisitCheck_();
+    }).catch(function () {
+      if (statusEl) statusEl.textContent = 'Could not reach the server — check your connection and try again.';
+    });
+  }
+  (function () {
+    var dateInput = document.getElementById('dvcDateSelect');
+    if (!dateInput) return;
+    dateInput.addEventListener('change', function () {
+      if (!this.value) return;
+      fetchDealerVisitCheckForDate_(this.value);
+    });
+  })();
+
+  // "Export as Excel" for Today's Dealer Visit Check, added 26 Oct 2026
+  // ("excel download") - same client-side SheetJS pattern as
+  // exportStockXlsxBtn just below, exporting the currently-loaded
+  // dealerVisitCheckData_ (whichever date is on screen, picker included) -
+  // one row per dealer so the owner can filter/sort in Excel, rather than
+  // one row per DSR.
+  (function () {
+    var btn = document.getElementById('exportDealerVisitCheckXlsxBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof XLSX === 'undefined') {
+        alert('Excel export isn\'t available right now — the export library didn\'t load. Check your connection and try again.');
+        return;
+      }
+      if (!dealerVisitCheckData_.length) {
+        alert('Nothing to export yet — still loading, or no beat-day dealers for this date.');
+        return;
+      }
+      var rows = [['DSR', 'Status', 'Dealer / Planned Name', 'Closest Logged Visit', 'Match %']];
+      dealerVisitCheckData_.forEach(function (d) {
+        if (!d.loggedToday) {
+          rows.push([d.dsr, 'No visit log for this date', '', '', '']);
+          return;
+        }
+        (d.visited || []).forEach(function (name) { rows.push([d.dsr, 'Visited', name, '', '']); });
+        (d.possible || []).forEach(function (p) { rows.push([d.dsr, 'Possible match', p.dealer, p.matchedShop, p.score]); });
+        (d.missed || []).forEach(function (name) { rows.push([d.dsr, 'Missed', name, '', '']); });
+      });
+      var ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 14 }, { wch: 20 }, { wch: 40 }, { wch: 40 }, { wch: 10 }];
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Dealer Visit Check');
+      var stamp = (dvcSelectedDateIso_ || todayISO());
+      XLSX.writeFile(wb, 'AAA_Dealer_Visit_Check_' + stamp + '.xlsx');
+    });
+  })();
+
+  // WhatsApp share for Today's Dealer Visit Check, added 26 Oct 2026
+  // ("whatsapp share option") - same captureElementToBlob_()/
+  // openShareSheet_() image-capture pattern as every other panel's own
+  // share-icon-btn (e.g. shareMasterFileBtn, shareBankDepositsBtn);
+  // preventDefault/stopPropagation since the button sits inside this
+  // panel's <summary>, same reason as shareMasterFileBtn. Captures
+  // whatever is currently expanded/collapsed on screen, exactly as those
+  // other panels do - no forcing the <details> open first.
+  function buildShareTextDealerVisitCheck_() {
+    var label = dvcFormatDateLabel_(dvcSelectedDateIso_ || todayISO());
+    var lines = ['TODAY’S DEALER VISIT CHECK — ' + label, ''];
+    if (!dealerVisitCheckData_.length) {
+      lines.push('No beat-day dealers found for this date.');
+      return lines.join('\n');
+    }
+    dealerVisitCheckData_.forEach(function (d) {
+      if (!d.loggedToday) {
+        lines.push(d.dsr + ': no visit log yet for this date.');
+        return;
+      }
+      lines.push(d.dsr + ': ' + d.visited.length + ' visited' +
+        (d.possible.length ? ', ' + d.possible.length + ' possible' : '') +
+        (d.missed.length ? ', ' + d.missed.length + ' missed' : '') +
+        ' (of ' + d.plannedCount + ' planned)');
+    });
+    return lines.join('\n');
+  }
+  (function () {
+    var btn = document.getElementById('shareDealerVisitCheckBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var label = dvcFormatDateLabel_(dvcSelectedDateIso_ || todayISO());
+      openShareSheet_('Share Today\'s Dealer Visit Check', document.getElementById('captureDealerVisitCheck'),
+        'Today\'s Dealer Visit Check — ' + label, buildShareTextDealerVisitCheck_());
+    });
+  })();
 
   // "Export as Excel" button - builds a real .xlsx workbook client-side
   // via SheetJS (loaded from cdnjs, see the script tag near
@@ -11991,8 +12158,18 @@
     // under a long-open tab (crossing midnight) and the figures are cheap
     // to recompute (dealerVisitCheckLive_() in Code.gs, two Sheets reads).
     if (res && res.ok && res.dealerVisitCheck) {
-      dealerVisitCheckData_ = res.dealerVisitCheck.byDsr || [];
-      renderDealerVisitCheck_();
+      // Only seed/overwrite from the live "today" payload while the owner
+      // hasn't picked a different date via #dvcDateSelect - added 26 Oct
+      // 2026 for the date picker. Without this guard, refreshAll()'s
+      // periodic fetchLive() calls would silently snap the picker back to
+      // today's data out from under someone looking at an earlier date.
+      if (!dvcSelectedDateIso_ || dvcSelectedDateIso_ === todayISO()) {
+        dvcSelectedDateIso_ = res.dealerVisitCheck.dateIso || todayISO();
+        dealerVisitCheckData_ = res.dealerVisitCheck.byDsr || [];
+        var dvcInput = document.getElementById('dvcDateSelect');
+        if (dvcInput && !dvcInput.value) dvcInput.value = dvcSelectedDateIso_;
+        renderDealerVisitCheck_();
+      }
     }
 
     // Sales + Collection trend, rebuilt 20 Sep 2026 on the same
