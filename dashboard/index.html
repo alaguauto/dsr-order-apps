@@ -1652,6 +1652,24 @@
         <span><label>DSR</label><select id="bdDsrFilter"></select></span>
       </div>
       <div id="bdDashList"><p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Loading…</p></div>
+
+      <!-- Search previous deposits by date range, added 27 Oct 2026 ("in
+           dsr app and dashboard need date selecting options in Bank
+           Deposits for checking previous deposits") - separate from the
+           default "last 5" list above, which keeps its own unchanged
+           behavior. Respects whichever DSR is currently picked in
+           bdDsrFilter above (or all DSRs when that's "All DSRs"). Hits
+           the same ?type=bankDeposits endpoint with from/to params,
+           which returns every matching entry, not capped at 5 - see
+           handleBankDepositsGet_() in Code.gs. -->
+      <p style="font-size:12px;color:var(--ink-muted);margin:14px 0 6px;">Search previous deposits</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+        <span style="flex:1 1 120px;"><label style="font-size:10.5px;color:var(--ink-muted);display:block;margin-bottom:2px;">From</label><input type="date" id="bdDashSearchFrom" style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
+        <span style="flex:1 1 120px;"><label style="font-size:10.5px;color:var(--ink-muted);display:block;margin-bottom:2px;">To</label><input type="date" id="bdDashSearchTo" style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
+        <button type="button" class="ask-btn" id="bdDashSearchBtn" style="padding:7px 14px;">Search</button>
+      </div>
+      <p id="bdDashSearchError" hidden style="color:var(--warn);font-size:12px;margin:8px 0 0;"></p>
+      <div id="bdDashSearchResults" style="margin-top:8px;"></div>
     </div>
   </div>
 
@@ -4285,6 +4303,31 @@
     var match = DSRS.filter(function (d) { return d.dsrName === longName; });
     return match.length ? match[0].name : longName;
   }
+  // Row markup shared by the default "last 5" list and the date-range
+  // search results below - extracted 27 Oct 2026 (was inline in
+  // renderBankDeposits_() only) alongside the search feature itself.
+  function bdDashRowHtml_(d, selDsr) {
+    // Receipt From/To Date shown next to each receipt number, matching
+    // the DSR apps' own bdRowHtml_() format - added 27 Oct 2026 ("from
+    // and to date for deposit is not showing in dashboard that also
+    // need near recpt number"). These two date fields were built into
+    // the DSR apps back in round 4 (23 Oct 2026) but were never ported
+    // into this dashboard's own row renderer until now.
+    var receiptLine = (d.receiptFrom || d.receiptTo)
+      ? '<div style="font-size:11px;color:var(--ink-muted);margin-top:2px;">Receipt ' + mfEscapeHtml_(d.receiptFrom || '?') + (d.receiptFromDate ? (' (' + bdFmtDate_(d.receiptFromDate) + ')') : '') + (d.receiptTo ? (' – ' + mfEscapeHtml_(d.receiptTo) + (d.receiptToDate ? (' (' + bdFmtDate_(d.receiptToDate) + ')') : '')) : '') + '</div>'
+      : '';
+    var throLine = d.throName ? '<div style="font-size:11px;color:var(--ink-muted);margin-top:2px;">Thro ' + mfEscapeHtml_(d.throName) + '</div>' : '';
+    var remarksLine = d.remarks ? '<div style="font-size:11px;color:var(--ink-muted);margin-top:2px;">Remarks: ' + mfEscapeHtml_(d.remarks) + '</div>' : '';
+    // DSR name only shown in the "All DSRs" view - redundant once a
+    // specific DSR is already picked in the filter above.
+    var dsrLine = (selDsr === BD_ALL_VALUE_) ? '<div style="font-size:12px;font-weight:600;margin-top:2px;">' + mfEscapeHtml_(bdDsrShortName_(d.dsrName)) + '</div>' : '';
+    return '<div style="padding:8px 0;border-top:1px solid var(--border);">' +
+      '<div style="display:flex;justify-content:space-between;gap:8px;"><strong>₹' + Math.round(d.amount).toLocaleString('en-IN') + '</strong><span style="font-size:12px;color:var(--ink-muted);">' + bdFmtDate_(d.date) + '</span></div>' +
+      dsrLine +
+      '<div style="font-size:12px;color:var(--ink-muted);margin-top:2px;">' + mfEscapeHtml_(d.paidThrough || '') + '</div>' +
+      throLine + receiptLine + remarksLine +
+      '</div>';
+  }
   function renderBankDeposits_() {
     var dsrSel = document.getElementById('bdDsrFilter');
     var listEl = document.getElementById('bdDashList');
@@ -4304,28 +4347,75 @@
         if (!data || !data.ok) { listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Could not load.</p>'; return; }
         var deposits = data.deposits || [];
         if (!deposits.length) { listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">No payments logged yet.</p>'; return; }
-        listEl.innerHTML = deposits.map(function (d) {
-          var receiptLine = (d.receiptFrom || d.receiptTo)
-            ? '<div style="font-size:11px;color:var(--ink-muted);margin-top:2px;">Receipt ' + mfEscapeHtml_(d.receiptFrom || '?') + (d.receiptTo ? (' – ' + mfEscapeHtml_(d.receiptTo)) : '') + '</div>'
-            : '';
-          var throLine = d.throName ? '<div style="font-size:11px;color:var(--ink-muted);margin-top:2px;">Thro ' + mfEscapeHtml_(d.throName) + '</div>' : '';
-          var remarksLine = d.remarks ? '<div style="font-size:11px;color:var(--ink-muted);margin-top:2px;">Remarks: ' + mfEscapeHtml_(d.remarks) + '</div>' : '';
-          // DSR name only shown in the "All DSRs" view - redundant once a
-          // specific DSR is already picked in the filter above.
-          var dsrLine = (selDsr === BD_ALL_VALUE_) ? '<div style="font-size:12px;font-weight:600;margin-top:2px;">' + mfEscapeHtml_(bdDsrShortName_(d.dsrName)) + '</div>' : '';
-          return '<div style="padding:8px 0;border-top:1px solid var(--border);">' +
-            '<div style="display:flex;justify-content:space-between;gap:8px;"><strong>₹' + Math.round(d.amount).toLocaleString('en-IN') + '</strong><span style="font-size:12px;color:var(--ink-muted);">' + bdFmtDate_(d.date) + '</span></div>' +
-            dsrLine +
-            '<div style="font-size:12px;color:var(--ink-muted);margin-top:2px;">' + mfEscapeHtml_(d.paidThrough || '') + '</div>' +
-            throLine + receiptLine + remarksLine +
-            '</div>';
-        }).join('');
+        listEl.innerHTML = deposits.map(function (d) { return bdDashRowHtml_(d, selDsr); }).join('');
       })
       .catch(function () { listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Could not reach the server.</p>'; });
   }
+  // Search previous deposits by date range - added 27 Oct 2026 ("in dsr
+  // app and dashboard need date selecting options in Bank Deposits for
+  // checking previous deposits"). See the "Search previous deposits"
+  // markup comment above captureBankDeposits for the full request.
+  // Respects whichever DSR is currently picked in bdDsrFilter; re-runs
+  // automatically if that filter changes while a search is showing.
+  var bdDashSearchFromEl = document.getElementById('bdDashSearchFrom');
+  var bdDashSearchToEl = document.getElementById('bdDashSearchTo');
+  var bdDashSearchBtnEl = document.getElementById('bdDashSearchBtn');
+  var bdDashSearchErrorEl = document.getElementById('bdDashSearchError');
+  var bdDashSearchResultsEl = document.getElementById('bdDashSearchResults');
+  var bdDashLastSearchRange_ = null;
+  function renderBankDepositSearchResults_(deposits, selDsr) {
+    if (!bdDashSearchResultsEl) return;
+    if (!deposits || !deposits.length) {
+      bdDashSearchResultsEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">No deposits found in that range.</p>';
+      return;
+    }
+    var totalAmt = deposits.reduce(function (sum, d) { return sum + (Number(d.amount) || 0); }, 0);
+    bdDashSearchResultsEl.innerHTML = '<p style="font-size:12px;color:var(--ink-muted);margin:0 0 6px;">' + deposits.length + ' found — total ₹' + Math.round(totalAmt).toLocaleString('en-IN') + '</p>' +
+      deposits.map(function (d) { return bdDashRowHtml_(d, selDsr); }).join('');
+  }
+  function fetchBankDepositSearch_(from, to) {
+    var dsrSel = document.getElementById('bdDsrFilter');
+    if (!dsrSel || !bdDashSearchResultsEl) return;
+    if (!from && !to) {
+      if (bdDashSearchErrorEl) { bdDashSearchErrorEl.textContent = 'Pick a From date, a To date, or both.'; bdDashSearchErrorEl.hidden = false; }
+      return;
+    }
+    if (from && to && from > to) {
+      if (bdDashSearchErrorEl) { bdDashSearchErrorEl.textContent = 'From date must be on or before the To date.'; bdDashSearchErrorEl.hidden = false; }
+      return;
+    }
+    if (bdDashSearchErrorEl) bdDashSearchErrorEl.hidden = true;
+    bdDashLastSearchRange_ = { from: from, to: to };
+    var selDsr = dsrSel.value || BD_ALL_VALUE_;
+    bdDashSearchResultsEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Searching…</p>';
+    var url = ORDERS_API_URL + '?type=bankDeposits' +
+      (selDsr === BD_ALL_VALUE_ ? '' : '&dsrName=' + encodeURIComponent(selDsr)) +
+      (from ? '&from=' + encodeURIComponent(from) : '') +
+      (to ? '&to=' + encodeURIComponent(to) : '') +
+      '&_ts=' + Date.now();
+    fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) { bdDashSearchResultsEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Could not load.</p>'; return; }
+        renderBankDepositSearchResults_(data.deposits || [], selDsr);
+      })
+      .catch(function () { bdDashSearchResultsEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Could not reach the server.</p>'; });
+  }
   (function () {
     var dsrSel = document.getElementById('bdDsrFilter');
-    if (dsrSel) dsrSel.addEventListener('change', renderBankDeposits_);
+    if (dsrSel) {
+      dsrSel.addEventListener('change', function () {
+        renderBankDeposits_();
+        if (bdDashLastSearchRange_) fetchBankDepositSearch_(bdDashLastSearchRange_.from, bdDashLastSearchRange_.to);
+      });
+    }
+    if (bdDashSearchBtnEl) {
+      bdDashSearchBtnEl.addEventListener('click', function () {
+        var from = bdDashSearchFromEl ? bdDashSearchFromEl.value : '';
+        var to = bdDashSearchToEl ? bdDashSearchToEl.value : '';
+        fetchBankDepositSearch_(from, to);
+      });
+    }
   })();
   // WhatsApp share for Bank Deposits, added 23 Oct 2026 ("make it as
   // share in whatsapp") - same image-capture pattern as every other

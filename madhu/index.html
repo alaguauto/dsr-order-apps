@@ -1399,21 +1399,38 @@
               <span style="flex:1 1 140px;"><label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Receipt To Date *</label><input type="date" id="bdReceiptToDate" required style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);"></span>
             </div>
           </div>
-          <!-- Only shown (and required) for "Bank — Transfer" - added 23
-               Oct 2026 ("add remarks in bank transfer ... thats also
-               must"). A transfer has no paper receipt number, so Remarks
-               (transaction ref/UTR or any note) is this mode's own
-               required identifying field instead. See bdPaidThroughEl's
-               change listener below. -->
-          <div id="bdRemarksWrap" hidden style="margin-top:8px;">
-            <label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Remarks *</label>
-            <input type="text" id="bdRemarks" placeholder="Transfer reference / note" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+          <!-- Added 23 Oct 2026 ("add remarks in bank transfer ... thats
+               also must"), required specifically for "Bank — Transfer"
+               (a transfer has no paper receipt number, so Remarks
+               doubles as that mode's own identifying note) - see
+               bdPaidThroughEl's change listener and the Save validation
+               below for that requirement. Shown for EVERY paidThrough
+               now, not just Transfer - changed 27 Oct 2026 ("need
+               remarks coloumn for all type of payments"); optional for
+               every mode except Transfer. -->
+          <div id="bdRemarksWrap" style="margin-top:8px;">
+            <label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">Remarks</label>
+            <input type="text" id="bdRemarks" placeholder="Note (required for Bank — Transfer)" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
           </div>
           <p class="bd-error" id="bdError" hidden style="color:var(--danger);font-size:12px;margin:8px 0 0;"></p>
           <button type="button" class="task-icon-btn" id="bdSaveBtn" style="margin-top:10px;width:100%;">Save</button>
         </div>
         <p class="hint" style="margin-top:16px;">Last 5 payments</p>
         <div id="bdLastList"><div class="task-empty-note">Loading…</div></div>
+        <!-- Search previous deposits by date range, added 27 Oct 2026
+             ("need date selecting options in Bank Deposits for checking
+             previous deposits") - separate from the Last 5 list above,
+             which keeps its own unchanged behavior. Edit/Delete work on
+             a search result the same as the Last 5 list (same today-only
+             rule), via the shared bdRowHtml_()/bdFindDeposit_() below. -->
+        <p class="hint" style="margin-top:18px;">Search previous deposits</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+          <span style="flex:1 1 130px;"><label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">From</label><input type="date" id="bdSearchFrom" style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);"></span>
+          <span style="flex:1 1 130px;"><label style="font-size:10.5px;color:#8a7f6f;display:block;margin-bottom:2px;">To</label><input type="date" id="bdSearchTo" style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);"></span>
+          <button type="button" class="task-icon-btn" id="bdSearchBtn" style="flex:0 0 auto;padding:6px 14px;">Search</button>
+        </div>
+        <p class="bd-error" id="bdSearchError" hidden style="color:var(--danger);font-size:12px;margin:8px 0 0;"></p>
+        <div id="bdSearchResults" style="margin-top:8px;"></div>
       </div>
     </details>
   </section>
@@ -3145,6 +3162,16 @@
   var bdErrorEl = document.getElementById("bdError");
   var bdSaveBtnEl = document.getElementById("bdSaveBtn");
   var bdLastListEl = document.getElementById("bdLastList");
+  // Search previous deposits by date range - added 27 Oct 2026 ("need
+  // date selecting options in Bank Deposits for checking previous
+  // deposits"). See bdSearchResults' own markup comment above.
+  var bdSearchFromEl = document.getElementById("bdSearchFrom");
+  var bdSearchToEl = document.getElementById("bdSearchTo");
+  var bdSearchBtnEl = document.getElementById("bdSearchBtn");
+  var bdSearchErrorEl = document.getElementById("bdSearchError");
+  var bdSearchResultsEl = document.getElementById("bdSearchResults");
+  var bdSearchDeposits_ = [];
+  var bdLastSearchRange_ = null;
   var bankDepositDetailsEl = document.getElementById("bankDepositDetails");
   var bdEditingBannerEl = document.getElementById("bdEditingBanner");
   var bdCancelEditBtnEl = document.getElementById("bdCancelEditBtn");
@@ -3163,6 +3190,37 @@
     return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
   }
 
+  // Row markup shared by the Last 5 list and the date-range search
+  // results below - extracted 27 Oct 2026 (was inline in
+  // renderBankDepositList_() only) so both views render identically and
+  // Edit/Delete work the same way in either place.
+  function bdRowHtml_(d, today) {
+    var receiptLine = (d.receiptFrom || d.receiptTo)
+      ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Receipt ' + escapeHtml(d.receiptFrom || "?") + (d.receiptFromDate ? (" (" + bdFmtDate_(d.receiptFromDate) + ")") : "") + (d.receiptTo ? (" – " + escapeHtml(d.receiptTo) + (d.receiptToDate ? (" (" + bdFmtDate_(d.receiptToDate) + ")") : "")) : "") + '</div>'
+      : '';
+    var throLine = d.throName ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Thro ' + escapeHtml(d.throName) + '</div>' : '';
+    var remarksLine = d.remarks ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Remarks: ' + escapeHtml(d.remarks) + '</div>' : '';
+    // Edit/Delete icons only on today's own entries - added 23 Oct
+    // 2026 ("THAT EDIT SHOULD BE DONE ONLY FOR TODAY DATE, NOT FOR ANY
+    // PRVIOUS DATE ENTRY"). Server also re-checks this on every
+    // update/delete (see handleBankDepositUpdate_/Delete_ in Code.gs).
+    var isToday = d.date === today;
+    var actionsHtml = isToday
+      ? '<span style="display:flex;gap:6px;flex-shrink:0;">' +
+          '<button type="button" class="bd-edit-btn" data-deposit-id="' + d.id + '" title="Edit (today only)">✎</button>' +
+          '<button type="button" class="bd-del-btn" data-deposit-id="' + d.id + '" title="Delete (today only)">×</button>' +
+        '</span>'
+      : '';
+    return '<div class="bd-row" data-deposit-id="' + d.id + '" style="padding:8px 0;border-top:1px solid var(--border);">' +
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">' +
+        '<div><strong>₹' + Math.round(d.amount).toLocaleString("en-IN") + '</strong><span style="font-size:12px;color:var(--text-muted);margin-left:8px;">' + bdFmtDate_(d.date) + '</span></div>' +
+        actionsHtml +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">' + escapeHtml(d.paidThrough || "") + '</div>' +
+      throLine + receiptLine + remarksLine +
+      '</div>';
+  }
+
   function renderBankDepositList_(deposits) {
     if (!bdLastListEl) return;
     bdLastDeposits_ = deposits || [];
@@ -3171,32 +3229,7 @@
       return;
     }
     var today = todayISO();
-    bdLastListEl.innerHTML = deposits.map(function (d) {
-      var receiptLine = (d.receiptFrom || d.receiptTo)
-        ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Receipt ' + escapeHtml(d.receiptFrom || "?") + (d.receiptFromDate ? (" (" + bdFmtDate_(d.receiptFromDate) + ")") : "") + (d.receiptTo ? (" – " + escapeHtml(d.receiptTo) + (d.receiptToDate ? (" (" + bdFmtDate_(d.receiptToDate) + ")") : "")) : "") + '</div>'
-        : '';
-      var throLine = d.throName ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Thro ' + escapeHtml(d.throName) + '</div>' : '';
-      var remarksLine = d.remarks ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Remarks: ' + escapeHtml(d.remarks) + '</div>' : '';
-      // Edit/Delete icons only on today's own entries - added 23 Oct
-      // 2026 ("THAT EDIT SHOULD BE DONE ONLY FOR TODAY DATE, NOT FOR ANY
-      // PRVIOUS DATE ENTRY"). Server also re-checks this on every
-      // update/delete (see handleBankDepositUpdate_/Delete_ in Code.gs).
-      var isToday = d.date === today;
-      var actionsHtml = isToday
-        ? '<span style="display:flex;gap:6px;flex-shrink:0;">' +
-            '<button type="button" class="bd-edit-btn" data-deposit-id="' + d.id + '" title="Edit (today only)">✎</button>' +
-            '<button type="button" class="bd-del-btn" data-deposit-id="' + d.id + '" title="Delete (today only)">×</button>' +
-          '</span>'
-        : '';
-      return '<div class="bd-row" data-deposit-id="' + d.id + '" style="padding:8px 0;border-top:1px solid var(--border);">' +
-        '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">' +
-          '<div><strong>₹' + Math.round(d.amount).toLocaleString("en-IN") + '</strong><span style="font-size:12px;color:var(--text-muted);margin-left:8px;">' + bdFmtDate_(d.date) + '</span></div>' +
-          actionsHtml +
-        '</div>' +
-        '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">' + escapeHtml(d.paidThrough || "") + '</div>' +
-        throLine + receiptLine + remarksLine +
-        '</div>';
-    }).join("");
+    bdLastListEl.innerHTML = deposits.map(function (d) { return bdRowHtml_(d, today); }).join("");
   }
 
   function fetchBankDeposits_() {
@@ -3211,16 +3244,76 @@
       .catch(function () { bdLastListEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>'; });
   }
 
+  // Search previous deposits by date range - added 27 Oct 2026 ("need
+  // date selecting options in Bank Deposits for checking previous
+  // deposits"). Hits the same ?type=bankDeposits endpoint with from/to
+  // params, which returns every matching entry (not capped at 5) - see
+  // handleBankDepositsGet_() in Code.gs. bdFindDeposit_() lets Edit/
+  // Delete work on a search result too, by checking whichever of the two
+  // last-fetched lists (Last 5, or the current search) has the id.
+  function bdFindDeposit_(id) {
+    var i;
+    for (i = 0; i < bdLastDeposits_.length; i++) { if (bdLastDeposits_[i].id === id) return bdLastDeposits_[i]; }
+    for (i = 0; i < bdSearchDeposits_.length; i++) { if (bdSearchDeposits_[i].id === id) return bdSearchDeposits_[i]; }
+    return null;
+  }
+
+  function renderBankDepositSearchResults_(deposits) {
+    bdSearchDeposits_ = deposits || [];
+    if (!bdSearchResultsEl) return;
+    if (!deposits || !deposits.length) {
+      bdSearchResultsEl.innerHTML = '<div class="task-empty-note">No deposits found in that range.</div>';
+      return;
+    }
+    var today = todayISO();
+    var totalAmt = deposits.reduce(function (sum, d) { return sum + (Number(d.amount) || 0); }, 0);
+    bdSearchResultsEl.innerHTML = '<p class="hint" style="margin:0 0 6px;">' + deposits.length + ' found — total ₹' + Math.round(totalAmt).toLocaleString("en-IN") + '</p>' +
+      deposits.map(function (d) { return bdRowHtml_(d, today); }).join("");
+  }
+
+  function fetchBankDepositSearch_(from, to) {
+    if (!apiConfigured() || !bdSearchResultsEl) return;
+    if (!from && !to) {
+      if (bdSearchErrorEl) { bdSearchErrorEl.textContent = "Pick a From date, a To date, or both."; bdSearchErrorEl.hidden = false; }
+      return;
+    }
+    if (from && to && from > to) {
+      if (bdSearchErrorEl) { bdSearchErrorEl.textContent = "From date must be on or before the To date."; bdSearchErrorEl.hidden = false; }
+      return;
+    }
+    if (bdSearchErrorEl) bdSearchErrorEl.hidden = true;
+    bdLastSearchRange_ = { from: from, to: to };
+    var myDsrName = document.getElementById("dsrName").value || "";
+    bdSearchResultsEl.innerHTML = '<div class="task-empty-note">Searching…</div>';
+    var url = ORDERS_API_URL + "?type=bankDeposits&dsrName=" + encodeURIComponent(myDsrName) +
+      (from ? "&from=" + encodeURIComponent(from) : "") +
+      (to ? "&to=" + encodeURIComponent(to) : "") +
+      "&_ts=" + Date.now();
+    fetch(url, { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) { bdSearchResultsEl.innerHTML = '<div class="task-empty-note">Could not load.</div>'; return; }
+        renderBankDepositSearchResults_(data.deposits || []);
+      })
+      .catch(function () { bdSearchResultsEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>'; });
+  }
+
+  // Re-fetches the Last 5 list and, if a date-range search is currently
+  // showing, re-runs that same search too - called after every
+  // add/update/delete so both views stay in sync. Added 27 Oct 2026
+  // alongside the search feature itself.
+  function bdRefreshLists_() {
+    fetchBankDeposits_();
+    if (bdLastSearchRange_) fetchBankDepositSearch_(bdLastSearchRange_.from, bdLastSearchRange_.to);
+  }
+
   // Edit flow - populate the form from a last-fetched entry and switch
   // into "update" mode. Added 23 Oct 2026, see bdEditingBanner's markup
   // comment above for the request. Never edits anything but today's own
   // entries (checked again here as a belt-and-suspenders guard, even
   // though the Edit icon itself is only ever rendered for a today entry).
   function bdStartEdit_(id) {
-    var d = null;
-    for (var i = 0; i < bdLastDeposits_.length; i++) {
-      if (bdLastDeposits_[i].id === id) { d = bdLastDeposits_[i]; break; }
-    }
+    var d = bdFindDeposit_(id);
     if (!d || d.date !== todayISO()) return;
     editingBankDepositId = id;
     if (bdDateEl) bdDateEl.value = d.date;
@@ -3253,7 +3346,6 @@
     if (bdReceiptToDateEl) bdReceiptToDateEl.value = "";
     if (bdReceiptWrapEl) bdReceiptWrapEl.hidden = false;
     if (bdRemarksEl) bdRemarksEl.value = "";
-    if (bdRemarksWrapEl) bdRemarksWrapEl.hidden = true;
     if (bdDateEl) bdDateEl.value = todayISO();
   }
 
@@ -3274,7 +3366,7 @@
       }
       showToast("Entry deleted");
       if (editingBankDepositId === id) bdExitEditMode_();
-      fetchBankDeposits_();
+      bdRefreshLists_();
     }).catch(function () {
       showToast("Couldn't delete — check connection and try again");
     });
@@ -3285,7 +3377,6 @@
     if (bdPaidThroughEl) {
       bdPaidThroughEl.addEventListener("change", function () {
         if (bdThroNameWrapEl) bdThroNameWrapEl.hidden = bdPaidThroughEl.value !== "Cash — Thro";
-        if (bdRemarksWrapEl) bdRemarksWrapEl.hidden = bdPaidThroughEl.value !== "Bank — Transfer";
         if (bdReceiptWrapEl) bdReceiptWrapEl.hidden = bdPaidThroughEl.value === "Bank — Transfer";
       });
     }
@@ -3297,6 +3388,27 @@
     }
     if (bdLastListEl) {
       bdLastListEl.addEventListener("click", function (e) {
+        var editBtn = e.target.closest(".bd-edit-btn");
+        if (editBtn) { bdStartEdit_(editBtn.getAttribute("data-deposit-id")); return; }
+        var delBtn = e.target.closest(".bd-del-btn");
+        if (delBtn) {
+          var id = delBtn.getAttribute("data-deposit-id");
+          if (!window.confirm("Delete this bank deposit entry? This can't be undone.")) return;
+          bdDeleteDeposit_(id);
+        }
+      });
+    }
+    // Search previous deposits - added 27 Oct 2026, see bdSearchResults'
+    // own markup comment above.
+    if (bdSearchBtnEl) {
+      bdSearchBtnEl.addEventListener("click", function () {
+        var from = bdSearchFromEl ? bdSearchFromEl.value : "";
+        var to = bdSearchToEl ? bdSearchToEl.value : "";
+        fetchBankDepositSearch_(from, to);
+      });
+    }
+    if (bdSearchResultsEl) {
+      bdSearchResultsEl.addEventListener("click", function (e) {
         var editBtn = e.target.closest(".bd-edit-btn");
         if (editBtn) { bdStartEdit_(editBtn.getAttribute("data-deposit-id")); return; }
         var delBtn = e.target.closest(".bd-del-btn");
@@ -3347,7 +3459,11 @@
           receiptFromDate: paidThrough === "Bank — Transfer" ? "" : receiptFromDate,
           receiptTo: paidThrough === "Bank — Transfer" ? "" : receiptTo,
           receiptToDate: paidThrough === "Bank — Transfer" ? "" : receiptToDate,
-          remarks: paidThrough === "Bank — Transfer" ? remarks : ""
+          // Remarks sent for every paidThrough now, not just Transfer -
+          // changed 27 Oct 2026 ("need remarks coloumn for all type of
+          // payments"). Still required only for Transfer (validated
+          // above); optional note for every other mode.
+          remarks: remarks
         };
         if (editingBankDepositId) payload.id = editingBankDepositId;
         bdSaveBtnEl.disabled = true;
@@ -3362,7 +3478,7 @@
           var wasEditing = !!editingBankDepositId;
           bdExitEditMode_();
           showToast(wasEditing ? "Entry updated" : "Saved");
-          fetchBankDeposits_();
+          bdRefreshLists_();
         }).catch(function () {
           bdSaveBtnEl.disabled = false;
           bdSaveBtnEl.textContent = editingBankDepositId ? "Update" : "Save";
