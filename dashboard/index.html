@@ -1629,50 +1629,6 @@
     </div>
   </div>
 
-  <!-- Bank Deposits, added 23 Oct 2026 ("want to add a column as bank
-       deposit date, in that want to ask input from dsr paid amount, date,
-       paid thro bank (cash deposit/ATM deposit/transfer), cash direct to
-       office, cash thro, paid receipt number from/to ... this has to show
-       in dashboard also, last 5 paid transaction has to be shown in
-       both") - sits right next to the heatmap above, per that request.
-       Read-only here (a DSR submits from their own app); same DSR picker
-       pattern as the heatmap, "All DSRs" as the first/default option
-       showing the last 5 across the whole team, same
-       ?type=bankDeposits endpoint the DSR apps use (see
-       renderBankDeposits_() below for the full field list and backend). -->
-  <div id="captureBankDeposits">
-    <div class="section-label-row">
-      <p class="section-label">Bank Deposits</p>
-      <button type="button" class="share-icon-btn small" id="shareBankDepositsBtn" title="Share on WhatsApp">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
-      </button>
-    </div>
-    <div class="leaderboard-panel">
-      <div class="master-file-filters" style="padding:0 0 10px;">
-        <span><label>DSR</label><select id="bdDsrFilter"></select></span>
-      </div>
-      <div id="bdDashList"><p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Loading…</p></div>
-
-      <!-- Search previous deposits by date range, added 27 Oct 2026 ("in
-           dsr app and dashboard need date selecting options in Bank
-           Deposits for checking previous deposits") - separate from the
-           default "last 5" list above, which keeps its own unchanged
-           behavior. Respects whichever DSR is currently picked in
-           bdDsrFilter above (or all DSRs when that's "All DSRs"). Hits
-           the same ?type=bankDeposits endpoint with from/to params,
-           which returns every matching entry, not capped at 5 - see
-           handleBankDepositsGet_() in Code.gs. -->
-      <p style="font-size:12px;color:var(--ink-muted);margin:14px 0 6px;">Search previous deposits</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
-        <span style="flex:1 1 120px;"><label style="font-size:10.5px;color:var(--ink-muted);display:block;margin-bottom:2px;">From</label><input type="date" id="bdDashSearchFrom" style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
-        <span style="flex:1 1 120px;"><label style="font-size:10.5px;color:var(--ink-muted);display:block;margin-bottom:2px;">To</label><input type="date" id="bdDashSearchTo" style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
-        <button type="button" class="ask-btn" id="bdDashSearchBtn" style="padding:7px 14px;">Search</button>
-      </div>
-      <p id="bdDashSearchError" hidden style="color:var(--warn);font-size:12px;margin:8px 0 0;"></p>
-      <div id="bdDashSearchResults" style="margin-top:8px;"></div>
-    </div>
-  </div>
-
   <div id="captureRanking">
     <div class="section-label-row">
       <p class="section-label">Ranking</p>
@@ -2562,6 +2518,75 @@
       </div>
       <div id="dealerVisitCheckWrap"></div>
       <p style="font-size:11px;color:var(--ink-muted);margin:0;">Matching is automatic (name-similarity) and approximate - "Possible matches" are shown for a human glance, never silently resolved either way. "No visit log today" is a neutral state (nothing has synced yet, or that DSR isn't logging for a known reason) - not a missed-visit count. The date picker always uses each dealer's CURRENT Beat Day - beat day isn't tracked historically, so a past date from before a recent beat-day change may not reflect what applied back then.</p>
+    </div>
+  </details>
+</div>
+<!-- Bank Deposits, added 23 Oct 2026 ("want to add a column as bank
+     deposit date, in that want to ask input from dsr paid amount, date,
+     paid thro bank (cash deposit/ATM deposit/transfer), cash direct to
+     office, cash thro, paid receipt number from/to ... this has to show
+     in dashboard also, last 5 paid transaction has to be shown in
+     both"). Read-only here (a DSR submits from their own app); same
+     ?type=bankDeposits endpoint the DSR apps use (see renderBankDeposits_()
+     below for the full field list and backend).
+
+     Moved + redesigned 27 Oct 2026 at the owner's request ("take the menu
+     to last above DSR / Dealer / Beat - Sales & Collection Plan below
+     Today's Dealer Visit Check and click + to expand type, compulsory
+     show all dsr name and each dsr only 1 last entry in the screen"):
+     - Repositioned here, directly below Today's Dealer Visit Check and
+       directly above DSR / Dealer / Beat - Sales & Collection Plan
+       (captureMasterFile just below), instead of sitting up near the
+       Heatmap.
+     - Converted to the same collapsed-by-default <details class="dsr-row">
+       "+/-" convention used by every other section here (Petronas Business
+       Summary, Today's Dealer Visit Check, Sales & Collection Plan, etc.)
+       instead of always being expanded.
+     - The default "All DSRs" list (bdDashList) now always shows every
+       DSR by name with ONLY their own single most recent deposit each
+       (a "No deposits yet" row for anyone with none) - see
+       renderBankDeposits_() below - instead of a flat "last 5 across the
+       whole team" that could leave a less-frequent DSR off-screen
+       entirely if others deposited more often. Picking one DSR in the
+       filter below still narrows to just that DSR's own latest entry.
+       The date-range Search box below is unaffected - it still returns
+       every matching entry in range, not capped to 1 per DSR, since its
+       whole purpose is looking at history. -->
+<div id="captureBankDeposits">
+  <details class="dsr-row" id="bankDepositsDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Bank Deposits</span>
+        <span class="card-territory">Each DSR's latest payment handover &middot; pick a DSR below to narrow</span></span>
+      <span class="dsr-row-headright">
+        <button type="button" class="share-icon-btn small" id="shareBankDepositsBtn" title="Share on WhatsApp">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+        </button>
+      </span>
+    </summary>
+    <div class="dsr-row-body">
+      <div class="master-file-filters" style="padding:0 0 10px;">
+        <span><label>DSR</label><select id="bdDsrFilter"></select></span>
+      </div>
+      <div id="bdDashList"><p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Loading…</p></div>
+
+      <!-- Search previous deposits by date range, added 27 Oct 2026 ("in
+           dsr app and dashboard need date selecting options in Bank
+           Deposits for checking previous deposits") - separate from the
+           default per-DSR-latest list above, which keeps its own
+           unchanged behavior. Respects whichever DSR is currently picked
+           in bdDsrFilter above (or all DSRs when that's "All DSRs"). Hits
+           the same ?type=bankDeposits endpoint with from/to params,
+           which returns every matching entry, not capped - see
+           handleBankDepositsGet_() in Code.gs. -->
+      <p style="font-size:12px;color:var(--ink-muted);margin:14px 0 6px;">Search previous deposits</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+        <span style="flex:1 1 120px;"><label style="font-size:10.5px;color:var(--ink-muted);display:block;margin-bottom:2px;">From</label><input type="date" id="bdDashSearchFrom" style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
+        <span style="flex:1 1 120px;"><label style="font-size:10.5px;color:var(--ink-muted);display:block;margin-bottom:2px;">To</label><input type="date" id="bdDashSearchTo" style="width:100%;box-sizing:border-box;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);"></span>
+        <button type="button" class="ask-btn" id="bdDashSearchBtn" style="padding:7px 14px;">Search</button>
+      </div>
+      <p id="bdDashSearchError" hidden style="color:var(--warn);font-size:12px;margin:8px 0 0;"></p>
+      <div id="bdDashSearchResults" style="margin-top:8px;"></div>
     </div>
   </details>
 </div>
@@ -4328,6 +4353,29 @@
       throLine + receiptLine + remarksLine +
       '</div>';
   }
+  // A DSR with no deposit on record yet (or none matching the current
+  // view) - added 27 Oct 2026 alongside the "compulsory show all DSR
+  // name" redesign below, so every DSR always has a visible row rather
+  // than silently dropping off the list.
+  function bdDashEmptyRowHtml_(dsrDisplayName) {
+    return '<div style="padding:8px 0;border-top:1px solid var(--border);">' +
+      '<div style="font-size:12px;font-weight:600;">' + mfEscapeHtml_(dsrDisplayName) + '</div>' +
+      '<div style="font-size:12px;color:var(--ink-muted);margin-top:2px;">No deposits yet</div>' +
+      '</div>';
+  }
+  // Default view redesigned 27 Oct 2026 at the owner's request
+  // ("compulsory show all dsr name and each dsr only 1 last entry in the
+  // screen"): when "All DSRs" is picked, this now always lists every
+  // DSR by name with ONLY their own single most recent deposit (a "No
+  // deposits yet" row for anyone with none), instead of a flat "last 5
+  // across the whole team" that could leave a less-frequent DSR off
+  // screen entirely. Picking one specific DSR in the filter still shows
+  // just that DSR, now also capped to their single latest entry (not
+  // last 5) for the same reason - handleBankDepositsGet_() in Code.gs
+  // enforces the "1 per DSR" cap server-side for both cases; this only
+  // has to fill in the DSRs the backend had nothing to return for. The
+  // date-range Search box below is separate and unaffected - it still
+  // returns every matching entry, not capped.
   function renderBankDeposits_() {
     var dsrSel = document.getElementById('bdDsrFilter');
     var listEl = document.getElementById('bdDashList');
@@ -4339,14 +4387,27 @@
     }
     var selDsr = dsrSel.value || BD_ALL_VALUE_;
     listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Loading…</p>';
-    var url = ORDERS_API_URL + '?type=bankDeposits&_ts=' + Date.now() +
+    var url = ORDERS_API_URL + '?type=bankDeposits&latestOnly=1&_ts=' + Date.now() +
       (selDsr === BD_ALL_VALUE_ ? '' : '&dsrName=' + encodeURIComponent(selDsr));
     fetch(url, { cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || !data.ok) { listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Could not load.</p>'; return; }
         var deposits = data.deposits || [];
-        if (!deposits.length) { listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">No payments logged yet.</p>'; return; }
+        if (selDsr === BD_ALL_VALUE_) {
+          // Merge the backend's (at most one per DSR) results with the
+          // full DSRS roster, in DSRS' own order, so every DSR gets a
+          // row - a real entry if the backend had one, "No deposits
+          // yet" otherwise.
+          var byDsrName = {};
+          deposits.forEach(function (d) { byDsrName[d.dsrName] = d; });
+          listEl.innerHTML = DSRS.map(function (dsr) {
+            var found = byDsrName[dsr.dsrName];
+            return found ? bdDashRowHtml_(found, selDsr) : bdDashEmptyRowHtml_(dsr.name);
+          }).join('');
+          return;
+        }
+        if (!deposits.length) { listEl.innerHTML = bdDashEmptyRowHtml_(bdDsrShortName_(selDsr)); return; }
         listEl.innerHTML = deposits.map(function (d) { return bdDashRowHtml_(d, selDsr); }).join('');
       })
       .catch(function () { listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Could not reach the server.</p>'; });
