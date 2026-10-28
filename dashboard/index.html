@@ -7336,16 +7336,17 @@
     var lists = '';
     // Visited list + today's Tally order cross-check, added 27 Oct 2026
     // ("give me a dealer set for visited also", "if a visited dealer
-    // gives order... show me that also"). orderAmount is null when Day
-    // Book has no qualifying row for that dealer today (no feed exists
-    // yet for payment/Receipt vouchers - see dayBookOrdersForDealersOnDate_()'s
-    // own comment in Code.gs).
+    // gives order... show me that also"). Shown as Alt Qty in litres,
+    // not Rupees (changed 28 Oct 2026, owner's request). orderQtyLtr is
+    // null when Day Book has no qualifying row for that dealer today (no
+    // feed exists yet for payment/Receipt vouchers - see
+    // dayBookOrdersForDealersOnDate_()'s own comment in Code.gs).
     if (visitedCount) {
       lists += '<details class="dvc-sub"><summary>Visited (' + visitedCount + ')</summary><ul class="dvc-list">' +
         d.visited.map(function (v) {
-          var hasOrder = v.orderAmount !== null && v.orderAmount !== undefined;
+          var hasOrder = v.orderQtyLtr !== null && v.orderQtyLtr !== undefined;
           var orderBadge = hasOrder
-            ? '<span class="dvc-order-badge has-order">&#10003; Order ' + mfMoney_(v.orderAmount) + '</span>'
+            ? '<span class="dvc-order-badge has-order">&#10003; Order ' + fmt(v.orderQtyLtr) + ' Ltr</span>'
             : '<span class="dvc-order-badge no-order">No order logged today</span>';
           var confirmedBadge = v.confirmed ? '<span class="dvc-confirmed-badge">(confirmed match)</span>' : '';
           return '<li>' + dvcEsc_(v.dealer) + confirmedBadge + orderBadge + '</li>';
@@ -7497,17 +7498,19 @@
         alert('Nothing to export yet — still loading, or no beat-day dealers for this date.');
         return;
       }
-      var rows = [['DSR', 'Status', 'Dealer / Planned Name', 'Closest Logged Visit', 'Match %', 'Order Today (incl GST)']];
+      var rows = [['DSR', 'Status', 'Dealer / Planned Name', 'Closest Logged Visit', 'Match %', 'Order Today (Alt Qty Ltr)']];
       dealerVisitCheckData_.forEach(function (d) {
         if (!d.loggedToday) {
           rows.push([d.dsr, 'No visit log for this date', '', '', '', '']);
           return;
         }
         // Visited became an array of {dealer, matchedShop, confirmed,
-        // orderAmount} objects 27 Oct 2026 (Yes/No learning + Tally order
-        // cross-check) - was plain dealer-name strings before.
+        // orderQtyLtr} objects 27 Oct 2026 (Yes/No learning + Tally order
+        // cross-check) - was plain dealer-name strings before. orderQtyLtr
+        // replaced orderAmount 28 Oct 2026 (owner's request: show litres,
+        // not Rupees).
         (d.visited || []).forEach(function (v) {
-          rows.push([d.dsr, v.confirmed ? 'Visited (confirmed match)' : 'Visited', v.dealer, v.matchedShop || '', '', (v.orderAmount === null || v.orderAmount === undefined) ? '' : v.orderAmount]);
+          rows.push([d.dsr, v.confirmed ? 'Visited (confirmed match)' : 'Visited', v.dealer, v.matchedShop || '', '', (v.orderQtyLtr === null || v.orderQtyLtr === undefined) ? '' : v.orderQtyLtr]);
         });
         (d.possible || []).forEach(function (p) { rows.push([d.dsr, 'Possible match', p.dealer, p.matchedShop, p.score, '']); });
         (d.missed || []).forEach(function (name) { rows.push([d.dsr, 'Missed', name, '', '', '']); });
