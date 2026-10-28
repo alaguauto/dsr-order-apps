@@ -355,6 +355,22 @@
   .dvc-sub summary { cursor: pointer; color: var(--ink-secondary); font-weight: 500; }
   .dvc-list { margin: 6px 0 0; padding-left: 18px; }
   .dvc-list li { margin: 2px 0; }
+  /* Order-today badge on a Visited row + Yes/No decision buttons on a
+     Possible-match row - added 27 Oct 2026 ("give me a dealer set for
+     visited also", "if a visited dealer gives order... show me that
+     also", "ask me a yes or no there"). */
+  .dvc-order-badge { font-size: 11px; margin-left: 6px; padding: 1px 6px; border-radius: 10px; }
+  .dvc-order-badge.has-order { background: var(--money-soft); color: var(--money); }
+  .dvc-order-badge.no-order { background: var(--surface-2); color: var(--ink-muted); }
+  .dvc-confirmed-badge { font-size: 11px; margin-left: 6px; color: var(--ink-muted); }
+  .dvc-decision-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .dvc-decision-text { flex: 1 1 auto; }
+  .dvc-decision-btns { flex: 0 0 auto; display: flex; gap: 4px; }
+  .dvc-decision-btn { font-size: 11px; padding: 2px 9px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); cursor: pointer; }
+  .dvc-decision-btn.yes { border-color: var(--good); color: var(--good); }
+  .dvc-decision-btn.no { border-color: var(--warn); color: var(--warn); }
+  .dvc-decision-btn:disabled { opacity: 0.5; cursor: default; }
+  .dvc-decision-done { font-size: 11px; color: var(--ink-muted); font-style: italic; }
 
   .today-row { display: flex; align-items: baseline; gap: 8px; }
   .today-value { font-size: 28px; font-weight: 700; }
@@ -7318,13 +7334,41 @@
       (possibleCount ? ' <span class="pill on">' + possibleCount + ' possible</span>' : '') +
       (missedCount ? ' <span class="pill err">' + missedCount + ' missed</span>' : '');
     var lists = '';
+    // Visited list + today's Tally order cross-check, added 27 Oct 2026
+    // ("give me a dealer set for visited also", "if a visited dealer
+    // gives order... show me that also"). orderAmount is null when Day
+    // Book has no qualifying row for that dealer today (no feed exists
+    // yet for payment/Receipt vouchers - see dayBookOrdersForDealersOnDate_()'s
+    // own comment in Code.gs).
+    if (visitedCount) {
+      lists += '<details class="dvc-sub"><summary>Visited (' + visitedCount + ')</summary><ul class="dvc-list">' +
+        d.visited.map(function (v) {
+          var hasOrder = v.orderAmount !== null && v.orderAmount !== undefined;
+          var orderBadge = hasOrder
+            ? '<span class="dvc-order-badge has-order">&#10003; Order ' + mfMoney_(v.orderAmount) + '</span>'
+            : '<span class="dvc-order-badge no-order">No order logged today</span>';
+          var confirmedBadge = v.confirmed ? '<span class="dvc-confirmed-badge">(confirmed match)</span>' : '';
+          return '<li>' + dvcEsc_(v.dealer) + confirmedBadge + orderBadge + '</li>';
+        }).join('') + '</ul></details>';
+    }
     // Possible matches are ALWAYS shown side-by-side with the closest
     // logged visit + score, never silently resolved either way - see the
     // calibration story in dealerVisitCheckLive_()'s own comment in Code.gs.
+    // Yes/No buttons added 27 Oct 2026 ("ask me a yes or no there") -
+    // Yes files a CONFIRMED decision (this exact shop spelling always
+    // means this dealer from now on); No files a REJECTED decision (this
+    // exact shop spelling is never offered as this dealer's match again,
+    // the matcher tries the next-best candidate next time instead). See
+    // the dvcDecisionClick_ listener below for what each button does.
     if (possibleCount) {
-      lists += '<details class="dvc-sub"><summary>Possible matches (' + possibleCount + ') &ndash; worth a glance</summary><ul class="dvc-list">' +
+      lists += '<details class="dvc-sub" open><summary>Possible matches (' + possibleCount + ') &ndash; worth a glance</summary><ul class="dvc-list">' +
         d.possible.map(function (p) {
-          return '<li>' + dvcEsc_(p.dealer) + ' &mdash; closest logged visit: ' + dvcEsc_(p.matchedShop) + ' (' + p.score + '% match)</li>';
+          return '<li class="dvc-decision-row" data-dealer="' + dvcEsc_(p.dealer) + '" data-shop="' + dvcEsc_(p.matchedShop) + '">' +
+            '<span class="dvc-decision-text">' + dvcEsc_(p.dealer) + ' &mdash; closest logged visit: ' + dvcEsc_(p.matchedShop) + ' (' + p.score + '% match)</span>' +
+            '<span class="dvc-decision-btns">' +
+            '<button type="button" class="dvc-decision-btn yes" data-decision="yes" title="Yes - this is the same shop">Yes</button>' +
+            '<button type="button" class="dvc-decision-btn no" data-decision="no" title="No - different shop, don\'t suggest this pairing again">No</button>' +
+            '</span></li>';
         }).join('') + '</ul></details>';
     }
     if (missedCount) {
@@ -7390,6 +7434,49 @@
     });
   })();
 
+  // Yes/No decision buttons on a "Possible match" row, added 27 Oct 2026
+  // ("ask me a yes or no there if i clicked yes then match the dealer
+  // with that and next time possible match cannot happen to the same
+  // and if no then leave and try to match with some another next time").
+  // Delegated on the wrap div since the list is rebuilt on every render -
+  // same convention as the dashboard's other delegated list listeners
+  // (e.g. taskManagerListEl above). Posts dealerVisitMatchDecision, then
+  // simply re-fetches the currently-displayed date so the dealer moves
+  // to the right bucket (Visited for Yes, re-matched or Missed for No)
+  // using the exact same server-side logic a future day's visit log
+  // would go through - never resolved client-side, so there is only one
+  // place (dealerVisitCheckLive_() in Code.gs) this can ever drift.
+  (function () {
+    var wrap = document.getElementById('dealerVisitCheckWrap');
+    if (!wrap) return;
+    wrap.addEventListener('click', function (e) {
+      var btn = e.target.closest('.dvc-decision-btn');
+      if (!btn) return;
+      var row = btn.closest('.dvc-decision-row');
+      if (!row) return;
+      var dealer = row.getAttribute('data-dealer') || '';
+      var shop = row.getAttribute('data-shop') || '';
+      var decision = btn.getAttribute('data-decision') || '';
+      if (!dealer || !shop || !decision || typeof ORDERS_API_URL !== 'string') return;
+      var btns = row.querySelectorAll('.dvc-decision-btn');
+      btns.forEach(function (b) { b.disabled = true; });
+      var textEl = row.querySelector('.dvc-decision-text');
+      var originalText = textEl ? textEl.textContent : '';
+      if (textEl) textEl.textContent = originalText + ' — saving…';
+      dashboardApiPost_('dealerVisitMatchDecision', { dealer: dealer, matchedShop: shop, decision: decision, requestedBy: CURRENT_USER_NAME || '' }).then(function (res) {
+        if (!res || !res.ok) {
+          btns.forEach(function (b) { b.disabled = false; });
+          if (textEl) textEl.textContent = originalText + ' — could not save, try again.';
+          return;
+        }
+        fetchDealerVisitCheckForDate_(dvcSelectedDateIso_ || todayISO());
+      }).catch(function () {
+        btns.forEach(function (b) { b.disabled = false; });
+        if (textEl) textEl.textContent = originalText + ' — could not reach the server, try again.';
+      });
+    });
+  })();
+
   // "Export as Excel" for Today's Dealer Visit Check, added 26 Oct 2026
   // ("excel download") - same client-side SheetJS pattern as
   // exportStockXlsxBtn just below, exporting the currently-loaded
@@ -7410,18 +7497,23 @@
         alert('Nothing to export yet — still loading, or no beat-day dealers for this date.');
         return;
       }
-      var rows = [['DSR', 'Status', 'Dealer / Planned Name', 'Closest Logged Visit', 'Match %']];
+      var rows = [['DSR', 'Status', 'Dealer / Planned Name', 'Closest Logged Visit', 'Match %', 'Order Today (incl GST)']];
       dealerVisitCheckData_.forEach(function (d) {
         if (!d.loggedToday) {
-          rows.push([d.dsr, 'No visit log for this date', '', '', '']);
+          rows.push([d.dsr, 'No visit log for this date', '', '', '', '']);
           return;
         }
-        (d.visited || []).forEach(function (name) { rows.push([d.dsr, 'Visited', name, '', '']); });
-        (d.possible || []).forEach(function (p) { rows.push([d.dsr, 'Possible match', p.dealer, p.matchedShop, p.score]); });
-        (d.missed || []).forEach(function (name) { rows.push([d.dsr, 'Missed', name, '', '']); });
+        // Visited became an array of {dealer, matchedShop, confirmed,
+        // orderAmount} objects 27 Oct 2026 (Yes/No learning + Tally order
+        // cross-check) - was plain dealer-name strings before.
+        (d.visited || []).forEach(function (v) {
+          rows.push([d.dsr, v.confirmed ? 'Visited (confirmed match)' : 'Visited', v.dealer, v.matchedShop || '', '', (v.orderAmount === null || v.orderAmount === undefined) ? '' : v.orderAmount]);
+        });
+        (d.possible || []).forEach(function (p) { rows.push([d.dsr, 'Possible match', p.dealer, p.matchedShop, p.score, '']); });
+        (d.missed || []).forEach(function (name) { rows.push([d.dsr, 'Missed', name, '', '', '']); });
       });
       var ws = XLSX.utils.aoa_to_sheet(rows);
-      ws['!cols'] = [{ wch: 14 }, { wch: 20 }, { wch: 40 }, { wch: 40 }, { wch: 10 }];
+      ws['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 40 }, { wch: 40 }, { wch: 10 }, { wch: 16 }];
       var wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Dealer Visit Check');
       var stamp = (dvcSelectedDateIso_ || todayISO());
