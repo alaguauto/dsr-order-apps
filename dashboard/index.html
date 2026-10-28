@@ -7396,11 +7396,11 @@
           var hasOrder = v.orderQtyLtr !== null && v.orderQtyLtr !== undefined;
           var orderBadge = hasOrder
             ? '<span class="dvc-order-badge has-order">&#10003; Order ' + fmt(v.orderQtyLtr) + ' Ltr</span>'
-            : '<span class="dvc-order-badge no-order">No order logged today</span>';
+            : '<span class="dvc-order-badge no-order">No Orders Today</span>';
           var hasCollection = v.collected !== null && v.collected !== undefined && v.collected !== 0;
           var collectionBadge = hasCollection
             ? '<span class="dvc-collection-badge has-collection">&#10003; Collected ' + mfMoney_(v.collected) + '</span>'
-            : '<span class="dvc-collection-badge no-collection">No collection logged</span>';
+            : '<span class="dvc-collection-badge no-collection">No Collection Today</span>';
           var confirmedBadge = v.confirmed ? '<span class="dvc-confirmed-badge">(confirmed match)</span>' : '';
           return '<li>' + dvcEsc_(v.dealer) + confirmedBadge + orderBadge + collectionBadge + '</li>';
         }).join('') + '</ul></details>';
