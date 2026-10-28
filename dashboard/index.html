@@ -362,6 +362,13 @@
   .dvc-order-badge { font-size: 11px; margin-left: 6px; padding: 1px 6px; border-radius: 10px; }
   .dvc-order-badge.has-order { background: var(--money-soft); color: var(--money); }
   .dvc-order-badge.no-order { background: var(--surface-2); color: var(--ink-muted); }
+  /* Collection badge, added 28 Oct 2026 ("IN GOOGLE SHEET WE ARE HAVING
+     LIVE COLLECTION CAN U TAKE FROM THAT") - same shape as the order
+     badge above but amber (--accent), not green (--money), so the two
+     are easy to tell apart at a glance on the same row. */
+  .dvc-collection-badge { font-size: 11px; margin-left: 6px; padding: 1px 6px; border-radius: 10px; }
+  .dvc-collection-badge.has-collection { background: var(--accent-soft); color: var(--accent); }
+  .dvc-collection-badge.no-collection { background: var(--surface-2); color: var(--ink-muted); }
   .dvc-confirmed-badge { font-size: 11px; margin-left: 6px; color: var(--ink-muted); }
   .dvc-decision-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
   .dvc-decision-text { flex: 1 1 auto; }
@@ -4355,10 +4362,33 @@
     var match = DSRS.filter(function (d) { return d.dsrName === longName; });
     return match.length ? match[0].name : longName;
   }
+  // Overdue-deposit reminder, added 28 Oct 2026 ("IF A DSR DEPOSIT DATE
+  // CROSSES A WEEK PUT A REMINDER THERE ITSELF SO I CAN ASK THE DSR WHY
+  // NOT PAID THIS WEEK COLLECTION PAYMENT") - dashboard-only (this is
+  // the owner's own "who do I need to call" view in the default All-
+  // DSRs/per-DSR-latest list; it does not appear in the DSR apps or in
+  // the date-range Search results below, which are history, not a
+  // "is someone overdue right now" check). More than 7 days between a
+  // DSR's own latest logged deposit date and today triggers it; a DSR
+  // with no deposit on record at all (bdDashEmptyRowHtml_ below) is
+  // always treated as overdue.
+  function bdDaysSince_(iso) {
+    if (!iso) return null;
+    var d = new Date(iso + 'T00:00:00');
+    if (isNaN(d.getTime())) return null;
+    var today = new Date(todayISO() + 'T00:00:00');
+    return Math.round((today.getTime() - d.getTime()) / 86400000);
+  }
+  function bdOverdueBadgeHtml_(days) {
+    var text = (days === null)
+      ? '&#9888; No deposit on record &mdash; ask why this week\'s collection wasn\'t paid'
+      : '&#9888; No deposit in ' + days + ' day' + (days === 1 ? '' : 's') + ' &mdash; ask why this week\'s collection wasn\'t paid';
+    return '<div style="margin-top:4px;"><span class="pill err">' + text + '</span></div>';
+  }
   // Row markup shared by the default "last 5" list and the date-range
   // search results below - extracted 27 Oct 2026 (was inline in
   // renderBankDeposits_() only) alongside the search feature itself.
-  function bdDashRowHtml_(d, selDsr) {
+  function bdDashRowHtml_(d, selDsr, showOverdue) {
     // Receipt From/To Date shown next to each receipt number, matching
     // the DSR apps' own bdRowHtml_() format - added 27 Oct 2026 ("from
     // and to date for deposit is not showing in dashboard that also
@@ -4373,21 +4403,31 @@
     // DSR name only shown in the "All DSRs" view - redundant once a
     // specific DSR is already picked in the filter above.
     var dsrLine = (selDsr === BD_ALL_VALUE_) ? '<div style="font-size:12px;font-weight:600;margin-top:2px;">' + mfEscapeHtml_(bdDsrShortName_(d.dsrName)) + '</div>' : '';
+    // showOverdue is only ever passed true from renderBankDeposits_()'s
+    // own default/latest-per-DSR view below - never from the date-range
+    // Search results, which show history and shouldn't be flagged as
+    // "overdue right now" just because an old record is more than a
+    // week in the past.
+    var daysSince = showOverdue ? bdDaysSince_(d.date) : null;
+    var overdueLine = (daysSince !== null && daysSince > 7) ? bdOverdueBadgeHtml_(daysSince) : '';
     return '<div style="padding:8px 0;border-top:1px solid var(--border);">' +
       '<div style="display:flex;justify-content:space-between;gap:8px;"><strong>₹' + Math.round(d.amount).toLocaleString('en-IN') + '</strong><span style="font-size:12px;color:var(--ink-muted);">' + bdFmtDate_(d.date) + '</span></div>' +
       dsrLine +
       '<div style="font-size:12px;color:var(--ink-muted);margin-top:2px;">' + mfEscapeHtml_(d.paidThrough || '') + '</div>' +
-      throLine + receiptLine + remarksLine +
+      throLine + receiptLine + remarksLine + overdueLine +
       '</div>';
   }
   // A DSR with no deposit on record yet (or none matching the current
   // view) - added 27 Oct 2026 alongside the "compulsory show all DSR
   // name" redesign below, so every DSR always has a visible row rather
-  // than silently dropping off the list.
+  // than silently dropping off the list. Always shows the overdue
+  // reminder too (added 28 Oct 2026) - no deposit on record at all is
+  // the most overdue case there is.
   function bdDashEmptyRowHtml_(dsrDisplayName) {
     return '<div style="padding:8px 0;border-top:1px solid var(--border);">' +
       '<div style="font-size:12px;font-weight:600;">' + mfEscapeHtml_(dsrDisplayName) + '</div>' +
       '<div style="font-size:12px;color:var(--ink-muted);margin-top:2px;">No deposits yet</div>' +
+      bdOverdueBadgeHtml_(null) +
       '</div>';
   }
   // Default view redesigned 27 Oct 2026 at the owner's request
@@ -4430,12 +4470,12 @@
           deposits.forEach(function (d) { byDsrName[d.dsrName] = d; });
           listEl.innerHTML = DSRS.map(function (dsr) {
             var found = byDsrName[dsr.dsrName];
-            return found ? bdDashRowHtml_(found, selDsr) : bdDashEmptyRowHtml_(dsr.name);
+            return found ? bdDashRowHtml_(found, selDsr, true) : bdDashEmptyRowHtml_(dsr.name);
           }).join('');
           return;
         }
         if (!deposits.length) { listEl.innerHTML = bdDashEmptyRowHtml_(bdDsrShortName_(selDsr)); return; }
-        listEl.innerHTML = deposits.map(function (d) { return bdDashRowHtml_(d, selDsr); }).join('');
+        listEl.innerHTML = deposits.map(function (d) { return bdDashRowHtml_(d, selDsr, true); }).join('');
       })
       .catch(function () { listEl.innerHTML = '<p style="padding:10px 4px;color:var(--ink-muted);font-size:12px;">Could not reach the server.</p>'; });
   }
@@ -7338,9 +7378,18 @@
     // ("give me a dealer set for visited also", "if a visited dealer
     // gives order... show me that also"). Shown as Alt Qty in litres,
     // not Rupees (changed 28 Oct 2026, owner's request). orderQtyLtr is
-    // null when Day Book has no qualifying row for that dealer today (no
-    // feed exists yet for payment/Receipt vouchers - see
-    // dayBookOrdersForDealersOnDate_()'s own comment in Code.gs).
+    // null when Day Book has no qualifying row for that dealer today -
+    // Day Book only ever carries Sales/order vouchers, never Receipt
+    // (payment) vouchers (see dayBookOrdersForDealersOnDate_()'s own
+    // comment in Code.gs).
+    // Collection cross-check, added 28 Oct 2026 ("IN GOOGLE SHEET WE ARE
+    // HAVING LIVE COLLECTION CAN U TAKE FROM THAT") - the owner pointed
+    // out that a separate live-synced sheet (LiveCollectionByDealer, not
+    // Day Book) does carry real per-dealer-per-day payment data, so this
+    // reads from there instead. collected is null when that sheet (for
+    // today) or that date's Daily Freeze snapshot (for a past date) has
+    // no row for the dealer, or the snapshot was never taken for that
+    // date - see collectionForDealersOnDate_()'s own comment in Code.gs.
     if (visitedCount) {
       lists += '<details class="dvc-sub"><summary>Visited (' + visitedCount + ')</summary><ul class="dvc-list">' +
         d.visited.map(function (v) {
@@ -7348,8 +7397,12 @@
           var orderBadge = hasOrder
             ? '<span class="dvc-order-badge has-order">&#10003; Order ' + fmt(v.orderQtyLtr) + ' Ltr</span>'
             : '<span class="dvc-order-badge no-order">No order logged today</span>';
+          var hasCollection = v.collected !== null && v.collected !== undefined && v.collected !== 0;
+          var collectionBadge = hasCollection
+            ? '<span class="dvc-collection-badge has-collection">&#10003; Collected ' + mfMoney_(v.collected) + '</span>'
+            : '<span class="dvc-collection-badge no-collection">No collection logged</span>';
           var confirmedBadge = v.confirmed ? '<span class="dvc-confirmed-badge">(confirmed match)</span>' : '';
-          return '<li>' + dvcEsc_(v.dealer) + confirmedBadge + orderBadge + '</li>';
+          return '<li>' + dvcEsc_(v.dealer) + confirmedBadge + orderBadge + collectionBadge + '</li>';
         }).join('') + '</ul></details>';
     }
     // Possible matches are ALWAYS shown side-by-side with the closest
@@ -7498,25 +7551,29 @@
         alert('Nothing to export yet — still loading, or no beat-day dealers for this date.');
         return;
       }
-      var rows = [['DSR', 'Status', 'Dealer / Planned Name', 'Closest Logged Visit', 'Match %', 'Order Today (Alt Qty Ltr)']];
+      var rows = [['DSR', 'Status', 'Dealer / Planned Name', 'Closest Logged Visit', 'Match %', 'Order Today (Alt Qty Ltr)', 'Collected Today (Rs)']];
       dealerVisitCheckData_.forEach(function (d) {
         if (!d.loggedToday) {
-          rows.push([d.dsr, 'No visit log for this date', '', '', '', '']);
+          rows.push([d.dsr, 'No visit log for this date', '', '', '', '', '']);
           return;
         }
         // Visited became an array of {dealer, matchedShop, confirmed,
         // orderQtyLtr} objects 27 Oct 2026 (Yes/No learning + Tally order
         // cross-check) - was plain dealer-name strings before. orderQtyLtr
         // replaced orderAmount 28 Oct 2026 (owner's request: show litres,
-        // not Rupees).
+        // not Rupees). collected added 28 Oct 2026 (Collection
+        // cross-check, from LiveCollectionByDealer - see the long
+        // comment above dealerVisitCheckDsrRowHtml_()).
         (d.visited || []).forEach(function (v) {
-          rows.push([d.dsr, v.confirmed ? 'Visited (confirmed match)' : 'Visited', v.dealer, v.matchedShop || '', '', (v.orderQtyLtr === null || v.orderQtyLtr === undefined) ? '' : v.orderQtyLtr]);
+          rows.push([d.dsr, v.confirmed ? 'Visited (confirmed match)' : 'Visited', v.dealer, v.matchedShop || '', '',
+            (v.orderQtyLtr === null || v.orderQtyLtr === undefined) ? '' : v.orderQtyLtr,
+            (v.collected === null || v.collected === undefined) ? '' : v.collected]);
         });
-        (d.possible || []).forEach(function (p) { rows.push([d.dsr, 'Possible match', p.dealer, p.matchedShop, p.score, '']); });
-        (d.missed || []).forEach(function (name) { rows.push([d.dsr, 'Missed', name, '', '', '']); });
+        (d.possible || []).forEach(function (p) { rows.push([d.dsr, 'Possible match', p.dealer, p.matchedShop, p.score, '', '']); });
+        (d.missed || []).forEach(function (name) { rows.push([d.dsr, 'Missed', name, '', '', '', '']); });
       });
       var ws = XLSX.utils.aoa_to_sheet(rows);
-      ws['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 40 }, { wch: 40 }, { wch: 10 }, { wch: 16 }];
+      ws['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 40 }, { wch: 40 }, { wch: 10 }, { wch: 16 }, { wch: 16 }];
       var wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Dealer Visit Check');
       var stamp = (dvcSelectedDateIso_ || todayISO());
