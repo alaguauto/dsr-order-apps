@@ -796,6 +796,20 @@
   .reorder-months-field { display:inline-flex; align-items:center; gap:4px; margin-right:8px; font-size:11px; color: var(--ink-muted); }
   .reorder-months-input { width:40px; padding:3px 4px; border-radius:5px; border:1px solid var(--border); font-size:12px; text-align:center; background: var(--surface); color: var(--ink); }
 
+  /* "Dead Stock / Slow-Moving Inventory" badges, added 29 Oct 2026 - same
+     shape/sizing as .reorder-badge above, distinct color tokens so a
+     group showing both panels' badges side by side still reads clearly
+     as two different things. See #captureDeadStock's own long comment
+     for the full feature. */
+  .deadstock-badge { font-size:10.5px; font-weight:600; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+  .deadstock-badge.dead { background: var(--warn-soft); color: var(--warn); }
+  .deadstock-badge.slow { background: var(--promo-soft); color: var(--promo); }
+  /* "Collection Bucket Targets" status pills, added 29 Oct 2026 - see
+     #captureBucketTargets's own long comment for the full feature. */
+  .bucket-status { font-size:11.5px; font-weight:600; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+  .bucket-status.met { background: var(--good-soft); color: var(--good); }
+  .bucket-status.short { background: var(--warn-soft); color: var(--warn); }
+
   /* Long dealer/item names (e.g. "SRI MEENAKSHI AUTO STORES,APT (OIL)")
      were pushing the numeric columns off-screen on mobile, hiding the
      figures the owner actually needs while scrolling - added 25 Sep 2026.
@@ -3012,6 +3026,108 @@
         <span class="reorder-badge nosale">No Sale</span>
       </div>
       <div class="dsr-list" id="reorderWrap"></div>
+    </div>
+  </details>
+</div>
+
+<!-- "Dead Stock / Slow-Moving Inventory", added 29 Oct 2026 at the
+     owner's request - the inverse of "Reorder Level & Sales Status"
+     above: items with real closing stock but no sale in a while,
+     locking up working capital instead of needing more stock. Reuses
+     the EXACT SAME data already computed for Reorder Level (Day Book
+     monthly item sales via mfdbMonthlyIdx_/mfdbAccumulateRows_, Closing
+     Stock via liveCatalogItems_()/stockCatalogItemLtr_()) - no new
+     backend endpoint, just the opposite filter (see
+     deadStockItemsStats_()/renderDeadStockPanel_() below).
+
+     Two GLOBAL thresholds (not per-group, unlike Reorder's "Months to
+     Keep" - idle-days classification is a single company policy, not a
+     per-category merchandising choice): Slow Moving >= 90 days idle
+     (default), Dead Stock >= 180 days idle (default), both editable
+     below, saved to this browser's localStorage only (same per-device
+     pattern as Reorder's own setting - no backend write endpoint for
+     this yet either).
+
+     "Idle days" is a deliberately conservative (never-overstated)
+     estimate: counted from the START of the month AFTER an item's last
+     real sale (the true last sale could be any day inside that month),
+     or from the start of Day Book's own history if an item never sold
+     at all within it. Day Book only goes back to Sep 2026, so this
+     sharpens the further back real history extends - same "grows more
+     confident over time" framing as Reorder Level's own averaging
+     window.
+
+     Value Locked = Closing Stock x the item's own catalog rate (ex-GST)
+     - an estimate using the only per-item price this app tracks, not
+     Tally's actual purchase/landed cost. -->
+<div id="captureDeadStock">
+  <details class="dsr-row" id="deadStockDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Dead Stock / Slow-Moving Inventory</span>
+        <span class="card-territory" id="deadStockSummaryLine">Loading…</span></span>
+      <span class="dsr-row-headright">
+        <span class="pill err" id="deadStockTotalPill" hidden></span>
+        <button type="button" class="share-icon-btn small" id="exportDeadStockXlsxBtn" title="Export as Excel" style="margin-left:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        </button>
+      </span>
+    </summary>
+    <div class="dsr-row-body">
+      <p class="reorder-note" id="deadStockNote"></p>
+      <div class="reorder-legend">
+        <span class="reorder-months-field">Slow Moving &ge; <input type="number" id="deadStockSlowInput" class="reorder-months-input" min="30" max="364" step="10"> days</span>
+        <span class="reorder-months-field">Dead Stock &ge; <input type="number" id="deadStockDeadInput" class="reorder-months-input" min="31" max="730" step="10"> days</span>
+        <span class="deadstock-badge slow">Slow Moving</span>
+        <span class="deadstock-badge dead">Dead Stock</span>
+      </div>
+      <div class="dsr-list" id="deadStockWrap"></div>
+    </div>
+  </details>
+</div>
+
+<!-- "Collection Bucket Targets", added 29 Oct 2026 at the owner's
+     request - a flat monthly collection target alone doesn't say
+     whether a DSR is actually chasing old, aged debt or just the
+     easiest/freshest bills. This mandates a target share of each DSR's
+     monthly collection come from the 60+ day aged bucket.
+
+     Reuses the already-live "60+ days overdue" frozen-baseline tracking
+     (sixtyPlusByDealer/sixtyPlusByDsrDealerwise_() above, same data the
+     per-DSR "60+ days overdue" dealer-wise list already shows) rolled
+     up to one total per DSR, against that DSR's own total month
+     collection (monthCollected, already on every DSR card) - no new
+     backend endpoint needed.
+
+     IMPORTANT, flagged to the owner before building: today's 60+
+     tracking is ONE combined bucket (60-89 days AND 90+ days frozen
+     together as soon as a bill crosses 60 days old) - there's no
+     separately-tracked 90-day-only bucket anywhere in this system yet.
+     This panel uses that existing combined 60+ figure. A genuinely
+     separate 90+-only split would need new backend tracking in
+     tally_live_watcher.py's baseline tracker (each frozen bill's own
+     age band, not just whether it crossed the 60-day line) - a
+     materially bigger change, not done here.
+
+     This is a visibility/tracking panel only, same as every other panel
+     on this dashboard - it does not block orders or collections, it
+     just surfaces who's short so the owner can act on it. Target % is
+     editable per DSR (default 20%), saved to this browser's
+     localStorage only (same per-device pattern as Reorder's "Months to
+     Keep"). -->
+<div id="captureBucketTargets">
+  <details class="dsr-row" id="bucketTargetsDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Collection Bucket Targets</span>
+        <span class="card-territory" id="bucketTargetsSummaryLine">Loading…</span></span>
+      <span class="dsr-row-headright">
+        <span class="pill err" id="bucketTargetsPill" hidden></span>
+      </span>
+    </summary>
+    <div class="dsr-row-body">
+      <p class="reorder-note">Bucket % = this month's collection against each DSR's 60+ day frozen-baseline bills (same figures as the "60+ days overdue" list) &divide; the DSR's total collection this month. Target % is editable per DSR below (default 20%, saved on this device). This is a visibility panel, not an automatic block.</p>
+      <div class="dsr-list" id="bucketTargetsWrap"></div>
     </div>
   </details>
 </div>
@@ -6579,6 +6695,9 @@
       mfdbFetchMonthIdx_(mk).then(function () {
         renderMfDaybookSummary_();
         if (typeof renderReorderPanel_ === 'function') renderReorderPanel_();
+        // Dead Stock's idle-day computation depends on this identical
+        // monthly cache (added 29 Oct 2026 alongside Reorder Level above).
+        if (typeof renderDeadStockPanel_ === 'function') renderDeadStockPanel_();
       });
     });
   }
@@ -7142,6 +7261,336 @@
       reorderMonthsOverride_[group] = n;
       saveReorderMonthsOverride_();
       renderReorderPanel_();
+    });
+  })();
+
+  // ----- Dead Stock / Slow-Moving Inventory, added 29 Oct 2026 -----
+  // See the big HTML comment above #captureDeadStock for the full
+  // feature/owner-request writeup. Inverse of Reorder Level above -
+  // same per-item join (catalog x Day Book monthly sales), opposite
+  // question: not "do we need more stock" but "is this stock sitting
+  // idle, locking up money".
+  var DEAD_STOCK_THRESH_KEY_ = 'aaaDeadStockThresholds';
+  var DEAD_STOCK_THRESH_DEFAULT_ = { slow: 90, dead: 180 };
+  function loadDeadStockThresholds_() {
+    try {
+      var raw = localStorage.getItem(DEAD_STOCK_THRESH_KEY_);
+      var parsed = raw ? JSON.parse(raw) : null;
+      var slow = (parsed && typeof parsed.slow === 'number' && parsed.slow > 0) ? parsed.slow : DEAD_STOCK_THRESH_DEFAULT_.slow;
+      var dead = (parsed && typeof parsed.dead === 'number' && parsed.dead > slow) ? parsed.dead : Math.max(DEAD_STOCK_THRESH_DEFAULT_.dead, slow + 1);
+      return { slow: slow, dead: dead };
+    } catch (e) { return { slow: DEAD_STOCK_THRESH_DEFAULT_.slow, dead: DEAD_STOCK_THRESH_DEFAULT_.dead }; }
+  }
+  var deadStockThresholds_ = loadDeadStockThresholds_();
+  function saveDeadStockThresholds_() {
+    try { localStorage.setItem(DEAD_STOCK_THRESH_KEY_, JSON.stringify(deadStockThresholds_)); } catch (e) { /* private browsing / storage disabled - ignore */ }
+  }
+  function deadStockStatus_(idleDays) {
+    if (idleDays >= deadStockThresholds_.dead) return 'dead';
+    if (idleDays >= deadStockThresholds_.slow) return 'slow';
+    return null;
+  }
+  function deadStockMonthStartDate_(mk) {
+    var y = +mk.slice(0, 4), m = +mk.slice(5);
+    return new Date(y, m - 1, 1);
+  }
+  function deadStockDaysBetween_(a, b) {
+    return Math.round((b.getTime() - a.getTime()) / 86400000);
+  }
+
+  // Per-item idle stats. Walks the SAME monthly cache Reorder Level uses
+  // (mfdbMonthlyIdx_/liveByItem), but unlike Reorder's average (which
+  // deliberately EXCLUDES the in-progress current month to avoid
+  // skewing a demand average), this WANTS the freshest signal - a sale
+  // logged today clearly means "not idle", so the live/in-progress
+  // month is included here.
+  function deadStockItemsStats_() {
+    if (daybookItemGroupRows === null || stockMap === null) return null;
+    var monthKeys = mfdbMonthColumnsList_(); // current-month-first; full window, not capped to 6 - "last sale" wants all the history there is
+    var displayedMonthKey = currentViewMonthKey_();
+    mfdbEnsureMonthlyIdxLoaded_(monthKeys, displayedMonthKey);
+    var liveByItem = mfdbAccumulateRows_(daybookItemGroupRows, {}).byItem;
+    var items = liveCatalogItems_();
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    return items.map(function (it) {
+      var stockLtr = stockCatalogItemLtr_(it);
+      var lastSaleMonthKey = null;
+      var earliestMonthKey = null; // oldest month key we actually have real data for (monthKeys is current-first, so this ends up being the last one successfully matched below)
+      monthKeys.forEach(function (mk) {
+        var mByItem;
+        if (mk === displayedMonthKey) {
+          mByItem = liveByItem;
+        } else {
+          var cached = mfdbMonthlyIdx_[mk];
+          if (cached === undefined || cached === null) return; // not loaded yet / failed - skip, never treat as a confirmed zero-sale month
+          mByItem = cached.byItem;
+        }
+        earliestMonthKey = mk;
+        var rec = mByItem[it.name];
+        if (rec && rec.total > 0 && lastSaleMonthKey === null) lastSaleMonthKey = mk;
+      });
+      var idleDays, lastSaleLabel, historyDays;
+      if (lastSaleMonthKey) {
+        // Conservative (never-overstated) idle estimate: idle since the
+        // START of the month AFTER the one it last sold in - the real
+        // last sale could have landed on any day inside lastSaleMonthKey.
+        var afterY = +lastSaleMonthKey.slice(0, 4), afterM = +lastSaleMonthKey.slice(5) + 1;
+        if (afterM > 12) { afterM = 1; afterY++; }
+        idleDays = Math.max(0, deadStockDaysBetween_(new Date(afterY, afterM - 1, 1), today));
+        lastSaleLabel = reportMonthLabelFor_(lastSaleMonthKey);
+      } else if (earliestMonthKey) {
+        // Never sold in any loaded month - idle at least since our own
+        // visibility began (a safe lower bound; Day Book's real history
+        // may not reach back far enough to say more than this yet).
+        idleDays = Math.max(0, deadStockDaysBetween_(deadStockMonthStartDate_(earliestMonthKey), today));
+        lastSaleLabel = null;
+      } else {
+        idleDays = 0; lastSaleLabel = null;
+      }
+      historyDays = earliestMonthKey ? Math.max(0, deadStockDaysBetween_(deadStockMonthStartDate_(earliestMonthKey), today)) : 0;
+      var rate = (it.rate === null || it.rate === undefined || isNaN(it.rate)) ? null : it.rate;
+      return {
+        name: it.name, group: it.group || 'Other', stockQty: it.stock, stockLtr: stockLtr,
+        rate: rate, valueLocked: (it.stock > 0 && rate !== null) ? it.stock * rate : 0,
+        idleDays: idleDays, lastSaleLabel: lastSaleLabel, historyDays: historyDays
+      };
+    });
+  }
+
+  var DEAD_STOCK_TABLE_HEAD_ = '<thead><tr><th>Item</th><th>Closing Stock</th><th>Last Sale</th><th>Idle</th><th>Value Locked</th><th>Status</th></tr></thead>';
+  function deadStockItemRowHtml_(s) {
+    return '<tr><td style="text-align:left;">' + mfEscapeHtml_(s.name) + '</td>' +
+      '<td class="num">' + fmt(s.stockLtr) + ' Ltr</td>' +
+      '<td class="num">' + (s.lastSaleLabel ? mfEscapeHtml_(s.lastSaleLabel) : 'never sold') + '</td>' +
+      '<td class="num">' + fmt(s.idleDays) + ' days</td>' +
+      '<td class="num">' + fmtRsOrDash_(s.rate !== null ? s.valueLocked : null) + '</td>' +
+      '<td class="num"><span class="deadstock-badge ' + s.status + '">' + (s.status === 'dead' ? 'Dead Stock' : 'Slow Moving') + '</span></td></tr>';
+  }
+
+  // Expand/collapse state preserved across re-renders the same way as
+  // Reorder's own openGroups, just captured up front since (unlike
+  // Reorder's per-group edit) a threshold change can re-classify every
+  // row at once - there's no "stable row order" need here, only the
+  // open/closed state is worth preserving.
+  var deadStockGroupOpen_ = {};
+  function renderDeadStockPanel_() {
+    var wrap = document.getElementById('deadStockWrap');
+    var summaryEl = document.getElementById('deadStockSummaryLine');
+    var totalPillEl = document.getElementById('deadStockTotalPill');
+    var noteEl = document.getElementById('deadStockNote');
+    if (!wrap) return;
+    var items = deadStockItemsStats_();
+    if (items === null) {
+      wrap.innerHTML = '';
+      if (summaryEl) summaryEl.textContent = 'Loading…';
+      if (totalPillEl) totalPillEl.hidden = true;
+      if (noteEl) noteEl.textContent = '';
+      return;
+    }
+    var existingDetails = wrap.querySelectorAll('details[data-group]');
+    for (var oi = 0; oi < existingDetails.length; oi++) {
+      deadStockGroupOpen_[existingDetails[oi].getAttribute('data-group')] = existingDetails[oi].open;
+    }
+    var flagged = [];
+    items.forEach(function (s) {
+      if (s.stockQty > 0) {
+        var status = deadStockStatus_(s.idleDays);
+        if (status) flagged.push({ name: s.name, group: s.group, stockLtr: s.stockLtr, rate: s.rate, valueLocked: s.valueLocked, idleDays: s.idleDays, lastSaleLabel: s.lastSaleLabel, status: status });
+      }
+    });
+    var byGroup = {};
+    flagged.forEach(function (s) { (byGroup[s.group] = byGroup[s.group] || []).push(s); });
+    var groupKeys = Object.keys(byGroup);
+    var groupStats = groupKeys.map(function (g) {
+      var rows = byGroup[g].slice().sort(function (a, b) { return b.valueLocked - a.valueLocked; });
+      var valueLocked = rows.reduce(function (s, r) { return s + r.valueLocked; }, 0);
+      var worstStatus = rows.some(function (r) { return r.status === 'dead'; }) ? 'dead' : 'slow';
+      return { group: g, rows: rows, valueLocked: valueLocked, status: worstStatus };
+    }).sort(function (a, b) { return b.valueLocked - a.valueLocked; });
+
+    if (!groupStats.length) {
+      wrap.innerHTML = '<p class="task-empty-note" style="padding:10px 4px;">No dead or slow-moving stock right now.</p>';
+      if (summaryEl) summaryEl.textContent = 'All stock moving';
+      if (totalPillEl) totalPillEl.hidden = true;
+    } else {
+      wrap.innerHTML = groupStats.map(function (gr) {
+        var groupAttr = mfEscapeHtml_(gr.group);
+        var rowsHtml = gr.rows.map(deadStockItemRowHtml_).join('');
+        return '<details class="dsr-row" data-group="' + groupAttr + '"' + (deadStockGroupOpen_[gr.group] ? ' open' : '') + '>' +
+          '<summary class="dsr-row-summary"><span class="dsr-row-toggle" aria-hidden="true"></span>' +
+          '<span class="dsr-row-headtext"><span class="card-name">' + groupAttr + '</span>' +
+          '<span class="card-territory">' + gr.rows.length + ' item(s) idle &middot; ' + fmtRs(Math.round(gr.valueLocked)) + ' locked</span></span>' +
+          '<span class="dsr-row-headright"><span class="deadstock-badge ' + gr.status + '">' + (gr.status === 'dead' ? 'Dead Stock' : 'Slow Moving') + '</span></span></summary>' +
+          '<div class="dsr-row-body">' + ageTableWrap_(DEAD_STOCK_TABLE_HEAD_, rowsHtml, 'namecol') + '</div></details>';
+      }).join('');
+      var totalLocked = groupStats.reduce(function (s, g) { return s + g.valueLocked; }, 0);
+      if (summaryEl) summaryEl.textContent = groupStats.length + ' item group(s) have stock sitting idle · ' + fmtRs(Math.round(totalLocked)) + ' locked';
+      if (totalPillEl) { totalPillEl.hidden = false; totalPillEl.textContent = fmtRs(Math.round(totalLocked)) + ' locked'; }
+    }
+    if (noteEl) {
+      var historyDays = items.length ? items[0].historyDays : 0;
+      noteEl.textContent = 'Slow Moving = no sale in ' + deadStockThresholds_.slow + '+ days (editable below); Dead Stock = ' + deadStockThresholds_.dead + '+ days. Idle days are a safe lower-bound estimate (counted from the start of the month after the last sale, or from the start of Day Book history if an item never sold) - Day Book history only covers the last ' + historyDays + ' day(s) so far, so this sharpens the further back it goes. Value Locked = Closing Stock × the item\'s own catalog rate (ex-GST) - an estimate, not Tally\'s purchase cost.';
+    }
+  }
+
+  // Threshold inputs - static markup (not rebuilt by renderDeadStockPanel_
+  // like the group rows are), so bound once here; initial .value set from
+  // whatever's saved before the first change listener attaches.
+  (function () {
+    var slowEl = document.getElementById('deadStockSlowInput');
+    var deadEl = document.getElementById('deadStockDeadInput');
+    if (!slowEl || !deadEl) return;
+    slowEl.value = deadStockThresholds_.slow;
+    deadEl.value = deadStockThresholds_.dead;
+    function apply() {
+      var s = parseInt(slowEl.value, 10); if (!s || s < 1) s = DEAD_STOCK_THRESH_DEFAULT_.slow;
+      var d = parseInt(deadEl.value, 10); if (!d || d <= s) d = s + 1;
+      deadStockThresholds_ = { slow: s, dead: d };
+      saveDeadStockThresholds_();
+      renderDeadStockPanel_();
+    }
+    slowEl.addEventListener('change', apply);
+    deadEl.addEventListener('change', apply);
+  })();
+
+  // Export as Excel - same client-side SheetJS pattern as
+  // exportReorderXlsxBtn above, exporting every flagged item (not just
+  // whichever groups are currently expanded on screen).
+  (function () {
+    var btn = document.getElementById('exportDeadStockXlsxBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof XLSX === 'undefined') {
+        alert('Excel export isn\'t available right now — the export library didn\'t load. Check your connection and try again.');
+        return;
+      }
+      var items = deadStockItemsStats_();
+      if (!items) {
+        alert('Still loading — try again in a moment.');
+        return;
+      }
+      var rows = [['Item Name', 'Item Group', 'Closing Stock (Ltr)', 'Last Sale', 'Idle (days)', 'Value Locked (Rs)', 'Status']];
+      items.forEach(function (s) {
+        var status = deadStockStatus_(s.idleDays);
+        if (!status) return;
+        rows.push([s.name, s.group, Math.round(s.stockLtr), s.lastSaleLabel || 'never sold', s.idleDays, s.rate !== null ? Math.round(s.valueLocked) : '', status === 'dead' ? 'Dead Stock' : 'Slow Moving']);
+      });
+      var ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 55 }, { wch: 28 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 14 }];
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'DeadStock');
+      var d = new Date();
+      var mm = d.getMonth() + 1; if (mm < 10) mm = '0' + mm;
+      var dd = d.getDate(); if (dd < 10) dd = '0' + dd;
+      var stamp = d.getFullYear() + '-' + mm + '-' + dd;
+      XLSX.writeFile(wb, 'AAA_Dead_Stock_' + stamp + '.xlsx');
+    });
+  })();
+
+  // ----- Collection Bucket Targets, added 29 Oct 2026 -----
+  // See the big HTML comment above #captureBucketTargets for the full
+  // feature/owner-request writeup. Rolls up the already-live 60+
+  // frozen-baseline "collected" figures (sixtyPlusByDsrDealerwise_()
+  // above, same source the "60+ days overdue" dealer-wise list uses)
+  // per DSR, against that DSR's own total month collection - no new
+  // backend fetch needed.
+  var BUCKET_TARGET_KEY_ = 'aaaBucketTargetPct';
+  var BUCKET_TARGET_DEFAULT_ = 20;
+  function loadBucketTargetOverride_() {
+    try {
+      var raw = localStorage.getItem(BUCKET_TARGET_KEY_);
+      var parsed = raw ? JSON.parse(raw) : null;
+      return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch (e) { return {}; }
+  }
+  var bucketTargetOverride_ = loadBucketTargetOverride_();
+  function saveBucketTargetOverride_() {
+    try { localStorage.setItem(BUCKET_TARGET_KEY_, JSON.stringify(bucketTargetOverride_)); } catch (e) { /* private browsing / storage disabled - ignore */ }
+  }
+  function bucketTargetForDsr_(dsrName) {
+    var v = bucketTargetOverride_[dsrName];
+    return (typeof v === 'number' && v >= 0) ? v : BUCKET_TARGET_DEFAULT_;
+  }
+
+  // sixtyPlusByDsrDealerwise_() is keyed by the DSR's own short name
+  // (d.name, e.g. "Prabha") - confirmed against its other call site
+  // (the per-DSR card's own 60+ count). visibleDsrs_() (not the raw
+  // DSRS array) so a restricted Area Manager login only ever sees their
+  // own DSR's row here too, same scoping every other per-DSR panel uses.
+  function bucketTargetsStats_() {
+    if (sixtyPlusByDealer === null) return null;
+    var sixtyPlusByDsr = sixtyPlusByDsrDealerwise_();
+    return visibleDsrs_().map(function (d) {
+      var list = sixtyPlusByDsr[d.name] || [];
+      var bucketCollected = list.reduce(function (s, r) { return s + (r.collected || 0); }, 0);
+      var hasData = d.monthCollected !== null && d.monthCollected !== undefined;
+      var totalCollected = hasData ? d.monthCollected : 0;
+      var pct = totalCollected > 0 ? (bucketCollected / totalCollected) * 100 : 0;
+      var target = bucketTargetForDsr_(d.name);
+      return { name: d.name, totalCollected: totalCollected, bucketCollected: bucketCollected, pct: pct, target: target, hasData: hasData };
+    });
+  }
+
+  var BUCKET_TABLE_HEAD_ = '<thead><tr><th>DSR</th><th>Total Collected (month)</th><th>From 60+ Bucket</th><th>Bucket %</th><th>Target</th><th>Status</th></tr></thead>';
+  function bucketStatusHtml_(pct, target, hasData) {
+    if (!hasData) return '<span class="bucket-status short">Loading…</span>';
+    var short = Math.max(0, target - pct);
+    return pct >= target
+      ? '<span class="bucket-status met">Met</span>'
+      : '<span class="bucket-status short">Short by ' + short.toFixed(1) + 'pp</span>';
+  }
+  function bucketTargetRowHtml_(s) {
+    return '<tr><td style="text-align:left;">' + mfEscapeHtml_(s.name) + '</td>' +
+      '<td class="num">' + fmtRs(Math.round(s.totalCollected)) + '</td>' +
+      '<td class="num">' + fmtRs(Math.round(s.bucketCollected)) + '</td>' +
+      '<td class="num">' + (s.hasData ? s.pct.toFixed(1) + '%' : '—') + '</td>' +
+      '<td class="num"><span class="reorder-months-field"><input type="number" class="reorder-months-input" data-dsr="' + mfEscapeHtml_(s.name) + '" value="' + s.target + '" min="0" max="100" step="5"><span class="reorder-months-label">%</span></span></td>' +
+      '<td class="num">' + bucketStatusHtml_(s.pct, s.target, s.hasData) + '</td></tr>';
+  }
+  function renderBucketTargets_() {
+    var wrap = document.getElementById('bucketTargetsWrap');
+    var summaryEl = document.getElementById('bucketTargetsSummaryLine');
+    var pillEl = document.getElementById('bucketTargetsPill');
+    if (!wrap) return;
+    var stats = bucketTargetsStats_();
+    if (stats === null) {
+      wrap.innerHTML = '<p class="task-empty-note" style="padding:10px 4px;">Loading…</p>';
+      if (summaryEl) summaryEl.textContent = 'Loading…';
+      if (pillEl) pillEl.hidden = true;
+      return;
+    }
+    var rowsHtml = stats.map(bucketTargetRowHtml_).join('');
+    var totalCollected = stats.reduce(function (s, r) { return s + r.totalCollected; }, 0);
+    var totalBucket = stats.reduce(function (s, r) { return s + r.bucketCollected; }, 0);
+    var totalPct = totalCollected > 0 ? (totalBucket / totalCollected) * 100 : 0;
+    var totalRow = '<tr class="age-table-total"><td>Total (all DSRs)</td><td class="num">' + fmtRs(Math.round(totalCollected)) + '</td><td class="num">' + fmtRs(Math.round(totalBucket)) + '</td><td class="num">' + totalPct.toFixed(1) + '%</td><td class="num">—</td><td class="num">' + (totalPct >= BUCKET_TARGET_DEFAULT_ ? '<span class="bucket-status met">Met</span>' : '<span class="bucket-status short">Short</span>') + '</td></tr>';
+    wrap.innerHTML = ageTableWrap_(BUCKET_TABLE_HEAD_, rowsHtml + totalRow, 'wide');
+    var shortCount = stats.filter(function (s) { return s.hasData && s.pct < s.target; }).length;
+    if (summaryEl) summaryEl.textContent = shortCount ? (shortCount + ' of ' + stats.length + ' DSRs short of their 60+ bucket target this month') : 'All DSRs meeting their 60+ bucket target';
+    if (pillEl) { pillEl.hidden = shortCount === 0; pillEl.textContent = shortCount + ' short'; }
+  }
+  // Delegated on #bucketTargetsWrap (bound once, persists across every
+  // renderBucketTargets_() rebuild) - same reasoning as the Reorder
+  // months-input listener above. data-dsr (not a dedicated class name)
+  // tells this apart from Reorder's own reorder-months-input instances,
+  // which live in a different wrap entirely anyway.
+  (function () {
+    var wrap = document.getElementById('bucketTargetsWrap');
+    if (!wrap) return;
+    wrap.addEventListener('click', function (e) {
+      if (e.target.hasAttribute && e.target.hasAttribute('data-dsr')) e.preventDefault();
+    });
+    wrap.addEventListener('change', function (e) {
+      if (!e.target.hasAttribute || !e.target.hasAttribute('data-dsr')) return;
+      var dsrName = e.target.getAttribute('data-dsr');
+      var n = parseInt(e.target.value, 10);
+      if (isNaN(n) || n < 0) n = BUCKET_TARGET_DEFAULT_;
+      if (n > 100) n = 100;
+      bucketTargetOverride_[dsrName] = n;
+      saveBucketTargetOverride_();
+      renderBucketTargets_();
     });
   })();
 
@@ -8028,6 +8477,11 @@
     renderPetronasAreaTable_(); renderPetronasCollectionAreaTable_(); renderStockCatalog_();
     renderGroupSummaryTable_(); renderDaybookItemGroupSummary_(); renderMfDaybookSummary_();
     renderReorderPanel_();
+    // Dead Stock / Slow-Moving Inventory + Collection Bucket Targets, added
+    // 29 Oct 2026 - same render() entry point as every other panel above so
+    // both pick up every live data refresh on the normal cadence.
+    if (typeof renderDeadStockPanel_ === 'function') renderDeadStockPanel_();
+    if (typeof renderBucketTargets_ === 'function') renderBucketTargets_();
     // Jan-Aug is a static snapshot (PETRONAS_SUMMARY_DATA_ never changes
     // at runtime) but Sep 2026 onward is live (petronasSummaryLive, synced
     // separately inside fetchLive() - see its own comment there) - this
@@ -11980,6 +12434,15 @@
     // for this needs a Code.gs change this file can't make on its own.
     var reorderBlock = document.getElementById('captureReorder');
     if (reorderBlock) reorderBlock.hidden = !!CURRENT_ALLOWED_AREAS;
+    // Dead Stock / Slow-Moving Inventory, added 29 Oct 2026 - same
+    // company-wide stock-in-hand sensitivity class as Reorder Level just
+    // above (it's the same per-item catalog join, inverted), so gated the
+    // same simple way for the same reason. Collection Bucket Targets is
+    // NOT hidden here - it's per-DSR collection performance, same class as
+    // the Collection Ratio panel, and already scopes itself to the logged
+    // in DSR(s) internally via visibleDsrs_() inside bucketTargetsStats_().
+    var deadStockBlock = document.getElementById('captureDeadStock');
+    if (deadStockBlock) deadStockBlock.hidden = !!CURRENT_ALLOWED_AREAS;
     // Master File - added 6 Oct 2026, hard-coded Owner-only for now (NOT
     // wired through sectionHidden_()/the Admin panel's per-role toggle,
     // unlike the blocks above) per the owner's explicit instruction:
