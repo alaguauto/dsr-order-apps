@@ -4352,6 +4352,15 @@
   // submits from their own app) - same ?type=bankDeposits endpoint, same
   // DSR-picker-with-"All DSRs"-default pattern as the heatmap just above.
   var BD_ALL_VALUE_ = '__ALL__';
+  // AAA Direct excluded from this panel only, added 29 Oct 2026 ("REMOVE
+  // AAA Direct FROM Bank Deposits AS THIS IS OUR SHOP MAINTAIN DSR SO ALL
+  // CREDIT WILL BE DIRECT NEFT") - AAA Direct is the owner's own shop,
+  // not a field DSR collecting and depositing cash; all its credit comes
+  // in by direct NEFT transfer, so it has nothing to show here. Scoped
+  // to a separate BD_DSRS_ list rather than touching the shared DSRS
+  // array itself, since DSRS backs every other panel on this dashboard
+  // (heatmap, targets, etc.) where AAA Direct still belongs.
+  var BD_DSRS_ = DSRS.filter(function (d) { return d.name !== 'AAA Direct'; });
   function bdFmtDate_(iso) {
     if (!iso) return '';
     var d = new Date(iso + 'T00:00:00');
@@ -4449,7 +4458,7 @@
     if (!dsrSel || !listEl) return;
     if (dsrSel.getAttribute('data-built') !== '1') {
       dsrSel.innerHTML = '<option value="' + BD_ALL_VALUE_ + '">All DSRs</option>' +
-        DSRS.map(function (d) { return '<option value="' + mfEscapeHtml_(d.dsrName) + '">' + mfEscapeHtml_(d.name) + '</option>'; }).join('');
+        BD_DSRS_.map(function (d) { return '<option value="' + mfEscapeHtml_(d.dsrName) + '">' + mfEscapeHtml_(d.name) + '</option>'; }).join('');
       dsrSel.setAttribute('data-built', '1');
     }
     var selDsr = dsrSel.value || BD_ALL_VALUE_;
@@ -4468,7 +4477,7 @@
           // yet" otherwise.
           var byDsrName = {};
           deposits.forEach(function (d) { byDsrName[d.dsrName] = d; });
-          listEl.innerHTML = DSRS.map(function (dsr) {
+          listEl.innerHTML = BD_DSRS_.map(function (dsr) {
             var found = byDsrName[dsr.dsrName];
             return found ? bdDashRowHtml_(found, selDsr, true) : bdDashEmptyRowHtml_(dsr.name);
           }).join('');
