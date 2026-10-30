@@ -2868,6 +2868,14 @@
              renderTaskManager_() from the same already-fetched
              TASKS_DATA_, no extra request. -->
         <span id="taskManagerOpenCount" class="card-territory" style="margin-right:4px;"></span>
+        <!-- Closed-needs-review count - added 30 Oct 2026 alongside the
+             "Closed" status itself ("manager and owner should review it
+             and want to complete, till complete that task has to be
+             shown as closed in dsr app and dashboard"): a DSR-closed
+             task is NOT the same as Completed, so this count flags how
+             many are sitting in "closed, awaiting your review" right
+             now, separate from the overall open count above. -->
+        <span id="taskManagerClosedCount" class="card-territory" style="margin-right:4px;color:var(--warn);"></span>
         <button type="button" class="task-icon-btn" id="taskManagerAddBtn" title="New task" style="margin-left:6px;">+ New</button>
       </span>
     </summary>
@@ -2952,7 +2960,7 @@
         <!-- Defaults to "open" (6 Oct 2026, "always show open task
              only") - still switchable here if the owner wants to check
              something completed. -->
-        <span><label>Show</label><select id="tmFilter"><option value="all">All tasks</option><option value="open" selected>Open / In Progress / On Hold</option><option value="done">Completed</option></select></span>
+        <span><label>Show</label><select id="tmFilter"><option value="all">All tasks</option><option value="open" selected>Open / In Progress / On Hold</option><option value="closed">Closed (needs review)</option><option value="done">Completed</option></select></span>
         <!-- DSR filter - 27 Oct 2026 ("add dsr wise dropdown here, make it before category") - narrows the list to one assignedTo value; options are built live from whatever DSR names actually appear in TASKS_DATA_ (see populateTmDsrFilterOptions_), so it never misses a name. Placed before Category per the owner's instruction. -->
         <span><label>DSR</label><select id="tmDsrFilter"><option value="">All DSRs</option></select></span>
         <!-- Category filter - 27 Oct 2026 ("split category wise in dashboard dropdown") - narrows the list to one Type; "All categories" (default) shows every task regardless of Type. -->
@@ -2988,6 +2996,38 @@
       </div>
       <div id="vrList"><p class="vr-empty">Open this card to load visit remarks.</p></div>
       <p style="font-size:11px;color:var(--ink-muted);margin:4px 18px 12px;">Open follow-ups = each shop's latest visit where payment was promised, an order is pending, price/scheme was asked, the shop was closed or the DSR didn't check out. <a id="vrOpenSheetLink" href="#" target="_blank" rel="noopener" style="color:inherit;">Open the Google Sheet</a></p>
+    </div>
+  </details>
+</div>
+
+<!-- Closed Visit Follow-ups, added 30 Oct 2026 alongside the "Closed"
+     task status itself ("and visit followup how will be closed?" ->
+     "Build real dismiss/close storage"). A DSR taps "Close" on a row in
+     their own app's Visit follow-ups panel (prabha.html's
+     dismissVisitFollowup_()); that writes a row to the new
+     VisitFollowupDismissals sheet via handleVisitFollowupDismiss_ in
+     Code.gs, and THIS panel is the company-wide read side of that same
+     data (handleVisitFollowupDismissalsGet_ with no staff filter) - who
+     closed which shop's follow-up and when, so an Owner/Manager/Area
+     Manager can see it without digging through the Sheet directly.
+     Visible to every role that sees Task Manager (same gating, set in
+     afterLogin_) since any of them might want to check what's been
+     closed. -->
+<div id="captureClosedVisitFollowups">
+  <details class="dsr-row" id="closedVisitFollowupsDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Closed Visit Follow-ups</span>
+        <span class="card-territory">Follow-ups a DSR has marked closed, company-wide</span></span>
+      <span class="dsr-row-headright">
+        <span id="cvfCount" class="card-territory" style="margin-right:4px;"></span>
+      </span>
+    </summary>
+    <div class="dsr-row-body" style="padding:0;gap:0;">
+      <div class="master-file-filters">
+        <span><label>DSR</label><select id="cvfDsrFilter"><option value="">All DSRs</option></select></span>
+      </div>
+      <div id="closedVisitFollowupsList" class="p2p-table-wrap"><p class="task-empty-note" style="padding:10px 16px;">Loading…</p></div>
     </div>
   </details>
 </div>
@@ -8007,6 +8047,63 @@
     });
   })();
 
+  // ===================================================================
+  // Closed Visit Follow-ups - added 30 Oct 2026, see the HTML comment
+  // above #captureClosedVisitFollowups for the full feature. Company-
+  // wide read side of prabha.html's (and now every rolled-out DSR app's)
+  // dismissVisitFollowup_() - handleVisitFollowupDismissalsGet_ with no
+  // staff filter returns every DSR's closed follow-ups.
+  var CLOSED_VISIT_FOLLOWUPS_DATA_ = [];
+
+  function fetchClosedVisitFollowups_() {
+    if (typeof ORDERS_API_URL !== "string") return;
+    fetch(ORDERS_API_URL + "?type=visitFollowupDismissals&sessionId=" + encodeURIComponent(CURRENT_SESSION_ID || "") + "&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        CLOSED_VISIT_FOLLOWUPS_DATA_ = (data && data.ok && data.dismissals) || [];
+        renderClosedVisitFollowups_();
+      })
+      .catch(function () { /* best-effort - panel just keeps showing its last/loading state */ });
+  }
+
+  function populateCvfDsrFilterOptions_() {
+    var sel = document.getElementById("cvfDsrFilter");
+    if (!sel) return;
+    var current = sel.value;
+    var names = [];
+    CLOSED_VISIT_FOLLOWUPS_DATA_.forEach(function (d) { if (d.dsrName && names.indexOf(d.dsrName) === -1) names.push(d.dsrName); });
+    names.sort();
+    sel.innerHTML = '<option value="">All DSRs</option>' + names.map(function (n) { return '<option' + (n === current ? ' selected' : '') + '>' + acEscapeHtml_(n) + '</option>'; }).join('');
+  }
+
+  function renderClosedVisitFollowups_() {
+    var listEl = document.getElementById("closedVisitFollowupsList");
+    var countEl = document.getElementById("cvfCount");
+    if (!listEl) return;
+    populateCvfDsrFilterOptions_();
+    if (countEl) countEl.textContent = CLOSED_VISIT_FOLLOWUPS_DATA_.length ? (CLOSED_VISIT_FOLLOWUPS_DATA_.length + " closed") : "";
+    var dsrVal = (document.getElementById("cvfDsrFilter") || {}).value || "";
+    var rows = CLOSED_VISIT_FOLLOWUPS_DATA_.filter(function (d) { return !dsrVal || d.dsrName === dsrVal; });
+    if (!rows.length) {
+      listEl.innerHTML = '<p class="task-empty-note" style="padding:10px 16px;">No closed follow-ups yet.</p>';
+      return;
+    }
+    var rowsHtml = rows.map(function (d) {
+      return '<tr><td style="text-align:left;">' + acEscapeHtml_(d.dsrName) + '</td><td style="text-align:left;">' + acEscapeHtml_(d.shop) + '</td>' +
+        '<td class="num">' + acEscapeHtml_(d.visitDate) + '</td><td style="text-align:left;">' + acEscapeHtml_(d.remarks || "—") + '</td>' +
+        '<td style="text-align:left;">' + acEscapeHtml_(d.dismissedBy) + '</td><td class="num">' + acEscapeHtml_(d.dismissedAt ? d.dismissedAt.slice(0, 10) : "—") + '</td></tr>';
+    }).join('');
+    listEl.innerHTML = ageTableWrap_(
+      '<thead><tr><th>DSR</th><th>Shop</th><th>Visit Date</th><th>Remarks</th><th>Closed By</th><th>Closed At</th></tr></thead>',
+      rowsHtml, 'namecol'
+    );
+  }
+
+  (function () {
+    var cvfDsrFilterEl = document.getElementById("cvfDsrFilter");
+    if (cvfDsrFilterEl) cvfDsrFilterEl.addEventListener("change", renderClosedVisitFollowups_);
+  })();
+
   // "Petronas Business Summary" - Jan-Aug 2026 is a STATIC, owner-
   // confirmed snapshot (his own corrected screenshot figures, sent 1 Oct
   // 2026 - superseding the earlier 30 Sep 2026 hand-baked Apr-Sep numbers,
@@ -12027,6 +12124,7 @@
       if (dsrVal && t.assignedTo !== dsrVal) return false;
       if (categoryVal && t.type !== categoryVal) return false;
       if (filterVal === "open") return t.status !== "Completed";
+      if (filterVal === "closed") return t.status === "Closed";
       if (filterVal === "done") return t.status === "Completed";
       return true;
     });
@@ -12038,16 +12136,28 @@
       var openCount = TASKS_DATA_.filter(function (t) { return t.status !== "Completed"; }).length;
       openCountEl.textContent = openCount ? (openCount + " open") : "";
     }
+    // Closed-needs-review count - added 30 Oct 2026, see the HTML
+    // comment on #taskManagerClosedCount above.
+    var closedCountEl = document.getElementById("taskManagerClosedCount");
+    if (closedCountEl) {
+      var closedNeedsReviewCount = TASKS_DATA_.filter(function (t) { return t.status === "Closed"; }).length;
+      closedCountEl.textContent = closedNeedsReviewCount ? (closedNeedsReviewCount + " closed · needs review") : "";
+    }
     if (!tasks.length) { listEl.innerHTML = '<p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">No tasks.</p>'; return; }
     var canCreate = (CURRENT_USER_ROLE === "Owner" || CURRENT_USER_ROLE === "Manager");
     // Status options restricted by role - 8 Oct 2026 ("Only the complete
     // in prograss option should be set my me or manager not area manager
-    // or dsr"). Owner/Manager keep all 4; Area Manager (the only
+    // or dsr"). Owner/Manager keep all statuses; Area Manager (the only
     // non-DSR, non-Owner/Manager role that reaches this dashboard) only
-    // ever sees Open/On Hold as pickable - handleTaskUpdateStatus_
-    // enforces the same restriction server-side.
+    // ever sees Open/On Hold/Closed as pickable - handleTaskUpdateStatus_
+    // enforces the same restriction server-side. "Closed" - added 30 Oct
+    // 2026 ("want a option for closed...manager and owner should review
+    // it and want to complete") - is NOT owner/manager-only (a DSR sets
+    // it themselves from their own app), so it's offered to every role
+    // here too, same as Open/On Hold; only In Progress/Completed stay
+    // Owner/Manager-only.
     var canSetInProgressOrDone = (CURRENT_USER_ROLE === "Owner" || CURRENT_USER_ROLE === "Manager");
-    var statuses = canSetInProgressOrDone ? ["Open", "In Progress", "On Hold", "Completed"] : ["Open", "On Hold"];
+    var statuses = canSetInProgressOrDone ? ["Open", "In Progress", "On Hold", "Closed", "Completed"] : ["Open", "On Hold", "Closed"];
     var todayIso = todayIso_();
     var html = "";
     for (var i = 0; i < tasks.length; i++) {
@@ -12074,6 +12184,14 @@
         : '';
       var remarksHtml = t.remarks ? ('<div class="task-meta">Remarks: ' + mfEscapeHtml_(t.remarks) + '</div>') : '';
       var reminderHtml = t.reminderTime ? (' &middot; Reminder ' + mfEscapeHtml_(t.reminderTime)) : '';
+      // "Closed by X on Y" - added 30 Oct 2026 ("should be visible in the
+      // dashboard that dsr has closed it on this date"), kept visible
+      // even once an Owner/Manager later marks the task Completed
+      // (closedBy/closedAt are never cleared server-side - see
+      // handleTaskUpdateStatus_'s own comment in Code.gs) so the review
+      // trail stays on record.
+      var closedLineHtml = t.closedBy ? ('<div class="task-meta">Closed by <b>' + mfEscapeHtml_(t.closedBy) + '</b> on ' +
+        mfEscapeHtml_(t.closedAt ? t.closedAt.slice(0, 10) : "—") + '</div>') : '';
       // Overdue - 8 Oct 2026 ("Show if the due date crossed as overdue"):
       // a task is overdue when its due date is strictly before today and
       // it isn't already Completed - styled the same red as the BizApp
@@ -12096,6 +12214,7 @@
         '<div class="task-pills"><select class="task-status-select">' + optionsHtml + '</select>' + overdueBadgeHtml + deleteBtnHtml + '</div>' +
         '<div class="task-due-line' + (isOverdue ? ' overdue' : '') + '">Due ' + mfEscapeHtml_(t.dueDate || "—") + reminderHtml + '</div>' +
         '<div class="task-meta">Created by ' + mfEscapeHtml_(t.createdBy || "") + '</div>' +
+        closedLineHtml +
         remarksHtml +
         '<div class="task-comments">' + commentsHtml + '</div>' +
         '<div class="task-card-foot"><input type="text" class="task-comment-input" placeholder="Add a comment…">' +
@@ -12817,6 +12936,13 @@
     if (actionCentreBlock && !actionCentreBlock.hidden || (promiseTrackerBlock && !promiseTrackerBlock.hidden)) {
       fetchPromises_();
       setInterval(fetchPromises_, 60000);
+    }
+    // Closed Visit Follow-ups - added 30 Oct 2026, gated the same way as
+    // Task Manager (every role that reaches this dashboard), see the
+    // HTML comment above #captureClosedVisitFollowups.
+    if (typeof fetchClosedVisitFollowups_ === "function") {
+      fetchClosedVisitFollowups_();
+      setInterval(fetchClosedVisitFollowups_, 60000);
     }
     // Re-fetch every 60s so a reminder can fire even if nobody re-opens
     // the Task Manager panel themselves (see checkTaskRemindersDash_
