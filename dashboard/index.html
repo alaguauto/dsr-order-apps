@@ -359,17 +359,30 @@
      Possible-match row - added 27 Oct 2026 ("give me a dealer set for
      visited also", "if a visited dealer gives order... show me that
      also", "ask me a yes or no there"). */
-  .dvc-order-badge { font-size: 11px; margin-left: 6px; padding: 1px 6px; border-radius: 10px; }
+  /* Share-image fix, 30 Oct 2026 - html2canvas (the "Share" button's
+     capture library) was mis-rendering/overlapping this list when a
+     dealer name was followed by 2-3 inline badges that needed to wrap at
+     narrow widths (this is what the owner's "collapsed coming clear"
+     report traced back to). The dealer name + badges wrapping inline
+     together (the original layout) is exactly the shape that was making
+     html2canvas mis-measure/overlap this list - putting the badges in
+     their own block-level row (.dvc-badges below) removes the inline
+     wrap html2canvas was getting wrong, with no visual loss (still reads
+     left-to-right, just on two lines instead of a ragged wrap). Plain
+     on-screen rendering (no share) looked fine either way - this was
+     purely a capture-reliability fix. */
+  .dvc-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+  .dvc-order-badge { font-size: 11px; padding: 1px 6px; border-radius: 10px; }
   .dvc-order-badge.has-order { background: var(--money-soft); color: var(--money); }
   .dvc-order-badge.no-order { background: var(--surface-2); color: var(--ink-muted); }
   /* Collection badge, added 28 Oct 2026 ("IN GOOGLE SHEET WE ARE HAVING
      LIVE COLLECTION CAN U TAKE FROM THAT") - same shape as the order
      badge above but amber (--accent), not green (--money), so the two
      are easy to tell apart at a glance on the same row. */
-  .dvc-collection-badge { font-size: 11px; margin-left: 6px; padding: 1px 6px; border-radius: 10px; }
+  .dvc-collection-badge { font-size: 11px; padding: 1px 6px; border-radius: 10px; }
   .dvc-collection-badge.has-collection { background: var(--accent-soft); color: var(--accent); }
   .dvc-collection-badge.no-collection { background: var(--surface-2); color: var(--ink-muted); }
-  .dvc-confirmed-badge { font-size: 11px; margin-left: 6px; color: var(--ink-muted); }
+  .dvc-confirmed-badge { font-size: 11px; color: var(--ink-muted); }
   .dvc-decision-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
   .dvc-decision-text { flex: 1 1 auto; }
   .dvc-decision-btns { flex: 0 0 auto; display: flex; gap: 4px; }
@@ -1123,6 +1136,34 @@
   .vr-task-btn { background: var(--accent-soft); color: var(--accent); border: none; border-radius: 5px; padding: 3px 9px; cursor: pointer; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
   .vr-task-btn:hover { filter: brightness(0.95); }
   .vr-empty { padding: 10px 0; color: var(--ink-muted); font-size: 12.5px; margin: 0; }
+
+  /* Today's Action Centre + Collection Promise Tracker - added 30 Oct
+     2026. Copied verbatim from the approved mockup (action-centre.html,
+     29 Oct 2026) - same .pill/.stat-label/.stat-value classes already
+     used everywhere else on this dashboard, these are the only genuinely
+     new classes this round introduces. */
+  .ac-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 16px; }
+  @media (max-width: 760px) { .ac-tiles { grid-template-columns: repeat(2, 1fr); } }
+  .ac-tile { border-radius: 12px; padding: 14px 16px; border: 1px solid var(--border); cursor: default; }
+  .ac-tile .stat-label { margin: 0 0 4px; }
+  .ac-tile .stat-value { display: block; }
+  .ac-tile.red { background: var(--warn-soft); }
+  .ac-tile.red .stat-value { color: var(--warn); }
+  .ac-tile.purple { background: var(--promo-soft); }
+  .ac-tile.purple .stat-value { color: var(--promo); }
+  .ac-tile.green { background: var(--good-soft); }
+  .ac-tile.green .stat-value { color: var(--good); }
+  .ac-tile.neutral { background: var(--surface-2, #f4f2ee); }
+  .ac-group { padding: 0 16px 10px; }
+  .ac-group-title { font-weight: 700; font-size: 14px; margin: 18px 0 8px; display: flex; align-items: center; gap: 8px; }
+  .ac-group-title .cnt { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); }
+  .ac-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; background: var(--surface); }
+  .ac-row-main { min-width: 0; }
+  .ac-row-title { font-weight: 600; font-size: 13.5px; }
+  .ac-row-sub { font-size: 12px; color: var(--ink-muted); margin-top: 2px; }
+  .ac-row-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .ac-open { font-size: 12.5px; font-weight: 600; color: var(--accent, #2f6f8f); text-decoration: none; white-space: nowrap; }
+  .p2p-table-wrap { margin: 10px 16px 18px; }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a4a44">
@@ -3005,6 +3046,65 @@
           itself still reflects live stock as always). A month viewed
           via the dashboard's own "frozen month" picker elsewhere IS a
           closed month, so it's still included normally. -->
+<!-- Today's Action Centre - added 30 Oct 2026 (owner: "Create the
+     Action Centre and both together"). Owner-only, per the approved
+     mockup's own banner text (action-centre.html, 29 Oct 2026) - a
+     single daily triage view pulling together what's already live
+     elsewhere on this dashboard (60+/90+ day overdue dealers, DSR pace
+     vs target, Dead Stock, Task Manager) plus the new Promise Tracker
+     panel right below it. Nothing new is computed for it - see
+     renderActionCentre_() for exactly which existing functions/data it
+     reads from. Static skeleton below; hidden toggled in afterLogin_. -->
+<div id="captureActionCentre" hidden>
+  <section class="card" style="margin-bottom:22px;">
+    <div class="card-head" style="padding:16px 18px 0;">
+      <div>
+        <p class="card-name" style="font-size:20px;">Today's Action Centre</p>
+        <p class="card-territory">Owner only &middot; pulls from panels already on this dashboard - nothing new is tracked, this just puts the urgent items in one place</p>
+      </div>
+    </div>
+    <div class="ac-tiles" id="acTiles"><p class="task-empty-note" style="padding:10px 16px;">Loading…</p></div>
+    <div id="acGroups"></div>
+  </section>
+</div>
+
+<!-- Collection Promise Tracker - added 30 Oct 2026, the second idea from
+     the same approved mockup, a separate panel. A payment promise a DSR
+     gets from a dealer at a visit ("I'll pay 50,000 by Friday"), logged
+     either from that DSR's own app or from here (Owner/Manager typing
+     in what a DSR reported back - the owner's own chosen scope for who
+     may log one). "Collected So Far"/Status are never trusted from the
+     client - see Code.gs's handlePromisesGet_() for how they're always
+     derived fresh from live Tally collection. Visible to Owner and
+     Manager (not Area Manager) - same company-wide visibility class as
+     Today's Action Centre above, gated in afterLogin_. -->
+<div id="capturePromiseTracker" hidden>
+  <section class="card" style="margin-bottom:22px;">
+    <div class="card-head" style="padding:16px 18px 0;">
+      <div>
+        <p class="card-name" style="font-size:18px;">Collection Promise Tracker</p>
+        <p class="card-territory">A payment promise logged at a dealer visit, tracked until it's actually collected or missed.</p>
+      </div>
+    </div>
+    <div style="padding:4px 16px 0;">
+      <form id="promiseLogForm" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;padding:10px 0 14px;border-bottom:1px solid var(--border);margin-bottom:4px;">
+        <label style="font-size:12px;">Dealer<br>
+          <input type="text" id="promiseDealerInput" list="promiseDealerList" placeholder="Dealer name" required style="min-width:220px;">
+          <datalist id="promiseDealerList"></datalist>
+        </label>
+        <label style="font-size:12px;">DSR<br><input type="text" id="promiseDsrInput" placeholder="auto-filled" style="width:140px;"></label>
+        <label style="font-size:12px;">Promised (₹)<br><input type="number" inputmode="decimal" id="promiseAmountInput" placeholder="0" required style="width:120px;"></label>
+        <label style="font-size:12px;">Promise date<br><input type="date" id="promiseDateInput" required style="width:150px;"></label>
+        <label style="font-size:12px;">Notes<br><input type="text" id="promiseNotesInput" placeholder="optional" style="width:180px;"></label>
+        <button type="submit" class="dealer-target-save-btn" style="height:34px;">Log Promise</button>
+        <span id="promiseLogStatus" style="font-size:11.5px;color:var(--ink-muted);"></span>
+      </form>
+    </div>
+    <div class="p2p-table-wrap" id="promiseTrackerWrap"><p class="task-empty-note" style="padding:10px 4px;">Loading…</p></div>
+    <p class="task-empty-note" style="padding:0 16px 14px;font-size:11.5px;" id="promiseTrackerNote"></p>
+  </section>
+</div>
+
 <div id="captureReorder">
   <details class="dsr-row" id="reorderDetails">
     <summary class="dsr-row-summary">
@@ -7594,6 +7694,319 @@
     });
   })();
 
+  // ===================================================================
+  // Today's Action Centre + Collection Promise Tracker - added 30 Oct
+  // 2026 (owner: "Create the Action Centre and both together"). Both
+  // started as a static mockup (action-centre.html, 29 Oct 2026),
+  // approved before this real build. Action Centre is a pure
+  // aggregation - every figure below is read straight from a
+  // panel/data source already live on this dashboard (lastAttnSummary
+  // from renderNeedsAttention(), DSRS[]'s own sales/collection pace,
+  // deadStockItemsStats_()/reorderItemsStats_() from the Dead
+  // Stock/Reorder panels, TASKS_DATA_ from Task Manager) plus the new
+  // Promise Tracker data below - nothing is computed from scratch here
+  // that another panel doesn't already compute. See the HTML comment
+  // above #captureActionCentre for the visibility rule (Owner only).
+  var PROMISES_DATA_ = [];
+
+  function fetchPromises_() {
+    if (typeof ORDERS_API_URL !== "string") return;
+    fetch(ORDERS_API_URL + "?type=promises&sessionId=" + encodeURIComponent(CURRENT_SESSION_ID || "") + "&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        PROMISES_DATA_ = (data && data.ok && data.promises) || [];
+        renderPromiseTracker_();
+        renderActionCentre_();
+      })
+      .catch(function () { /* best-effort - both renders just keep showing their last/loading state */ });
+  }
+
+  function acEscapeHtml_(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+  }
+
+  // "₹18.4L"/"₹2.1Cr" short figure, local to the Action Centre's own
+  // tiles only - every other ₹ figure on this dashboard keeps using the
+  // full fmtRs(), unchanged.
+  function acShortRs_(v) {
+    var n = Number(v) || 0, a = Math.abs(n);
+    if (a >= 1e7) return '₹' + (n / 1e7).toFixed(2) + 'Cr';
+    if (a >= 1e5) return '₹' + (n / 1e5).toFixed(1) + 'L';
+    return fmtRs(n);
+  }
+
+  function acPromiseStatusPill_(status) {
+    var cls = status === 'Kept' ? 'done' : (status === 'Broken' || status === 'Partial') ? 'err' : (status === 'Due today' ? 'on' : 'neutral');
+    return '<span class="pill ' + cls + '">' + acEscapeHtml_(status) + '</span>';
+  }
+
+  // The most recent (by Promise Date) promise on file for one dealer -
+  // used by the Action Centre's own Collection follow-up rows to show
+  // the same promise context the mockup did ("promised X on Y").
+  function acLatestPromiseForDealer_(dealerName) {
+    var mine = PROMISES_DATA_.filter(function (p) { return p.dealer === dealerName; });
+    if (!mine.length) return null;
+    mine.sort(function (a, b) { return String(b.promiseDate).localeCompare(String(a.promiseDate)); });
+    return mine[0];
+  }
+
+  function renderActionCentre_() {
+    var tilesEl = document.getElementById('acTiles');
+    var groupsEl = document.getElementById('acGroups');
+    if (!tilesEl || !groupsEl) return;
+    if (outstandingMap === null || dealerRoster === null || !lastAttnSummary) {
+      tilesEl.innerHTML = '<p class="task-empty-note" style="padding:10px 16px;">Waiting for the next Tally sync…</p>';
+      groupsEl.innerHTML = '';
+      return;
+    }
+
+    // --- Tile 1: Overdue to collect - reuses renderNeedsAttention()'s own 60-89/90+ totals, never recomputed here ---
+    var overdueAmt = lastAttnSummary.sum60 + lastAttnSummary.sum90;
+    var overdueCount = lastAttnSummary.c60 + lastAttnSummary.c90;
+
+    // --- Tile 2: Behind monthly pace - same run-rate math as each DSR's own Sales/Collection panel (projectMonthEnd_()) ---
+    var behindList = [];
+    visibleDsrs_().forEach(function (d) {
+      if (!(d.target > 0) || d.monthLtr === null) return;
+      var projected = projectMonthEnd_(d.monthLtr);
+      if (d.target - projected > 0.5) behindList.push({ dsr: d, metric: 'Sales', pct: d.monthLtr / d.target * 100, target: d.target, achieved: d.monthLtr, isLtr: true });
+    });
+    visibleDsrs_().forEach(function (d) {
+      if (!(d.collectionTarget > 0) || d.monthCollected === null) return;
+      var projected = projectMonthEnd_(d.monthCollected);
+      if (d.collectionTarget - projected > 0.5) behindList.push({ dsr: d, metric: 'Collection', pct: d.monthCollected / d.collectionTarget * 100, target: d.collectionTarget, achieved: d.monthCollected, isLtr: false });
+    });
+    // "Behind" is counted by DISTINCT DSR (the mockup's own "3 of 7
+    // DSRs" framing) even though one DSR can appear twice above (once
+    // for Sales, once for Collection).
+    var behindDsrNames = {};
+    behindList.forEach(function (b) { behindDsrNames[b.dsr.name] = true; });
+    var behindCount = Object.keys(behindDsrNames).length;
+    var totalDsrCount = visibleDsrs_().length;
+
+    // --- Tile 3: Stock tying up cash - Dead Stock panel's own stats function, never recomputed here ---
+    var deadStockTotal = 0, deadStockCount = 0;
+    if (typeof deadStockItemsStats_ === 'function' && typeof deadStockStatus_ === 'function') {
+      (deadStockItemsStats_() || []).forEach(function (s) {
+        if (s.stockQty > 0 && deadStockStatus_(s.idleDays)) { deadStockTotal += s.valueLocked; deadStockCount++; }
+      });
+    }
+
+    // --- Tile 4: Tasks overdue - Task Manager's own TASKS_DATA_, same isOverdue rule it uses ---
+    var todayIsoAc = new Date().toISOString().slice(0, 10);
+    var overdueTasks = TASKS_DATA_.filter(function (t) { return t.dueDate && t.status !== 'Completed' && t.dueDate < todayIsoAc; });
+
+    tilesEl.innerHTML =
+      '<div class="ac-tile red"><p class="stat-label">Overdue to collect</p><span class="stat-value">' + acShortRs_(overdueAmt) + '<span class="unit">' + overdueCount + ' dealer' + (overdueCount === 1 ? '' : 's') + '</span></span></div>' +
+      '<div class="ac-tile purple"><p class="stat-label">Behind monthly pace</p><span class="stat-value">' + behindCount + '<span class="unit">of ' + totalDsrCount + ' DSRs</span></span></div>' +
+      '<div class="ac-tile neutral"><p class="stat-label">Stock tying up cash</p><span class="stat-value">' + acShortRs_(deadStockTotal) + '<span class="unit">' + deadStockCount + ' item' + (deadStockCount === 1 ? '' : 's') + '</span></span></div>' +
+      '<div class="ac-tile red"><p class="stat-label">Tasks overdue</p><span class="stat-value">' + overdueTasks.length + '<span class="unit">across the team</span></span></div>';
+
+    var groupsHtml = '';
+
+    // --- Group: Collection follow-up - every 60+/90+ dealer across all visible DSRs, flattened and re-sorted (cross-DSR list, matching the mockup) ---
+    var followUp = [];
+    Object.keys(lastAttnSummary.byDsr).forEach(function (dsrName) {
+      lastAttnSummary.byDsr[dsrName].forEach(function (r) { if (r.days >= 60) followUp.push(r); });
+    });
+    followUp.sort(function (a, b) { return Math.abs(b.raw) - Math.abs(a.raw); });
+    if (followUp.length) {
+      var shownDealers = followUp.slice(0, 3);
+      var restDealers = followUp.slice(3);
+      var rowsHtml = shownDealers.map(function (r) {
+        var promise = acLatestPromiseForDealer_(r.name);
+        var promiseLine, pill;
+        if (promise) {
+          promiseLine = 'promised ' + fmtRs(promise.promisedAmount) + (promise.promiseDate ? (' on ' + promise.promiseDate) : '') + ' - ' +
+            (promise.status === 'Kept' ? 'kept' : promise.status === 'Broken' ? 'nothing received yet' : promise.status === 'Partial' ? (fmtRs(promise.collectedSoFar) + ' received so far') : 'not due yet');
+          pill = promise.status === 'Broken' ? '<span class="pill err">Broken promise</span>'
+            : promise.status === 'Due today' ? '<span class="pill done">Due today</span>'
+            : promise.status === 'Kept' ? '<span class="pill done">Kept</span>'
+            : promise.status === 'Partial' ? '<span class="pill err">Partial</span>'
+            : '<span class="pill">Pending</span>';
+        } else {
+          promiseLine = 'no payment promise on file';
+          pill = r.days >= 90 ? '<span class="pill err">90+ days</span>' : '<span class="pill">60+ days</span>';
+        }
+        return '<div class="ac-row"><div class="ac-row-main"><div class="ac-row-title">' + acEscapeHtml_(r.name) + ' - ' + fmtRs(Math.abs(r.raw)) + ' overdue (' + r.days + ' days)</div>' +
+          '<div class="ac-row-sub">DSR: ' + acEscapeHtml_(r.dsrName) + ' &middot; ' + acEscapeHtml_(promiseLine) + '</div></div>' +
+          '<div class="ac-row-right">' + pill + '<a class="ac-open" href="#attentionStats">Open dealer &rarr;</a></div></div>';
+      }).join('');
+      if (restDealers.length) {
+        var restTotal = restDealers.reduce(function (a, r) { return a + Math.abs(r.raw); }, 0);
+        rowsHtml += '<div class="ac-row"><div class="ac-row-main"><div class="ac-row-title">+ ' + restDealers.length + ' more dealer' + (restDealers.length === 1 ? '' : 's') + ' 60+ days overdue</div>' +
+          '<div class="ac-row-sub">' + fmtRs(restTotal) + ' combined</div></div><div class="ac-row-right"></div></div>';
+      }
+      groupsHtml += '<div class="ac-group"><p class="ac-group-title">Collection follow-up <span class="cnt">' + followUp.length + '</span></p>' + rowsHtml + '</div>';
+    }
+
+    // --- Group: Sales pace - DSRs behind pace on either Sales or Collection, worst-first ---
+    if (behindList.length) {
+      var daysInMonthAc = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+      var remainingDaysAc = Math.max(0, daysInMonthAc - new Date().getDate());
+      behindList.sort(function (a, b) { return a.pct - b.pct; });
+      var paceRows = behindList.map(function (b) {
+        var pctRounded = Math.round(b.pct);
+        var gap = b.target - b.achieved;
+        var perDay = remainingDaysAc > 0 ? gap / remainingDaysAc : gap;
+        var severe = pctRounded < 70;
+        var sub = remainingDaysAc > 0
+          ? ('Needs ' + (b.isLtr ? (Math.round(perDay).toLocaleString('en-IN') + ' Ltr') : fmtRs(perDay)) + '/day for ' + remainingDaysAc + ' more day' + (remainingDaysAc === 1 ? '' : 's') + (severe ? ' - unlikely at current pace' : ''))
+          : ('Last day of the month - ' + (b.isLtr ? (Math.round(gap).toLocaleString('en-IN') + ' Ltr') : fmtRs(gap)) + ' still needed');
+        return '<div class="ac-row"><div class="ac-row-main"><div class="ac-row-title">' + acEscapeHtml_(b.dsr.name) + ' (' + b.metric + ') - ' + pctRounded + '% of target, ' + remainingDaysAc + ' day' + (remainingDaysAc === 1 ? '' : 's') + ' left</div>' +
+          '<div class="ac-row-sub">' + sub + '</div></div><div class="ac-row-right"><span class="pill err">' + (severe ? 'Will miss target' : 'At risk') + '</span></div></div>';
+      }).join('');
+      groupsHtml += '<div class="ac-group"><p class="ac-group-title">Sales pace <span class="cnt">' + behindList.length + '</span></p>' + paceRows + '</div>';
+    }
+
+    // --- Group: Stock to review - worst Dead Stock groups + top Reorder Now items, reusing their own existing stats functions ---
+    var stockRows = '', stockCount = 0;
+    if (typeof deadStockItemsStats_ === 'function' && typeof deadStockStatus_ === 'function') {
+      var flaggedByGroup = {};
+      (deadStockItemsStats_() || []).forEach(function (s) {
+        if (!(s.stockQty > 0)) return;
+        var status = deadStockStatus_(s.idleDays);
+        if (!status) return;
+        (flaggedByGroup[s.group] = flaggedByGroup[s.group] || { count: 0, value: 0, worst: 'slow' }).count++;
+        flaggedByGroup[s.group].value += s.valueLocked;
+        if (status === 'dead') flaggedByGroup[s.group].worst = 'dead';
+      });
+      Object.keys(flaggedByGroup).sort(function (a, b) { return flaggedByGroup[b].value - flaggedByGroup[a].value; }).slice(0, 2).forEach(function (g) {
+        var gs = flaggedByGroup[g];
+        stockCount++;
+        stockRows += '<div class="ac-row"><div class="ac-row-main"><div class="ac-row-title">' + acEscapeHtml_(g) + ' group - ' + fmtRs(Math.round(gs.value)) + ' locked</div>' +
+          '<div class="ac-row-sub">' + gs.count + ' SKU' + (gs.count === 1 ? '' : 's') + ' flagged ' + (gs.worst === 'dead' ? 'Dead Stock' : 'Slow Moving') + '</div></div>' +
+          '<div class="ac-row-right"><span class="pill' + (gs.worst === 'dead' ? ' err' : '') + '">' + (gs.worst === 'dead' ? 'Dead Stock' : 'Slow Moving') + '</span><a class="ac-open" href="#captureDeadStock">Open Dead Stock &rarr;</a></div></div>';
+      });
+    }
+    if (typeof reorderItemsStats_ === 'function') {
+      try {
+        (reorderItemsStats_() || []).filter(function (it) { return it && it.status === 'now'; }).slice(0, Math.max(0, 2 - stockCount)).forEach(function (it) {
+          stockCount++;
+          stockRows += '<div class="ac-row"><div class="ac-row-main"><div class="ac-row-title">' + acEscapeHtml_(it.name) + ' - below reorder level</div>' +
+            '<div class="ac-row-sub">' + acEscapeHtml_(it.group || '') + '</div></div><div class="ac-row-right"><span class="pill">Reorder soon</span><a class="ac-open" href="#captureReorder">Open Reorder &rarr;</a></div></div>';
+        });
+      } catch (acReorderErr) { /* best-effort - never breaks the rest of the Action Centre */ }
+    }
+    if (stockCount) groupsHtml += '<div class="ac-group"><p class="ac-group-title">Stock to review <span class="cnt">' + stockCount + '</span></p>' + stockRows + '</div>';
+
+    // --- Group: Tasks overdue ---
+    if (overdueTasks.length) {
+      overdueTasks.sort(function (a, b) { return String(a.dueDate).localeCompare(String(b.dueDate)); });
+      var taskRows = overdueTasks.slice(0, 1).map(function (t) {
+        var days = Math.round((new Date(todayIsoAc) - new Date(t.dueDate)) / 86400000);
+        return '<div class="ac-row"><div class="ac-row-main"><div class="ac-row-title">&quot;' + acEscapeHtml_(t.name) + '&quot; - ' + days + ' day' + (days === 1 ? '' : 's') + ' overdue</div>' +
+          '<div class="ac-row-sub">Assigned to: ' + acEscapeHtml_(t.assignedTo || '—') + '</div></div><div class="ac-row-right"><a class="ac-open" href="#taskManagerList">Open Task Manager &rarr;</a></div></div>';
+      }).join('');
+      var restTasks = overdueTasks.slice(1);
+      if (restTasks.length) {
+        var byAssignee = {};
+        restTasks.forEach(function (t) { var k = t.assignedTo || '—'; byAssignee[k] = (byAssignee[k] || 0) + 1; });
+        var assigneeLine = Object.keys(byAssignee).map(function (k) { return k + ' (' + byAssignee[k] + ')'; }).join(', ');
+        taskRows += '<div class="ac-row"><div class="ac-row-main"><div class="ac-row-title">+ ' + restTasks.length + ' more overdue task' + (restTasks.length === 1 ? '' : 's') + '</div>' +
+          '<div class="ac-row-sub">' + acEscapeHtml_(assigneeLine) + '</div></div><div class="ac-row-right"><a class="ac-open" href="#taskManagerList">View all &rarr;</a></div></div>';
+      }
+      groupsHtml += '<div class="ac-group" style="padding-bottom:16px;"><p class="ac-group-title">Tasks overdue <span class="cnt">' + overdueTasks.length + '</span></p>' + taskRows + '</div>';
+    }
+
+    groupsEl.innerHTML = groupsHtml || '<p class="task-empty-note" style="padding:10px 16px;">Nothing urgent right now.</p>';
+  }
+
+  function acAllDealerNames_() {
+    if (!dealerRoster) return [];
+    var set = {};
+    Object.keys(dealerRoster).forEach(function (dsrKey) {
+      (dealerRoster[dsrKey] || []).forEach(function (n) { set[n] = true; });
+    });
+    return Object.keys(set).sort();
+  }
+
+  function renderPromiseTracker_() {
+    var wrap = document.getElementById('promiseTrackerWrap');
+    var noteEl = document.getElementById('promiseTrackerNote');
+    var datalistEl = document.getElementById('promiseDealerList');
+    if (!wrap) return;
+    if (datalistEl && dealerRoster) {
+      datalistEl.innerHTML = acAllDealerNames_().map(function (n) { return '<option value="' + acEscapeHtml_(n) + '">'; }).join('');
+    }
+    if (!PROMISES_DATA_.length) {
+      wrap.innerHTML = '<p class="task-empty-note" style="padding:10px 4px;">No payment promises logged yet.</p>';
+    } else {
+      var rowsHtml = PROMISES_DATA_.map(function (p) {
+        var canDelete = (CURRENT_USER_ROLE === 'Owner') || (p.loggedBy === CURRENT_USER_NAME);
+        var delBtn = canDelete ? ('<button type="button" class="promise-delete-btn" data-id="' + acEscapeHtml_(p.id) + '" title="Delete" style="margin-left:6px;border:none;background:none;color:var(--ink-muted);cursor:pointer;font-size:14px;">&times;</button>') : '';
+        return '<tr><td style="text-align:left;">' + acEscapeHtml_(p.dealer) + '</td><td>' + acEscapeHtml_(p.dsrName) + '</td>' +
+          '<td class="num">' + fmtRs(p.promisedAmount) + '</td><td class="num">' + acEscapeHtml_(p.promiseDate) + '</td>' +
+          '<td class="num">' + fmtRs(p.collectedSoFar) + '</td><td>' + acPromiseStatusPill_(p.status) + delBtn + '</td></tr>';
+      }).join('');
+      wrap.innerHTML = ageTableWrap_(
+        '<thead><tr><th>Dealer</th><th>DSR</th><th>Promised</th><th>Promise Date</th><th>Collected So Far</th><th>Status</th></tr></thead>',
+        rowsHtml, 'namecol'
+      );
+    }
+    if (noteEl) noteEl.textContent = 'Collected So Far only reads correctly within the same calendar month a promise was logged in (Month Collected resets at month-end) - an older open promise needs a manual look at Collection history instead.';
+  }
+
+  (function () {
+    var form = document.getElementById('promiseLogForm');
+    if (!form) return;
+    var dealerInput = document.getElementById('promiseDealerInput');
+    var dsrInput = document.getElementById('promiseDsrInput');
+    var dateInput = document.getElementById('promiseDateInput');
+    if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0, 10);
+    if (dealerInput) {
+      dealerInput.addEventListener('input', function () {
+        var map = knownDealerDsrMap_();
+        var dsr = map[dealerInput.value.trim()];
+        if (dsr && dsrInput) dsrInput.value = dsr;
+      });
+    }
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var statusEl = document.getElementById('promiseLogStatus');
+      var amountInput = document.getElementById('promiseAmountInput');
+      var notesInput = document.getElementById('promiseNotesInput');
+      var dealer = (dealerInput && dealerInput.value || '').trim();
+      var dsrName = (dsrInput && dsrInput.value || '').trim();
+      var amount = Number(amountInput && amountInput.value);
+      var dateVal = (dateInput && dateInput.value) || '';
+      var notes = (notesInput && notesInput.value) || '';
+      if (!dealer || !amount || amount <= 0 || !dateVal) {
+        if (statusEl) statusEl.textContent = 'Dealer, promised amount and promise date are all required.';
+        return;
+      }
+      var btn = form.querySelector('button[type="submit"]');
+      if (btn) { btn.disabled = true; btn.textContent = 'Logging…'; }
+      dashboardApiPost_('logPromise', { dealer: dealer, dsrName: dsrName, promisedAmount: amount, promiseDate: dateVal, notes: notes }).then(function (res) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Log Promise'; }
+        if (res && res.ok) {
+          if (dealerInput) dealerInput.value = '';
+          if (dsrInput) dsrInput.value = '';
+          if (amountInput) amountInput.value = '';
+          if (notesInput) notesInput.value = '';
+          if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+          if (statusEl) { statusEl.textContent = 'Logged ✓'; setTimeout(function () { if (statusEl) statusEl.textContent = ''; }, 2000); }
+          fetchPromises_();
+        } else {
+          if (statusEl) statusEl.textContent = (res && res.error) || 'Could not log the promise.';
+        }
+      }).catch(function () {
+        if (btn) { btn.disabled = false; btn.textContent = 'Log Promise'; }
+        if (statusEl) statusEl.textContent = 'Could not reach the server.';
+      });
+    });
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('.promise-delete-btn') : null;
+      if (!btn) return;
+      var id = btn.getAttribute('data-id');
+      if (!id || !window.confirm('Delete this promise entry?')) return;
+      dashboardApiPost_('promiseDelete', { id: id }).then(function (res) {
+        if (res && res.ok) fetchPromises_();
+        else window.alert('Could not delete: ' + ((res && res.error) || 'unknown error'));
+      });
+    });
+  })();
+
   // "Petronas Business Summary" - Jan-Aug 2026 is a STATIC, owner-
   // confirmed snapshot (his own corrected screenshot figures, sent 1 Oct
   // 2026 - superseding the earlier 30 Sep 2026 hand-baked Apr-Sep numbers,
@@ -7860,7 +8273,12 @@
             ? '<span class="dvc-collection-badge has-collection">&#10003; Collected ' + mfMoney_(v.collected) + '</span>'
             : '<span class="dvc-collection-badge no-collection">No Collection Today</span>';
           var confirmedBadge = v.confirmed ? '<span class="dvc-confirmed-badge">(confirmed match)</span>' : '';
-          return '<li>' + dvcEsc_(v.dealer) + confirmedBadge + orderBadge + collectionBadge + '</li>';
+          // Badges on their own line below the dealer name (.dvc-badges),
+          // not wrapped inline after it - see the CSS comment above
+          // .dvc-badges for why (this is what the share-image overlap bug
+          // traced back to).
+          return '<li>' + dvcEsc_(v.dealer) + confirmedBadge +
+            '<div class="dvc-badges">' + orderBadge + collectionBadge + '</div></li>';
         }).join('') + '</ul></details>';
     }
     // Possible matches are ALWAYS shown side-by-side with the closest
@@ -8482,6 +8900,13 @@
     // both pick up every live data refresh on the normal cadence.
     if (typeof renderDeadStockPanel_ === 'function') renderDeadStockPanel_();
     if (typeof renderBucketTargets_ === 'function') renderBucketTargets_();
+    // Today's Action Centre, added 30 Oct 2026 - depends on the same
+    // live refresh (outstandingMap/DSRS/Dead Stock) every other panel
+    // above does, so it gets the same render() entry point. The
+    // Collection Promise Tracker panel is driven by its own
+    // fetchPromises_()/60s interval instead (same pattern Task Manager
+    // already uses), not from here.
+    if (typeof renderActionCentre_ === 'function') renderActionCentre_();
     // Jan-Aug is a static snapshot (PETRONAS_SUMMARY_DATA_ never changes
     // at runtime) but Sep 2026 onward is live (petronasSummaryLive, synced
     // separately inside fetchLive() - see its own comment there) - this
@@ -9988,6 +10413,20 @@
   function safeFileSlug_(s) {
     return String(s || 'share').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'share';
   }
+  // Safety hardening, 30 Oct 2026 (alongside the badges-layout fix above,
+  // which was the actual root cause of the reported overlap): a capture
+  // started in the very same tick as a user's just-clicked <details>
+  // toggle, or in the same tick .capturing is added (which itself changes
+  // layout by hiding every inline share/action button), could in theory
+  // let html2canvas's internal DOM clone read a half-updated layout. This
+  // never force-opens or closes anything - whatever the owner has
+  // expanded/collapsed on screen is exactly what gets captured, just
+  // after the browser has genuinely finished laying it out.
+  function waitTwoFrames_() {
+    return new Promise(function (resolve) {
+      requestAnimationFrame(function () { requestAnimationFrame(resolve); });
+    });
+  }
   function captureElementToBlob_(el) {
     if (typeof html2canvas === 'undefined') return Promise.reject(new Error('html2canvas not loaded'));
     // .capturing hides every share/action button for the duration of the
@@ -9995,7 +10434,9 @@
     // never the buttons sitting on top of it.
     document.body.classList.add('capturing');
     var bg = getComputedStyle(document.body).backgroundColor || '#ffffff';
-    return html2canvas(el, { backgroundColor: bg, scale: Math.min(2, window.devicePixelRatio || 1), useCORS: true })
+    return waitTwoFrames_().then(function () {
+      return html2canvas(el, { backgroundColor: bg, scale: Math.min(2, window.devicePixelRatio || 1), useCORS: true });
+    })
       .then(function (canvas) {
         document.body.classList.remove('capturing');
         return new Promise(function (resolve, reject) {
@@ -10975,6 +11416,14 @@
   function dashboardApiPost_(action, payload) {
     payload = payload || {};
     payload.action = action;
+    // Security fix, 30 Oct 2026: every write now carries the real,
+    // server-verified session id (Code.gs's resolveSession_()) instead of
+    // relying on whatever role/name fields an individual call site sent -
+    // see the big comment on Code.gs's markSessionActive_() for why that
+    // used to be spoofable from the browser console. This one line covers
+    // every dashboardApiPost_() caller (taskCreate/taskUpdateStatus/
+    // taskDelete included) at once.
+    payload.sessionId = CURRENT_SESSION_ID || "";
     return fetch(ORDERS_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -11546,7 +11995,13 @@
     var listEl = document.getElementById("taskManagerList");
     if (!listEl || typeof ORDERS_API_URL !== "string") return;
     var allowedAreasStr = CURRENT_ALLOWED_AREAS ? CURRENT_ALLOWED_AREAS.join(",") : "";
-    fetch(ORDERS_API_URL + "?type=tasks&viewerName=" + encodeURIComponent(CURRENT_USER_NAME || "") + "&viewerRole=" + encodeURIComponent(CURRENT_USER_ROLE || "") + "&allowedAreas=" + encodeURIComponent(allowedAreasStr) + "&_ts=" + Date.now(), { cache: "no-store" })
+    // Security fix, 30 Oct 2026: viewerRole/viewerName are now resolved
+    // server-side from sessionId (Code.gs's resolveSession_()), not
+    // trusted from this client - see the big comment on Code.gs's
+    // markSessionActive_(). viewerName/viewerRole/allowedAreas are still
+    // sent too, harmlessly, so nothing else about this call needs to
+    // change, but the server no longer looks at them.
+    fetch(ORDERS_API_URL + "?type=tasks&sessionId=" + encodeURIComponent(CURRENT_SESSION_ID || "") + "&viewerName=" + encodeURIComponent(CURRENT_USER_NAME || "") + "&viewerRole=" + encodeURIComponent(CURRENT_USER_ROLE || "") + "&allowedAreas=" + encodeURIComponent(allowedAreasStr) + "&_ts=" + Date.now(), { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || !data.ok) { listEl.innerHTML = '<p style="padding:10px 18px;color:var(--ink-muted);font-size:12px;">Could not load tasks.</p>'; return; }
@@ -12347,10 +12802,22 @@
     var sectionVisBlock = document.getElementById('sectionVisBlock');
     if (sectionVisBlock) sectionVisBlock.hidden = (role !== 'Owner');
     if (role === 'Owner') { loadAdminUsersList_(); loadSectionVisibility_(); }
+    // Today's Action Centre (Owner only) + Collection Promise Tracker
+    // (Owner/Manager) - added 30 Oct 2026, see the HTML comments above
+    // #captureActionCentre/#capturePromiseTracker for why these two
+    // get a narrower gate than the 5 configurable sectionHidden_() keys.
+    var actionCentreBlock = document.getElementById('captureActionCentre');
+    if (actionCentreBlock) actionCentreBlock.hidden = (role !== 'Owner');
+    var promiseTrackerBlock = document.getElementById('capturePromiseTracker');
+    if (promiseTrackerBlock) promiseTrackerBlock.hidden = (role !== 'Owner' && role !== 'Manager');
     // Master File + Task Manager - added 6 Oct 2026, see the big comment
     // block above fetchMasterFile_() for the full feature.
     fetchMasterFile_();
     fetchTasks_();
+    if (actionCentreBlock && !actionCentreBlock.hidden || (promiseTrackerBlock && !promiseTrackerBlock.hidden)) {
+      fetchPromises_();
+      setInterval(fetchPromises_, 60000);
+    }
     // Re-fetch every 60s so a reminder can fire even if nobody re-opens
     // the Task Manager panel themselves (see checkTaskRemindersDash_
     // above) - same cadence as the DSR app's own version of this.
@@ -13030,7 +13497,10 @@
   }
 
   function fetchLive() {
-    var url = ORDERS_API_URL + "?type=live&_ts=" + Date.now();
+    // Security fix, 30 Oct 2026: ?type=live now requires a real session
+    // (Code.gs's sessionIsValid_()) - this used to be a fully open read,
+    // see the big comment on Code.gs's markSessionActive_().
+    var url = ORDERS_API_URL + "?type=live&sessionId=" + encodeURIComponent(CURRENT_SESSION_ID || "") + "&_ts=" + Date.now();
     // Fixed 1 Oct 2026, same day as fetchJson_() was introduced: this
     // endpoint alone bundles reads from ~15+ sheets (stock ~8,803 items,
     // outstanding, every live-DSR map, both trend sets, Petronas Summary,

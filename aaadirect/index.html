@@ -638,6 +638,25 @@
   .dealer-target-remark { flex-basis:100%; font-size:11px; color:#3a5a8a; background:#eaf0fb; border-radius:6px; padding:5px 8px; margin-top:4px; }
   .dealer-target-collectable { flex-basis:100%; font-size:11px; color:#b5541c; background:#fdf1e6; border-radius:6px; padding:5px 8px; margin-top:4px; }
   .dealer-target-collectable b { color:#8a3a0f; }
+  /* Collection Promise Tracker - added 30 Oct 2026 (owner: "Create the
+     Action Centre and both together"). Logging a promise at this exact
+     spot - the per-dealer row a DSR already opens to set/check their
+     own Sales Target/Collection Plan - means it happens right where a
+     DSR already is at a dealer visit, no new panel to find. Status/
+     Collected So Far are never set by this app - Code.gs's
+     handlePromisesGet_() always computes them fresh from live Tally
+     collection, same "visibility, not a client-set flag" rule the
+     dashboard's own copy of this panel follows. */
+  .dealer-target-promise { flex-basis:100%; font-size:11px; border-radius:6px; padding:5px 8px; margin-top:4px; }
+  .dealer-target-promise.kept { color:#1a7d3a; background:#e8f5ec; }
+  .dealer-target-promise.broken, .dealer-target-promise.partial { color:#a33a2a; background:#fbe9e4; }
+  .dealer-target-promise.duetoday { color:#a0531f; background:#fdf1e6; }
+  .dealer-target-promise.pending { color:#8a7f6f; background:#f2efe8; }
+  .dealer-target-promise-form { flex-basis:100%; display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap; margin-top:4px; padding:6px 8px; background:#f7f4ee; border-radius:6px; }
+  .dealer-target-promise-form label { display:flex; flex-direction:column; font-size:10px; color:#8a7f6f; gap:3px; }
+  .dealer-target-promise-form input { padding:5px 7px; border-radius:6px; border:1px solid #ddd3c3; font-size:12.5px; width:100px; }
+  .dealer-target-promise-log-btn { font-size:10.5px; padding:5px 10px; border-radius:6px; border:1px solid #2f6b4f; background:#fff; color:#2f6b4f; cursor:pointer; }
+  .dealer-target-promise-flash { font-size:10.5px; color:#1a7d3a; }
 
   .task-card { border: 1px solid #e8e2d8; border-radius: 12px; padding: 12px 14px; margin: 4px; background: #fff; }
   .task-card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
@@ -3379,7 +3398,7 @@
 
   function fetchLiveOverlay_() {
     if (!apiConfigured()) return;
-    fetch(ORDERS_API_URL + "?type=live&_ts=" + Date.now(), { cache: "no-store" })
+    fetch(ORDERS_API_URL + "?type=live&sessionId=" + encodeURIComponent(__SEC_SESSION_ID_) + "&_ts=" + Date.now(), { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (data) { if (data && data.ok) applyLiveOverlay_(data); })
       .catch(function () { /* best-effort - silently skip on any failure */ });
@@ -3393,9 +3412,18 @@
   // POST with a text/plain content-type (not application/json) so the browser sends this
   // as a "simple request" and skips a CORS preflight OPTIONS call — Apps Script Web Apps
   // don't handle OPTIONS. The server still parses the body as JSON regardless.
+  // Security fix, 30 Oct 2026: every write now carries the real,
+  // server-verified session id (Code.gs's resolveSession_()) instead of
+  // relying on the role string this app used to send on its own
+  // (requestedByRole:"DSR" etc.) - see the big comment on Code.gs's
+  // markSessionActive_() for why a client-sent role/name was spoofable
+  // from a browser console. __SEC_SESSION_ID_ is set once, right after a
+  // real login succeeds, by proceedAfterLogin() below.
+  var __SEC_SESSION_ID_ = "";
   function postToApi(action, payload) {
     payload = payload || {};
     payload.action = action;
+    payload.sessionId = __SEC_SESSION_ID_;
     return fetch(ORDERS_API_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -3468,6 +3496,36 @@
   var tpRemarksEl = document.getElementById("tpRemarks");
   var todaysPlanShareBtnEl = document.getElementById("todaysPlanShareBtn");
   var lastDealerTargetsData_ = [];
+
+  // Collection Promise Tracker - added 30 Oct 2026, see the CSS comment
+  // above .dealer-target-promise for the full feature. Fetched
+  // separately from Dealer Targets itself (different sheet, no
+  // month-scoping) and merged in at render time by dealerTargetRowHtml_
+  // via latestPromiseForDealer_() below - lastDealerTargetsData_ itself
+  // is untouched by this.
+  var PROMISES_DATA_ = [];
+  function fetchPromisesForDsr_() {
+    if (!apiConfigured()) return;
+    fetch(ORDERS_API_URL + "?type=promises&sessionId=" + encodeURIComponent(__SEC_SESSION_ID_) + "&dsrName=" + encodeURIComponent(DSR_SHORT_NAME) + "&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        PROMISES_DATA_ = (data && data.ok && data.promises) || [];
+        renderDealerTargets_();
+      })
+      .catch(function () { /* best-effort - rows just keep showing no promise info */ });
+  }
+  // Most recent (by Promise Date) promise on file for one dealer, or
+  // null. PROMISES_DATA_ is already scoped to this DSR's own dealers by
+  // the dsrName filter above.
+  function latestPromiseForDealer_(dealerName) {
+    var mine = PROMISES_DATA_.filter(function (p) { return p.dealer === dealerName; });
+    if (!mine.length) return null;
+    mine.sort(function (a, b) { return String(b.promiseDate).localeCompare(String(a.promiseDate)); });
+    return mine[0];
+  }
+  function promiseStatusClass_(status) {
+    return status === "Kept" ? "kept" : status === "Broken" ? "broken" : status === "Partial" ? "partial" : status === "Due today" ? "duetoday" : "pending";
+  }
 
   function fetchDealerTargets_() {
     if (!apiConfigured() || (!dealerTargetsListEl && !dealerTargetsBalanceListEl && !beatPlanListEl && !todaysPlanStripEl)) return;
@@ -3953,6 +4011,26 @@
         (d.overallOutstandingRs !== null && d.overallOutstandingRs !== undefined ? (' of ' + fmtMoney_(d.overallOutstandingRs) + ' total outstanding') : '') + '</div>';
     }
     var remarkHtml = d.remark ? ('<div class="dealer-target-remark">💬 “' + escapeHtml_(d.remark) + '” — ' + escapeHtml_(d.remarkBy || "") + '</div>') : "";
+    // Collection Promise Tracker - added 30 Oct 2026. The dealer's own
+    // most recent promise (if any), shown as a status line - Status/
+    // Collected So Far always come straight from the server (see
+    // Code.gs's handlePromisesGet_()), never computed here.
+    var promise = latestPromiseForDealer_(d.dealer);
+    var promiseStatusHtml = "";
+    if (promise) {
+      var promiseVerb = promise.status === "Kept" ? "kept"
+        : promise.status === "Broken" ? "nothing received yet"
+        : promise.status === "Partial" ? (fmtMoney_(promise.collectedSoFar) + " received so far")
+        : promise.status === "Due today" ? "due today"
+        : "not due yet";
+      promiseStatusHtml = '<div class="dealer-target-promise ' + promiseStatusClass_(promise.status) + '">🤝 Promised ' + fmtMoney_(promise.promisedAmount) + ' by ' + escapeHtml_(promise.promiseDate) + ' — ' + promiseVerb + '</div>';
+    }
+    var promiseFormHtml = '<div class="dealer-target-promise-form">' +
+      '<label>Promised (₹)<input type="number" inputmode="decimal" class="dt-promise-amount" placeholder="0"></label>' +
+      '<label>By date<input type="date" class="dt-promise-date"></label>' +
+      '<button type="button" class="dealer-target-promise-log-btn">Log Promise</button>' +
+      '<span class="dealer-target-promise-flash" style="display:none;">Logged ✓</span>' +
+      '</div>';
     return '<div class="dealer-target-row" data-dealer="' + escapeHtml_(d.dealer) + '">' +
       '<div class="dealer-target-name">' + escapeHtml_(d.dealer) + '</div>' +
       '<div class="dealer-target-fields">' +
@@ -3969,7 +4047,7 @@
       '</div>' +
       suggestHtml +
       '<div class="dealer-target-status">' + statusLine + '</div>' +
-      collectableHtml + remarkHtml +
+      collectableHtml + remarkHtml + promiseStatusHtml + promiseFormHtml +
       '</div>';
   }
 
@@ -4029,6 +4107,47 @@
     });
   }
 
+  // Collection Promise Tracker - added 30 Oct 2026. Same in-flight guard
+  // ("data-logging") and single-row-only update discipline as
+  // saveDealerTarget_() above - one tap, one POST, no full-list
+  // re-render (the fetchPromisesForDsr_() re-fetch below still happens,
+  // but only to pick up the freshly-computed status for every row, not
+  // because this one row's own save needs it).
+  function logPromiseForRow_(rowEl) {
+    if (!rowEl || rowEl.getAttribute("data-logging") === "1") return;
+    rowEl.setAttribute("data-logging", "1");
+    var dealer = rowEl.getAttribute("data-dealer");
+    var amountEl = rowEl.querySelector(".dt-promise-amount");
+    var dateEl = rowEl.querySelector(".dt-promise-date");
+    var btnEl = rowEl.querySelector(".dealer-target-promise-log-btn");
+    var flashEl = rowEl.querySelector(".dealer-target-promise-flash");
+    var amount = amountEl && amountEl.value !== "" ? Number(amountEl.value) : 0;
+    var promiseDate = dateEl ? dateEl.value : "";
+    if (!amount || amount <= 0 || !promiseDate) {
+      rowEl.removeAttribute("data-logging");
+      alert("Enter a promised amount and a date first.");
+      return;
+    }
+    if (flashEl) flashEl.style.display = "none";
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = "Logging…"; }
+    postToApi("logPromise", { dealer: dealer, dsrName: DSR_SHORT_NAME, promisedAmount: amount, promiseDate: promiseDate }).then(function (res) {
+      rowEl.removeAttribute("data-logging");
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = "Log Promise"; }
+      if (res && res.ok) {
+        if (amountEl) amountEl.value = "";
+        if (dateEl) dateEl.value = "";
+        if (flashEl) { flashEl.style.display = ""; setTimeout(function () { if (flashEl) flashEl.style.display = "none"; }, 2000); }
+        fetchPromisesForDsr_(); // re-fetch so this (and every other) row's promise status reflects the new entry
+      } else {
+        alert("Could not log the promise: " + ((res && res.error) || "please try again."));
+      }
+    }).catch(function () {
+      rowEl.removeAttribute("data-logging");
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = "Log Promise"; }
+      alert("Could not reach the server - please try again.");
+    });
+  }
+
   if (dealerTargetsListEl) {
     // Explicit Save (or "Use") click is now the ONLY save trigger - the
     // old auto-save-on-"change" listener (which fired on blur, i.e. the
@@ -4046,10 +4165,13 @@
       }
       var saveBtn = e.target.closest(".dealer-target-save-btn");
       if (saveBtn) { saveDealerTarget_(saveBtn.closest(".dealer-target-row")); return; }
+      // Collection Promise Tracker - added 30 Oct 2026.
+      var logPromiseBtn = e.target.closest(".dealer-target-promise-log-btn");
+      if (logPromiseBtn) { logPromiseForRow_(logPromiseBtn.closest(".dealer-target-row")); return; }
     });
   }
   if (dealerTargetsDetailsEl) {
-    dealerTargetsDetailsEl.addEventListener("toggle", function () { if (dealerTargetsDetailsEl.open) fetchDealerTargets_(); });
+    dealerTargetsDetailsEl.addEventListener("toggle", function () { if (dealerTargetsDetailsEl.open) { fetchDealerTargets_(); fetchPromisesForDsr_(); } });
   }
 
   // Beat Plan wiring - added 11 Oct 2026. Defaults the day select to
@@ -4119,7 +4241,7 @@
 
   function fetchMyTasks_() {
     if (!apiConfigured() || !myTasksListEl) return;
-    fetch(ORDERS_API_URL + "?type=tasks&viewerName=" + encodeURIComponent(DSR_SHORT_NAME) + "&viewerRole=DSR&_ts=" + Date.now(), { cache: "no-store" })
+    fetch(ORDERS_API_URL + "?type=tasks&sessionId=" + encodeURIComponent(__SEC_SESSION_ID_) + "&viewerName=" + encodeURIComponent(DSR_SHORT_NAME) + "&viewerRole=DSR&_ts=" + Date.now(), { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || !data.ok) { myTasksListEl.innerHTML = '<div class="task-empty-note">Could not load tasks.</div>'; return; }
@@ -6283,6 +6405,7 @@
     // inline before 1 Oct 2026; pulled out so the two paths can't drift).
     function proceedAfterLogin(sessionId) {
       loginSessionId = sessionId;
+      __SEC_SESSION_ID_ = sessionId; // security fix, 30 Oct 2026 - see postToApi() above
       var overlay = document.getElementById("loginGateOverlay");
       if (overlay) overlay.style.display = "none";
       var logoutBtnEl2 = document.getElementById("logoutBtn");
@@ -6301,6 +6424,14 @@
       if (typeof fetchMyTasks_ === "function") {
         fetchMyTasks_();
         setInterval(fetchMyTasks_, 60000);
+      }
+      // Collection Promise Tracker - added 30 Oct 2026. Fetched on login
+      // too (not just on the Dealer Targets panel's own toggle-open)
+      // so a promise's status is current even if this DSR never
+      // re-opens that panel the same session.
+      if (typeof fetchPromisesForDsr_ === "function") {
+        fetchPromisesForDsr_();
+        setInterval(fetchPromisesForDsr_, 60000);
       }
     }
     function doLoginGateSubmit() {
