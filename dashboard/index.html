@@ -2675,6 +2675,53 @@
     </div>
   </details>
 </div>
+<!-- S.REP - Sales & Collection Plan one-page panel, added 4 Nov 2026 at
+     the owner's request (shared his own "OCT '26 Month" Excel tracking
+     sheet: "need this menu ... before DSR / Dealer / Beat - Sales &
+     Collection Plan ... want like this one page chart , include aarav
+     also in this , need month wise dropdown"). Sits directly above
+     #captureMasterFile below, per his explicit placement. 10 fixed rows
+     (AAA, Pioneer, VARI, Anandh, Arun, Chellamani, Madhu, Nagaraj,
+     Prabha, Aarav) + TOTAL - NO per-row expand ("no need for expand just
+     total need", his own words, after an earlier dealer/beat drill-down
+     proposal). Each row's Plan (Sales Ltr + Collection Rs) is editable
+     here (saves on change, no separate Save button - see
+     renderSrepPlanTable_()'s own comment for why this panel doesn't use
+     Master File's explicit-Save-button convention); Sales/Collection/
+     Pending are read-only, computed live by tally_live_watcher.py's
+     fetch_srep_summary() and pushed into LiveSrepSummary (see Code.gs's
+     handleSrepSummaryGet_() for the merge/default-Plan logic). -->
+<div id="captureSrepPlan">
+  <details class="dsr-row" id="srepPlanDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">S.REP — Sales &amp; Collection Plan</span>
+        <span class="card-territory" id="srepPlanTerritory">Pick a month below · Plan is editable per row</span></span>
+    </summary>
+    <div class="dsr-row-body">
+      <div class="master-file-filters" style="padding:0 0 10px;">
+        <span><label>Month</label><select id="srepMonthSelect"></select></span>
+      </div>
+      <div class="age-table-scroll">
+        <table class="master-file-table" id="srepPlanTable">
+          <thead>
+            <tr>
+              <th rowspan="2" style="vertical-align:bottom;">S.REP</th>
+              <th colspan="3" style="text-align:center;">Sales (Ltr)</th>
+              <th colspan="3" style="text-align:center;">Collection (₹)</th>
+            </tr>
+            <tr>
+              <th>Plan</th><th>Sales</th><th>Pending</th>
+              <th>Plan</th><th>Collection</th><th>Pending</th>
+            </tr>
+          </thead>
+          <tbody id="srepPlanTableBody"><tr><td colspan="7" style="text-align:center;color:var(--ink-muted);">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <p id="srepPlanFooterNote" style="font-size:11px;color:var(--ink-muted);margin:8px 0 0;"></p>
+    </div>
+  </details>
+</div>
 <div id="captureMasterFile">
   <!-- Renamed 11 Oct 2026 at the owner's request ("Master File rename -
        rename as DSR/DEALER/BEAT SALES & COLLECTION PLAN") - display text
@@ -11555,6 +11602,154 @@
     return Number(n).toLocaleString("en-IN");
   }
 
+  // ===================================================================
+  // S.REP - Sales & Collection Plan panel, added 4 Nov 2026 - see the
+  // HTML comment above #captureSrepPlan for the full feature story.
+  // Live-wired to GET ?type=srepSummary&month=YYYYMM and the setSrepPlan
+  // action on Code.gs (handleSrepSummaryGet_()/handleSrepPlanSet_()).
+  // Its own month dropdown uses the 6-digit "YYYYMM" form (matching
+  // tally_live_watcher.py's own month-key convention) - independent of
+  // currentMonthKeyISO_dashboard_() just above, which is the dashed
+  // "yyyy-MM" form Master File/Dealer Targets use. Reuses mfEscapeHtml_/
+  // mfMoney_/mfNum_ above for identical number/money formatting and
+  // dashboardApiPost_ for saves - everything else here is self-contained.
+  var SREP_DATA_ = null;
+  function srepMonthKeyNow_() {
+    var d = new Date();
+    return "" + d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0");
+  }
+  function srepMonthLabel_(yyyymm) {
+    var names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    var y = yyyymm.slice(0, 4), m = parseInt(yyyymm.slice(4, 6), 10) - 1;
+    if (m < 0 || m > 11) return yyyymm;
+    return names[m] + " " + y;
+  }
+  function populateSrepMonthSelect_() {
+    var sel = document.getElementById("srepMonthSelect");
+    if (!sel || sel.options.length) return; // already populated once this session
+    var d = new Date();
+    var opts = "";
+    for (var i = 0; i < 12; i++) {
+      var y = d.getFullYear(), m = d.getMonth() + 1 - i;
+      while (m <= 0) { m += 12; y -= 1; }
+      var key = "" + y + String(m).padStart(2, "0");
+      opts += '<option value="' + key + '">' + srepMonthLabel_(key) + (i === 0 ? " (current)" : "") + '</option>';
+    }
+    sel.innerHTML = opts;
+    sel.value = srepMonthKeyNow_();
+  }
+  function fetchSrepSummary_() {
+    var bodyEl = document.getElementById("srepPlanTableBody");
+    if (!bodyEl || typeof ORDERS_API_URL !== "string") return;
+    populateSrepMonthSelect_();
+    var sel = document.getElementById("srepMonthSelect");
+    var month = (sel && sel.value) || srepMonthKeyNow_();
+    fetch(ORDERS_API_URL + "?type=srepSummary&month=" + encodeURIComponent(month) + "&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) { bodyEl.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--ink-muted);">Could not load the S.REP summary.</td></tr>'; return; }
+        SREP_DATA_ = data;
+        renderSrepPlanTable_();
+        var terrEl = document.getElementById("srepPlanTerritory");
+        if (terrEl) terrEl.textContent = (data.monthLabel || month) + " · Plan is editable per row below";
+        var footEl = document.getElementById("srepPlanFooterNote");
+        if (footEl) footEl.textContent = "Sales(Ltr)/Collection(₹) are live from Tally. A row's Plan starts from its DSR app's own target the first time (shown as \"(default)\") - edit a field and it saves automatically, then becomes that row's Plan for this month going forward.";
+      })
+      .catch(function () { bodyEl.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--ink-muted);">Could not reach the server.</td></tr>'; });
+  }
+  function srepPendingCell_(pending, isLtr) {
+    if (pending === null || pending === undefined) return '<td class="mf-num">—</td>';
+    // Same sign convention as Master File's own Sales Balance/Collection
+    // Balance (Plan - Actual): a positive Pending (still short of Plan) is
+    // the "needs attention" red/warn color, a negative Pending (already
+    // past Plan) is the good/green color - see that table's own balance
+    // comment for the 10 Oct 2026 fix this mirrors.
+    var cls = pending < 0 ? "mf-good" : (pending > 0 ? "mf-warn" : "mf-num");
+    var text = isLtr ? mfNum_(pending) : mfMoney_(pending);
+    return '<td class="mf-num ' + cls + '">' + text + '</td>';
+  }
+  // Saves on "change" (blur, or the number input's own stepper) rather
+  // than Master File's explicit ✓ Save button convention - a deliberate,
+  // smaller-scale choice for this panel: only 10 rows and 2 numeric
+  // fields each (vs. hundreds of dealers with several field types on
+  // Master File, which is why THAT table moved to an explicit button 8
+  // Oct 2026 - see saveMasterFileTarget_'s own comment), and the owner's
+  // approved mockup had no extra Save-button column to spend on this
+  // compact 7-column layout. A brief background flash on the saved cell
+  // is the only feedback, same spirit as Master File's "✓ Saved" flash.
+  function renderSrepPlanTable_() {
+    var bodyEl = document.getElementById("srepPlanTableBody");
+    if (!bodyEl || !SREP_DATA_) return;
+    var rows = SREP_DATA_.rows || [];
+    var html = "";
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var planLtrVal = (r.planSalesLtr === null || r.planSalesLtr === undefined) ? "" : r.planSalesLtr;
+      var planRsVal = (r.planCollectionRs === null || r.planCollectionRs === undefined) ? "" : r.planCollectionRs;
+      html += '<tr data-row-label="' + mfEscapeHtml_(r.label) + '">' +
+        '<td>' + mfEscapeHtml_(r.label) + (r.isDefaultPlan ? ' <span style="font-size:9.5px;color:var(--ink-muted);">(default)</span>' : '') + '</td>' +
+        '<td><input type="number" class="srep-plan-ltr-input" value="' + planLtrVal + '" style="width:66px;box-sizing:border-box;padding:4px 6px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--ink);text-align:right;"></td>' +
+        '<td class="mf-num">' + mfNum_(r.salesLtr) + '</td>' +
+        srepPendingCell_(r.pendingSalesLtr, true) +
+        '<td><input type="number" class="srep-plan-rs-input" value="' + planRsVal + '" style="width:92px;box-sizing:border-box;padding:4px 6px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--ink);text-align:right;"></td>' +
+        '<td class="mf-num mf-money">' + mfMoney_(r.collectionRs) + '</td>' +
+        srepPendingCell_(r.pendingCollectionRs, false) +
+        '</tr>';
+    }
+    var total = SREP_DATA_.total || {};
+    html += '<tr style="font-weight:700;">' +
+      '<td>TOTAL</td>' +
+      '<td class="mf-num">' + mfNum_(total.planSalesLtr) + '</td>' +
+      '<td class="mf-num">' + mfNum_(total.salesLtr) + '</td>' +
+      srepPendingCell_(total.pendingSalesLtr, true) +
+      '<td class="mf-num">' + mfMoney_(total.planCollectionRs) + '</td>' +
+      '<td class="mf-num mf-money">' + mfMoney_(total.collectionRs) + '</td>' +
+      srepPendingCell_(total.pendingCollectionRs, false) +
+      '</tr>';
+    bodyEl.innerHTML = html;
+  }
+  function saveSrepPlan_(rowEl) {
+    if (!rowEl || rowEl.getAttribute("data-saving") === "1") return;
+    rowEl.setAttribute("data-saving", "1");
+    var rowLabel = rowEl.getAttribute("data-row-label");
+    var ltrEl = rowEl.querySelector(".srep-plan-ltr-input");
+    var rsEl = rowEl.querySelector(".srep-plan-rs-input");
+    var planSalesLtr = ltrEl && ltrEl.value !== "" ? Number(ltrEl.value) : null;
+    var planCollectionRs = rsEl && rsEl.value !== "" ? Number(rsEl.value) : null;
+    var sel = document.getElementById("srepMonthSelect");
+    var month = (sel && sel.value) || srepMonthKeyNow_();
+    dashboardApiPost_("setSrepPlan", {
+      month: month, rowLabel: rowLabel,
+      planSalesLtr: planSalesLtr, planCollectionRs: planCollectionRs,
+      editedBy: CURRENT_USER_NAME || ""
+    }).then(function (res) {
+      rowEl.removeAttribute("data-saving");
+      if (res && res.ok) {
+        rowEl.style.transition = "background-color .2s";
+        rowEl.style.backgroundColor = "var(--good-bg, rgba(26,143,94,0.12))";
+        setTimeout(function () { rowEl.style.backgroundColor = ""; }, 900);
+        fetchSrepSummary_();
+      } else {
+        window.alert("Could not save - please try again.");
+      }
+    }).catch(function () {
+      rowEl.removeAttribute("data-saving");
+      window.alert("Could not reach the server - please try again.");
+    });
+  }
+  (function () {
+    var monthSel = document.getElementById("srepMonthSelect");
+    if (monthSel) monthSel.addEventListener("change", fetchSrepSummary_);
+    var srepBodyEl = document.getElementById("srepPlanTableBody");
+    if (srepBodyEl) {
+      srepBodyEl.addEventListener("change", function (e) {
+        if (e.target.classList.contains("srep-plan-ltr-input") || e.target.classList.contains("srep-plan-rs-input")) {
+          saveSrepPlan_(e.target.closest("tr"));
+        }
+      });
+    }
+  })();
+
   var MASTER_FILE_DATA_ = [];
   // Beat Plan default - added 11 Oct 2026, mirrors the new Beat Plan
   // panel in the DSR apps: the Beat Day filter below starts on TODAY's
@@ -12929,6 +13124,10 @@
     if (actionCentreBlock) actionCentreBlock.hidden = (role !== 'Owner');
     var promiseTrackerBlock = document.getElementById('capturePromiseTracker');
     if (promiseTrackerBlock) promiseTrackerBlock.hidden = (role !== 'Owner' && role !== 'Manager');
+    // S.REP - Sales & Collection Plan panel, added 4 Nov 2026 - see the
+    // HTML comment above #captureSrepPlan. Sits above Master File on the
+    // page, but the fetch order here doesn't matter - independent panels.
+    if (typeof fetchSrepSummary_ === "function") fetchSrepSummary_();
     // Master File + Task Manager - added 6 Oct 2026, see the big comment
     // block above fetchMasterFile_() for the full feature.
     fetchMasterFile_();
