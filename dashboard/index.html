@@ -13269,21 +13269,21 @@
     // enabled for managers. Left deliberately ungated (no hidden
     // assignment here) - every role that reaches this dashboard sees it,
     // same as before this round.
-    // Master File - added 6 Oct 2026, hard-coded Owner-only for now (NOT
-    // wired through sectionHidden_()/the Admin panel's per-role toggle,
-    // unlike the blocks above) per the owner's explicit instruction:
-    // "remove master file from manager and area manager id - will
-    // develop it with me and after full setup will give to all". Revisit
-    // once that development/rollout is actually done - at that point this
-    // probably belongs in SECTION_VIS_KNOWN_KEYS_ instead so the owner can
-    // turn it on from the Admin panel per role rather than needing a code
-    // change. isManagerRole_() covers exactly 'Manager' and 'Area Manager'.
-    var masterFileHideForRole = isManagerRole_(role);
+    // Master File / "DSR / Dealer / Beat - Sales & Collection Plan"
+    // (display name since the 11 Oct 2026 rename - see the HTML comment
+    // above #captureMasterFile) - was hard-coded Owner-only from 6 Oct
+    // 2026 ("remove master file from manager and area manager id - will
+    // develop it with me and after full setup will give to all"). Owner
+    // confirmed 6 Nov 2026 the development/rollout is done and it "has
+    // to be enabled to managers" - so this is now ungated, same as
+    // S.REP just above: every role that reaches this dashboard sees it.
+    // isManagerRole_() (covers 'Manager'+'Area Manager') is kept defined
+    // above for the other 5 panels this round still uses it on.
     // masterFileLabel itself is gone as of 12 Oct 2026 (name moved back
     // inside #masterFileDetails's own row) - hiding that one element now
-    // covers the whole section.
+    // would cover the whole section, but nothing hides it any more.
     var masterFileDetailsEl = document.getElementById('masterFileDetails');
-    if (masterFileDetailsEl) masterFileDetailsEl.hidden = masterFileHideForRole;
+    if (masterFileDetailsEl) masterFileDetailsEl.hidden = false;
     // Simplified 2 Oct 2026 when the picker became one foldable
     // <details id="reportPeriodDetails"> (see the long HTML comment above
     // it) - hiding that one wrapper hides the summary line AND every row
