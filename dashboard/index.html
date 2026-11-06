@@ -3143,16 +3143,22 @@
      renderActionCentre_() for exactly which existing functions/data it
      reads from. Static skeleton below; hidden toggled in afterLogin_. -->
 <div id="captureActionCentre" hidden>
-  <section class="card" style="margin-bottom:22px;">
-    <div class="card-head" style="padding:16px 18px 0;">
-      <div>
-        <p class="card-name" style="font-size:20px;">Today's Action Centre</p>
-        <p class="card-territory">Owner only &middot; pulls from panels already on this dashboard - nothing new is tracked, this just puts the urgent items in one place</p>
-      </div>
+  <!-- 6 Nov 2026: given the same "+/-" <details> expand/collapse every
+       other dashboard panel uses (owner: "need + to expand in owner id"),
+       instead of the always-open <section class="card"> this started as.
+       Still Owner-only (afterLogin_ below) - this only changes how it
+       renders for the Owner, not who sees it. -->
+  <details class="dsr-row" id="actionCentreDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Today's Action Centre</span>
+        <span class="card-territory">Owner only &middot; pulls from panels already on this dashboard - nothing new is tracked, this just puts the urgent items in one place</span></span>
+    </summary>
+    <div class="dsr-row-body">
+      <div class="ac-tiles" id="acTiles"><p class="task-empty-note" style="padding:10px 16px;">Loading…</p></div>
+      <div id="acGroups"></div>
     </div>
-    <div class="ac-tiles" id="acTiles"><p class="task-empty-note" style="padding:10px 16px;">Loading…</p></div>
-    <div id="acGroups"></div>
-  </section>
+  </details>
 </div>
 
 <!-- Collection Promise Tracker - added 30 Oct 2026, the second idea from
@@ -3166,15 +3172,18 @@
      Manager (not Area Manager) - same company-wide visibility class as
      Today's Action Centre above, gated in afterLogin_. -->
 <div id="capturePromiseTracker" hidden>
-  <section class="card" style="margin-bottom:22px;">
-    <div class="card-head" style="padding:16px 18px 0;">
-      <div>
-        <p class="card-name" style="font-size:18px;">Collection Promise Tracker</p>
-        <p class="card-territory">A payment promise logged at a dealer visit, tracked until it's actually collected or missed.</p>
-      </div>
-    </div>
-    <div style="padding:4px 16px 0;">
-      <form id="promiseLogForm" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;padding:10px 0 14px;border-bottom:1px solid var(--border);margin-bottom:4px;">
+  <!-- 6 Nov 2026: same "+/-" <details> expand/collapse rework as Action
+       Centre just above (owner: "need + to expand in owner id"). Now
+       Owner-only too (afterLogin_ below) - Manager no longer sees this
+       panel, per the owner's 6 Nov "disable for all managers". -->
+  <details class="dsr-row" id="promiseTrackerDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Collection Promise Tracker</span>
+        <span class="card-territory">A payment promise logged at a dealer visit, tracked until it's actually collected or missed.</span></span>
+    </summary>
+    <div class="dsr-row-body">
+      <form id="promiseLogForm" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;padding-bottom:14px;border-bottom:1px solid var(--border);">
         <label style="font-size:12px;">Dealer<br>
           <input type="text" id="promiseDealerInput" list="promiseDealerList" placeholder="Dealer name" required style="min-width:220px;">
           <datalist id="promiseDealerList"></datalist>
@@ -3186,10 +3195,10 @@
         <button type="submit" class="dealer-target-save-btn" style="height:34px;">Log Promise</button>
         <span id="promiseLogStatus" style="font-size:11.5px;color:var(--ink-muted);"></span>
       </form>
+      <div class="p2p-table-wrap" id="promiseTrackerWrap"><p class="task-empty-note" style="padding:10px 4px;">Loading…</p></div>
+      <p class="task-empty-note" style="font-size:11.5px;" id="promiseTrackerNote"></p>
     </div>
-    <div class="p2p-table-wrap" id="promiseTrackerWrap"><p class="task-empty-note" style="padding:10px 4px;">Loading…</p></div>
-    <p class="task-empty-note" style="padding:0 16px 14px;font-size:11.5px;" id="promiseTrackerNote"></p>
-  </section>
+  </details>
 </div>
 
 <div id="captureReorder">
@@ -13122,8 +13131,10 @@
     // get a narrower gate than the 5 configurable sectionHidden_() keys.
     var actionCentreBlock = document.getElementById('captureActionCentre');
     if (actionCentreBlock) actionCentreBlock.hidden = (role !== 'Owner');
+    // 6 Nov 2026: narrowed from Owner+Manager to Owner-only, per the
+    // owner's "disable for all managers" (Manager AND Area Manager).
     var promiseTrackerBlock = document.getElementById('capturePromiseTracker');
-    if (promiseTrackerBlock) promiseTrackerBlock.hidden = (role !== 'Owner' && role !== 'Manager');
+    if (promiseTrackerBlock) promiseTrackerBlock.hidden = (role !== 'Owner');
     // S.REP - Sales & Collection Plan panel, added 4 Nov 2026 - see the
     // HTML comment above #captureSrepPlan. Sits above Master File on the
     // page, but the fetch order here doesn't matter - independent panels.
@@ -13233,8 +13244,31 @@
     // NOT hidden here - it's per-DSR collection performance, same class as
     // the Collection Ratio panel, and already scopes itself to the logged
     // in DSR(s) internally via visibleDsrs_() inside bucketTargetsStats_().
+    // 6 Nov 2026: switched from the blanket !!CURRENT_ALLOWED_AREAS check
+    // (which only caught a RESTRICTED Area Manager, leaving it visible to
+    // every unrestricted Manager) to isManagerRole_(role), per the
+    // owner's "disable for all managers" (Manager AND Area Manager).
     var deadStockBlock = document.getElementById('captureDeadStock');
-    if (deadStockBlock) deadStockBlock.hidden = !!CURRENT_ALLOWED_AREAS;
+    if (deadStockBlock) deadStockBlock.hidden = isManagerRole_(role);
+    // Collection Bucket Targets - was explicitly NOT hidden (see the
+    // superseded comment above, pre-6 Nov 2026); now hidden for the same
+    // Manager/Area Manager roles, same owner request as Dead Stock.
+    var bucketTargetsBlock = document.getElementById('captureBucketTargets');
+    if (bucketTargetsBlock) bucketTargetsBlock.hidden = isManagerRole_(role);
+    // DSR Visit Remarks - previously ungated (visible to every role that
+    // reaches this dashboard). Hidden for Manager/Area Manager, 6 Nov 2026.
+    var visitRemarksBlock = document.getElementById('captureVisitRemarks');
+    if (visitRemarksBlock) visitRemarksBlock.hidden = isManagerRole_(role);
+    // Closed Visit Follow-ups - previously ungated (see its own HTML
+    // comment, superseded by this). Hidden for Manager/Area Manager,
+    // 6 Nov 2026, same owner request as the other 4 panels in this block.
+    var closedVisitFollowupsBlock = document.getElementById('captureClosedVisitFollowups');
+    if (closedVisitFollowupsBlock) closedVisitFollowupsBlock.hidden = isManagerRole_(role);
+    // DSR / Dealer / Beat - Sales & Collection Plan (S.REP), added 4 Nov
+    // 2026 - explicitly confirmed by the owner (6 Nov 2026) to STAY
+    // enabled for managers. Left deliberately ungated (no hidden
+    // assignment here) - every role that reaches this dashboard sees it,
+    // same as before this round.
     // Master File - added 6 Oct 2026, hard-coded Owner-only for now (NOT
     // wired through sectionHidden_()/the Admin panel's per-role toggle,
     // unlike the blocks above) per the owner's explicit instruction:
