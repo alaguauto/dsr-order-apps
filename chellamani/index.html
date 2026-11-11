@@ -3849,6 +3849,23 @@
     }
   }
 
+  // loginSessionId - declared here (outer scope) instead of inside the
+  // login-gate IIFE further down, fixing a bug from the 11 Nov 2026
+  // sessionId fix: fetchLiveOverlay_() below references loginSessionId,
+  // but that variable used to be declared with `var` INSIDE the separate
+  // "(function () { ... })();" login-gate block near the bottom of this
+  // file - a sibling closure, not a parent of this function. Referencing
+  // it from here threw "loginSessionId is not defined" (a real
+  // ReferenceError, not just undefined) every single time
+  // fetchLiveOverlay_() ran, which silently aborted the rest of
+  // proceedAfterLogin() too (including the setInterval(fetchLiveOverlay_,
+  // ...) line right after it) - so the live overlay never ran even once,
+  // on any of the 8 apps, even after the sessionId fix was correctly
+  // uploaded to GitHub and the app was freshly reopened. Moving the
+  // declaration up here (and assigning to this same variable, not
+  // re-declaring it, inside proceedAfterLogin()/the heartbeat function
+  // below) puts it in a scope both places can actually see.
+  var loginSessionId = null;
   function fetchLiveOverlay_() {
     if (!apiConfigured()) return;
     // Fix, 11 Nov 2026: ?type=live has required a valid sessionId since the
@@ -6814,7 +6831,10 @@
   (function () {
     var APP_LOGIN_NAME = "Chellamani";
     var APP_DISPLAY = "Chellamani Order Slip";
-    var loginSessionId = null;
+    // loginSessionId moved to outer scope (see the comment above
+    // fetchLiveOverlay_()'s own declaration far above) - this block now
+    // just assigns to that same shared variable, it no longer declares
+    // its own separate one.
     var loginHeartbeatTimer = null;
     // "Stay logged in on this device" - added 1 Oct 2026 after DSRs said
     // re-entering the password every single time they opened the app felt

@@ -3527,6 +3527,23 @@
     }
   }
 
+  // loginSessionId - declared here (outer scope) instead of inside the
+  // login-gate IIFE further down, fixing a bug from the 11 Nov 2026
+  // sessionId fix: fetchLiveOverlay_() below references loginSessionId,
+  // but that variable used to be declared with `var` INSIDE the separate
+  // "(function () { ... })();" login-gate block near the bottom of this
+  // file - a sibling closure, not a parent of this function. Referencing
+  // it from here threw "loginSessionId is not defined" (a real
+  // ReferenceError, not just undefined) every single time
+  // fetchLiveOverlay_() ran, which silently aborted the rest of
+  // proceedAfterLogin() too (including the setInterval(fetchLiveOverlay_,
+  // ...) line right after it) - so the live overlay never ran even once,
+  // on any of the 8 apps, even after the sessionId fix was correctly
+  // uploaded to GitHub and the app was freshly reopened. Moving the
+  // declaration up here (and assigning to this same variable, not
+  // re-declaring it, inside proceedAfterLogin()/the heartbeat function
+  // below) puts it in a scope both places can actually see.
+  var loginSessionId = null;
   function fetchLiveOverlay_() {
     if (!apiConfigured()) return;
     // Fix, 11 Nov 2026: ?type=live has required a valid sessionId since the
@@ -5701,7 +5718,10 @@
   (function () {
     var APP_LOGIN_NAME = "Saravanan";
     var APP_DISPLAY = "Saravanan Order Slip";
-    var loginSessionId = null;
+    // loginSessionId moved to outer scope (see the comment above
+    // fetchLiveOverlay_()'s own declaration far above) - this block now
+    // just assigns to that same shared variable, it no longer declares
+    // its own separate one.
     var loginHeartbeatTimer = null;
     // "Stay logged in on this device" - added 1 Oct 2026 after DSRs said
     // re-entering the password every single time they opened the app felt
@@ -5749,7 +5769,19 @@
       startLoginHeartbeat();
       initOrders();
       fetchLiveOverlay_();
-      checkLastMonthReport_();
+      // Fix, 11 Nov 2026: this app calls checkLastMonthReport_() but has
+      // never had that function (or any of its supporting markup -
+      // shareLastMonthWrap etc.) in this file at all - only this one call
+      // site exists, with no definition anywhere. That's a real
+      // ReferenceError every single login, thrown synchronously inside
+      // proceedAfterLogin() - which aborted everything AFTER it in this
+      // same function, including the setInterval(fetchLiveOverlay_, ...)
+      // line right below (so Saravanan's app never polled live data again
+      // after the very first load) and the Bank Deposit fetch further
+      // down. Guarding it the same way the Bank Deposit call just below
+      // already guards itself (typeof check) lets the rest of login
+      // finish normally, same as every other DSR app.
+      if (typeof checkLastMonthReport_ === "function") checkLastMonthReport_();
       setInterval(fetchLiveOverlay_, LIVE_OVERLAY_POLL_MS);
       // Bank Deposit - added 23 Oct 2026. A DSR-entered log, not live Tally
       // data, so no repeat poll like fetchLiveOverlay_() above - just once
