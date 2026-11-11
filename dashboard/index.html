@@ -883,11 +883,16 @@
      Excel colours, but the same four-colour-coded-rows idea (pink/yellow
      header, mauve Total, green Avg/Target, peach Bal To Do). "Box type" -
      every cell gets its own full border (not just the generic
-     .age-table's bottom-border-only rule), and the font size/padding are
-     bumped slightly so the numbers read easily at WhatsApp image size. */
-  #daywiseSalesCollectionWrap .age-table { font-size: 13.5px; }
+     .age-table's bottom-border-only rule). Row height tightened 11 Nov
+     2026 ("CAN WE MAKE AS SHORT LIKE THE EXCEL SCREENSHOT") - the owner's
+     own sheet packs ~13 rows into a short, compact block with thin row
+     padding; the original bumped-up padding/font (for WhatsApp readability)
+     made the same 13 rows sprawl much taller than that. Padding cut back
+     down and font size trimmed slightly so the table reads as a tight,
+     Excel-like grid again - still boxed and colour-coded, just short. */
+  #daywiseSalesCollectionWrap .age-table { font-size: 12.5px; }
   #daywiseSalesCollectionWrap .age-table th,
-  #daywiseSalesCollectionWrap .age-table td { border: 1px solid var(--border); padding: 8px 10px; }
+  #daywiseSalesCollectionWrap .age-table td { border: 1px solid var(--border); padding: 3px 10px; line-height: 1.35; }
   #daywiseSalesCollectionWrap .age-table thead th.dwc-head-sales { background: var(--warn-soft); color: var(--warn); }
   #daywiseSalesCollectionWrap .age-table thead th.dwc-head-coll { background: var(--accent-soft); color: var(--accent); }
   #daywiseSalesCollectionWrap .age-table tr.dwc-row-total td { background: var(--promo-soft); color: var(--promo); font-weight: 700; border-top: 2px solid var(--promo); }
