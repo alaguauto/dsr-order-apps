@@ -3379,7 +3379,16 @@
 
   function fetchLiveOverlay_() {
     if (!apiConfigured()) return;
-    fetch(ORDERS_API_URL + "?type=live&_ts=" + Date.now(), { cache: "no-store" })
+    // Fix, 11 Nov 2026: ?type=live has required a valid sessionId since the
+    // 30 Oct 2026 security fix (see Code.gs's doGet()), but this call never
+    // sent one - so every poll silently came back {ok:false}, applyLiveOverlay_()
+    // never ran, and every dealer's balance/outstandingSince stayed unset,
+    // which is why "Manage dealers" showed the fallback red "due" badge on
+    // every single dealer (see balanceBadgeHtml() above) and stock/sales/
+    // collection/dormant/credit-limit data all froze. The dashboard's own
+    // fetchLive() was already updated to send this on 30 Oct; this app's
+    // call was missed.
+    fetch(ORDERS_API_URL + "?type=live&sessionId=" + encodeURIComponent(loginSessionId || "") + "&_ts=" + Date.now(), { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (data) { if (data && data.ok) applyLiveOverlay_(data); })
       .catch(function () { /* best-effort - silently skip on any failure */ });
