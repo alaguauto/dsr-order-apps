@@ -869,6 +869,30 @@
   .age-table thead th { font-weight: 700; color: var(--ink); border-bottom: 2px solid var(--border); }
   .age-table td.num { font-variant-numeric: tabular-nums; }
   .age-table tr.age-table-total td { font-weight: 700; color: var(--ink); border-top: 2px solid var(--border); border-bottom: none; }
+  /* Day-wise Sales & Collection table - colourful "boxed Excel sheet" look,
+     added 11 Nov 2026 at the owner's request ("whatsapp sharable with the
+     screenshot i earlier attached format ... box type and colourful and
+     numbers nearby to read easily"). Scoped entirely to
+     #daywiseSalesCollectionWrap so no other .age-table on this page is
+     affected. Reuses this page's own existing colour-token pairs
+     (--warn/--warn-soft, --accent/--accent-soft, --good/--good-soft,
+     --promo/--promo-soft - the same tokens .pill.on/.pill.done/.pill.err
+     already use above) rather than hardcoded hex, so this stays readable
+     in both light and dark mode for free, same as everything else on this
+     page - not a literal pixel-for-pixel copy of the screenshot's exact
+     Excel colours, but the same four-colour-coded-rows idea (pink/yellow
+     header, mauve Total, green Avg/Target, peach Bal To Do). "Box type" -
+     every cell gets its own full border (not just the generic
+     .age-table's bottom-border-only rule), and the font size/padding are
+     bumped slightly so the numbers read easily at WhatsApp image size. */
+  #daywiseSalesCollectionWrap .age-table { font-size: 13.5px; }
+  #daywiseSalesCollectionWrap .age-table th,
+  #daywiseSalesCollectionWrap .age-table td { border: 1px solid var(--border); padding: 8px 10px; }
+  #daywiseSalesCollectionWrap .age-table thead th.dwc-head-sales { background: var(--warn-soft); color: var(--warn); }
+  #daywiseSalesCollectionWrap .age-table thead th.dwc-head-coll { background: var(--accent-soft); color: var(--accent); }
+  #daywiseSalesCollectionWrap .age-table tr.dwc-row-total td { background: var(--promo-soft); color: var(--promo); font-weight: 700; border-top: 2px solid var(--promo); }
+  #daywiseSalesCollectionWrap .age-table tr.dwc-row-avgtarget td { background: var(--good-soft); color: var(--good); font-weight: 600; }
+  #daywiseSalesCollectionWrap .age-table tr.dwc-row-baltodo td { background: var(--warn-soft); color: var(--warn); font-weight: 700; }
   .age-table td.zero { color: var(--ink-muted); }
   /* Total column (after the last DSR) + two extra rows (Total Outstanding,
      Items Covered), added 23 Sep 2026 at the owner's request. */
@@ -1572,6 +1596,78 @@
       </div>
     </div>
   </details>
+
+  <!-- Day-wise Sales & Collection table, added 10 Nov 2026 - the owner sent
+       a screenshot of his own plain Excel sheet (Date / SALES (Ltr) /
+       COLLECTION (Rs), with TOTAL / AVG / Target / BAL TO DO summary rows)
+       and asked: "I WANT A OPTION LIKE THIS AFTER Report period ONLY FOR
+       OWNER". Two design choices were confirmed with the owner via
+       AskUserQuestion before building:
+         1. Target row auto-fills from the live company-wide monthly
+            targets already set per DSR (sum of DSRS[].target for Sales
+            Ltr, DSRS[].collectionTarget for Collection Rs - the same
+            figures the "Combined" strip's own Target/Balance already
+            uses) - NOT a manual field the owner types into, unlike his
+            old Excel sheet.
+         2. This table follows whichever month the "Report period" Month
+            picker (#reportMonthSelect) is set to, rather than always
+            showing the live current month - see applyReportMonthSelection_()
+            below, which calls renderDaywiseSalesCollection_(ym) every
+            time that picker changes. Only makes sense for the Month view
+            specifically - hidden entirely while View is Week/Quarter/
+            Year/Today (see applyReportPeriodSelection_() below), since
+            those don't resolve to one single calendar month to break
+            into days.
+       Owner-only, same direct role check as #captureDealerVisitCheck/
+       #archiveBlock/#teamSummaryBlock above (not a Section Visibility
+       toggle - see afterLogin_() below), since this wasn't explicitly
+       scoped to any other role.
+       Built entirely from data already loaded into the page for the Daily
+       Spikes chart above - salesTrendMap (Ltr)/collectionTrendMap (Rs),
+       the same {"yyyy-MM-dd": total} maps straight from ?type=live, which
+       keep a full, never-frozen daily history (see salesTrendMap's own
+       comment near the top of this file) - so this needed zero Code.gs
+       changes and adds zero extra network calls.
+
+       WhatsApp share + colour styling added 11 Nov 2026, owner's request:
+       "want to make this as whatsapp sharable with the screenshot i
+       earlier attached format that means box type and colourful and
+       numbers nearby to read easily" - i.e. make it LOOK like his own
+       Excel sheet (boxed cells, a colour-coded header/Total/Avg/Target/
+       Bal row, same as the screenshot he sent when first asking for this
+       table) and give it a WhatsApp share button, same
+       captureElementToBlob_()/openShareSheet_() image-capture pattern as
+       every other panel's own share-icon-btn (e.g. shareDealerVisitCheckBtn
+       just above) - #captureDaywiseSalesCollection wraps the whole
+       <details> so the capture includes the summary line (which month) as
+       well as the table. Captures whatever is currently expanded/collapsed
+       on screen, same as every other panel here - no forcing the <details>
+       open first, so the owner should expand it before tapping Share. The
+       colour scheme (dwc-head-sales/dwc-head-coll/dwc-row-total/
+       dwc-row-avgtarget/dwc-row-baltodo CSS classes, see their own rules
+       near .age-table-total above) is a close visual match to the
+       screenshot's pink/yellow header, pink Total row, green Avg/Target
+       rows, and peach Bal To Do row - scoped to #daywiseSalesCollectionWrap
+       only, so no other .age-table elsewhere on this page is affected. -->
+  <div id="daywiseSalesCollectionBlock" hidden style="margin:0 0 18px;">
+    <div id="captureDaywiseSalesCollection">
+      <details class="dsr-row" id="daywiseSalesCollectionDetails">
+        <summary class="dsr-row-summary">
+          <span class="dsr-row-toggle" aria-hidden="true"></span>
+          <span class="dsr-row-headtext"><span class="card-name">Day-wise Sales &amp; Collection</span>
+            <span class="card-territory" id="daywiseSalesCollectionMonthLabel"></span></span>
+          <span class="dsr-row-headright">
+            <button type="button" class="share-icon-btn small" id="shareDaywiseSalesCollectionBtn" title="Share on WhatsApp">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+            </button>
+          </span>
+        </summary>
+        <div class="dsr-row-body">
+          <div id="daywiseSalesCollectionWrap"></div>
+        </div>
+      </details>
+    </div>
+  </div>
 
   <div id="noDataBanner" class="admin-msg" hidden style="margin:0 0 18px;padding:14px 16px;border-radius:10px;background:var(--card);border:1px solid var(--border);font-size:13.5px;"></div>
 
@@ -9044,6 +9140,18 @@
     renderSummary(); renderSummaryMoney(); renderNeedsAttention(); renderDormant();
     renderInactiveVsBilled_(); renderCoverage_(); renderCards(); renderLeaderboard();
     renderTop5(); renderTopSkuByDsr_(); renderTrend(); renderTrendBars();
+    // "Day-wise Sales & Collection" (10 Nov 2026) - re-renders on every
+    // refresh cycle too, same as renderTrend()/renderTrendBars() just
+    // above, so a session left open on today's partial month keeps
+    // picking up new days/updated figures as Tally syncs land, not just
+    // on picker change. Re-reads whichever month #reportMonthSelect is
+    // currently set to rather than assuming "current month" - no-ops
+    // internally (see renderDaywiseSalesCollection_()) when the block/
+    // details are hidden (non-Owner, or View isn't "Month").
+    (function () {
+      var dwSel = document.getElementById('reportMonthSelect');
+      renderDaywiseSalesCollection_(dwSel && dwSel.value ? dwSel.value : currentMonthKey_());
+    })();
     renderCollectionRatio_(); renderLookupCard_(); renderSalesCollectionHeatmap_();
     renderPetronasAreaTable_(); renderPetronasCollectionAreaTable_(); renderStockCatalog_();
     renderGroupSummaryTable_(); renderDaybookItemGroupSummary_(); renderMfDaybookSummary_();
@@ -11566,6 +11674,18 @@
   // period" comment above applyReportPeriodSelection_() further down.
   var CURRENT_VIEW_PERIOD = null; // {kind:'week'|'quarter'|'year', label, ...} | null
 
+  // Set once in afterLogin_() below - lets applyReportPeriodSelection_()
+  // (Week/Quarter/Year/Today branch) know whether it's worth touching
+  // #daywiseSalesCollectionDetails at all without re-deriving the role
+  // (afterLogin_()'s own `role` parameter isn't in scope out here).
+  var CURRENT_ROLE_IS_OWNER_ = false;
+  // Set by renderDaywiseSalesCollection_() every time it renders - lets
+  // buildShareTextDaywiseSalesCollection_() build its WhatsApp caption
+  // from whatever was last actually shown, without recomputing from
+  // salesTrendMap/collectionTrendMap again. null until the panel has
+  // rendered at least once (Owner-only, see afterLogin_() below).
+  var LAST_DAYWISE_SUMMARY_ = null;
+
   function dashboardApiPost_(action, payload) {
     payload = payload || {};
     payload.action = action;
@@ -13175,6 +13295,14 @@
     // not explicitly specified by the owner, flagged in the registry).
     var dealerVisitCheckBlock = document.getElementById('captureDealerVisitCheck');
     if (dealerVisitCheckBlock) dealerVisitCheckBlock.hidden = (role !== 'Owner');
+    // "Day-wise Sales & Collection", added 10 Nov 2026 - Owner only, same
+    // gating as dealerVisitCheckBlock just above (see the long HTML
+    // comment above #daywiseSalesCollectionBlock). CURRENT_ROLE_IS_OWNER_
+    // is also set here so applyReportPeriodSelection_() further down can
+    // check it without needing afterLogin_()'s own `role` parameter.
+    CURRENT_ROLE_IS_OWNER_ = (role === 'Owner');
+    var daywiseSalesCollectionBlock = document.getElementById('daywiseSalesCollectionBlock');
+    if (daywiseSalesCollectionBlock) daywiseSalesCollectionBlock.hidden = !CURRENT_ROLE_IS_OWNER_;
     // "DSR Performance" link next to "By DSR" - Owner only (see the HTML
     // comment above #dsrPerfLink: the page it opens needs the Owner's own
     // Claude login + Google Sheets access).
@@ -14766,6 +14894,15 @@
   // year select) changes. `kind` is always the CURRENT value of
   // #reportPeriodType, even when the change came from a sub-picker.
   function applyReportPeriodSelection_(kind) {
+    // "Day-wise Sales & Collection" (10 Nov 2026) - a single calendar
+    // month's worth of rows doesn't resolve for Week/Quarter/Year/Today,
+    // so it's hidden for every kind except 'month', and shown again right
+    // below once kind is back to 'month'. No-op for a non-Owner session -
+    // the block itself stays hidden from afterLogin_() regardless.
+    if (CURRENT_ROLE_IS_OWNER_) {
+      var dwDetails = document.getElementById('daywiseSalesCollectionDetails');
+      if (dwDetails) dwDetails.hidden = (kind !== 'month');
+    }
     if (kind === 'month') {
       // Back to the plain Month picker - hand off to the existing flow
       // entirely (resetPeriodPickerToMonth_() clears CURRENT_VIEW_PERIOD
@@ -14892,6 +15029,15 @@
   function applyReportMonthSelection_(ym) {
     if (CURRENT_VIEW_PERIOD) resetPeriodPickerToMonth_();
 
+    // "Day-wise Sales & Collection" (10 Nov 2026) - follows this picker
+    // directly, independent of whether ym resolves to a frozen snapshot,
+    // the real last month, or "No data" below - salesTrendMap/
+    // collectionTrendMap are never frozen themselves (see their own
+    // comment near the top of this file), so there's always a real answer
+    // to render here regardless of which branch the rest of this function
+    // takes. No-ops internally when the block/details are hidden.
+    renderDaywiseSalesCollection_(ym);
+
     var reportContent = document.getElementById('reportContent');
     var lastMonthContent = document.getElementById('lastMonthReportContent');
     var banner = document.getElementById('noDataBanner');
@@ -14955,6 +15101,160 @@
   // JSON daily snapshots) is kept and repurposed as the Week view's data
   // source - see the "Report period" comment above
   // applyReportPeriodSelection_() further down.)
+
+  // Day-wise Sales & Collection table (10 Nov 2026) - see the long HTML
+  // comment above #daywiseSalesCollectionBlock for the full design.
+
+  // "16,34,953.00" - en-IN comma grouping with exactly 2 decimals, no ₹
+  // symbol, matching the owner's own Excel sheet's Collection column
+  // literally (fmtRs()/mfMoney_() elsewhere on this page round to whole
+  // rupees and prepend ₹, which is the right call for every other panel
+  // but not a literal match of the screenshot here).
+  function dwMoney2_(n) {
+    return Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // Sum of DSRS[].target (Sales Ltr) / .collectionTarget (Collection Rs) -
+  // the SAME live, company-wide monthly target figures the "Combined"
+  // strip's own Target/Balance already uses (see DSRS array's own comment
+  // near the top of this file). These are always "this month's" targets -
+  // there's no historical record of a past month's target anywhere in
+  // this system, so the Target row shows the same number regardless of
+  // which month is being viewed (same limitation "Combined"'s own Target
+  // already has for a past month).
+  function daywiseMonthlyTargets_() {
+    var salesTarget = 0, collectionTarget = 0;
+    DSRS.forEach(function (d) {
+      salesTarget += Number(d.target) || 0;
+      collectionTarget += Number(d.collectionTarget) || 0;
+    });
+    return { salesTarget: salesTarget, collectionTarget: collectionTarget };
+  }
+
+  // {"yyyy-MM-dd": total} -> {day: total}, one calendar month only - same
+  // logic as renderTrendBars()'s own perDayForMonth_() above, just
+  // parametrized by monthKey instead of closing over "this month" only,
+  // since this table can show any month #reportMonthSelect is set to.
+  function dwPerDayForMonth_(map, monthKey) {
+    var byDay = {};
+    Object.keys(map || {}).forEach(function (date) {
+      if (date.slice(0, 7) !== monthKey) return;
+      var day = Number(date.slice(8, 10));
+      if (!day) return;
+      byDay[day] = (byDay[day] || 0) + (map[date] || 0);
+    });
+    return byDay;
+  }
+
+  // Called from applyReportMonthSelection_(ym) every time the Report
+  // period Month picker changes (and once at page load). No-ops entirely
+  // when the block is hidden (non-Owner, or current View isn't "Month" -
+  // see applyReportPeriodSelection_() further down), so an Area Manager/
+  // Manager session, or a Week/Quarter/Year/Today view, never does this
+  // work at all.
+  function renderDaywiseSalesCollection_(monthKey) {
+    var block = document.getElementById('daywiseSalesCollectionBlock');
+    if (!block || block.hidden) return;
+    var details = document.getElementById('daywiseSalesCollectionDetails');
+    if (details && details.hidden) return;
+    var wrap = document.getElementById('daywiseSalesCollectionWrap');
+    var labelEl = document.getElementById('daywiseSalesCollectionMonthLabel');
+    if (labelEl) labelEl.textContent = monthNameLabel_(monthKey);
+    if (!wrap) return;
+
+    if (salesTrendMap === null || collectionTrendMap === null) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">Loading…</p>';
+      return;
+    }
+
+    var salesByDay = dwPerDayForMonth_(salesTrendMap, monthKey);
+    var collByDay = dwPerDayForMonth_(collectionTrendMap, monthKey);
+    var lastDay = daysInMonthFrontend_dashboard_(monthKey);
+    // Only list days up to the last day that actually has a Sales or
+    // Collection row - never pads a still-open month out to its last
+    // calendar day with rows of nothing, and never truncates a
+    // fully-synced past month early.
+    var maxDataDay = 0;
+    Object.keys(salesByDay).concat(Object.keys(collByDay)).forEach(function (d) {
+      maxDataDay = Math.max(maxDataDay, Number(d));
+    });
+    var rowCount = Math.min(maxDataDay, lastDay);
+
+    if (!rowCount) {
+      wrap.innerHTML = '<p class="empty-note" style="font-size:12.5px;color:var(--ink-muted);">No Tally sales or collection recorded yet for ' + mfEscapeHtml_(monthNameLabel_(monthKey)) + '.</p>';
+      return;
+    }
+
+    var totalSales = 0, totalColl = 0, rowsHtml = '';
+    for (var day = 1; day <= rowCount; day++) {
+      var sVal = salesByDay[day] || 0;
+      var cVal = collByDay[day] || 0;
+      totalSales += sVal;
+      totalColl += cVal;
+      rowsHtml += '<tr><td>' + day + '</td><td>' + fmt(sVal) + '</td><td>' + dwMoney2_(cVal) + '</td></tr>';
+    }
+    var avgSales = totalSales / rowCount;
+    var avgColl = totalColl / rowCount;
+    var targets = daywiseMonthlyTargets_();
+    // "BAL TO DO" = Target - Total-so-far, same literal formula as the
+    // owner's own Excel sheet (shown as a negative number once Target is
+    // exceeded, not reworded into a "+N over" form the way the Combined
+    // strip's own Balance line does elsewhere on this page) - a deliberate
+    // literal match of the screenshot rather than this page's usual
+    // "surplus" convention.
+    var balSales = targets.salesTarget - totalSales;
+    var balColl = targets.collectionTarget - totalColl;
+
+    // Cached for buildShareTextDaywiseSalesCollection_() below, so the
+    // WhatsApp caption text doesn't need to recompute everything from
+    // scratch on every share-button click - always reflects whatever
+    // month was last rendered into the table on screen.
+    LAST_DAYWISE_SUMMARY_ = { monthKey: monthKey, totalSales: totalSales, totalColl: totalColl, avgSales: avgSales, avgColl: avgColl, targets: targets, balSales: balSales, balColl: balColl };
+
+    // dwc-head-sales/dwc-head-coll colour the header pink/yellow (see
+    // their own CSS rule above .age-table-total's own rule); dwc-row-total/
+    // dwc-row-avgtarget/dwc-row-baltodo colour the 4 summary rows mauve/
+    // green/peach, matching the owner's own screenshot's colour coding.
+    var theadHtml = '<thead><tr><th class="dwc-head-sales">Date</th><th class="dwc-head-sales">Sales (Ltr)</th><th class="dwc-head-coll">Collection (Rs)</th></tr></thead>';
+    rowsHtml += '<tr class="dwc-row-total"><td>TOTAL</td><td>' + fmt(totalSales) + '</td><td>' + dwMoney2_(totalColl) + '</td></tr>';
+    rowsHtml += '<tr class="dwc-row-avgtarget"><td>AVG</td><td>' + fmt(avgSales) + '</td><td>' + dwMoney2_(avgColl) + '</td></tr>';
+    rowsHtml += '<tr class="dwc-row-avgtarget"><td>Target</td><td>' + fmt(targets.salesTarget) + '</td><td>' + dwMoney2_(targets.collectionTarget) + '</td></tr>';
+    rowsHtml += '<tr class="dwc-row-baltodo"><td>BAL TO DO</td><td>' + fmt(balSales) + '</td><td>' + dwMoney2_(balColl) + '</td></tr>';
+    wrap.innerHTML = ageTableWrap_(theadHtml, rowsHtml);
+  }
+
+  // WhatsApp share for Day-wise Sales & Collection, added 11 Nov 2026 -
+  // same captureElementToBlob_()/openShareSheet_() image-capture pattern
+  // as every other panel's own share-icon-btn (e.g. shareDealerVisitCheckBtn
+  // above); preventDefault/stopPropagation since the button sits inside
+  // this panel's <summary>, same reason as that button. Captures whatever
+  // is currently expanded/collapsed on screen - no forcing the <details>
+  // open first, so the owner should expand it before tapping Share.
+  function buildShareTextDaywiseSalesCollection_() {
+    var s = LAST_DAYWISE_SUMMARY_;
+    if (!s) return 'Day-wise Sales & Collection — open the panel first so it has numbers to share.';
+    var lines = ['DAY-WISE SALES & COLLECTION — ' + monthNameLabel_(s.monthKey), ''];
+    lines.push('TOTAL: ' + fmt(s.totalSales) + ' Ltr / ' + dwMoney2_(s.totalColl) + ' Rs');
+    lines.push('AVG/day: ' + fmt(s.avgSales) + ' Ltr / ' + dwMoney2_(s.avgColl) + ' Rs');
+    lines.push('Target: ' + fmt(s.targets.salesTarget) + ' Ltr / ' + dwMoney2_(s.targets.collectionTarget) + ' Rs');
+    lines.push('Bal to do: ' + fmt(s.balSales) + ' Ltr / ' + dwMoney2_(s.balColl) + ' Rs');
+    return lines.join('\n');
+  }
+  (function () {
+    var btn = document.getElementById('shareDaywiseSalesCollectionBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var label = LAST_DAYWISE_SUMMARY_ ? monthNameLabel_(LAST_DAYWISE_SUMMARY_.monthKey) : 'Day-wise Sales & Collection';
+      // Image-only WhatsApp share (no waText 7th arg) - same convention as
+      // every other share-icon-btn on this page (shareDealerVisitCheckBtn,
+      // shareCombinedBtn, etc. - none of them pass waText either); the
+      // text here only drives the Email flow's draft body.
+      openShareSheet_('Share Day-wise Sales & Collection', document.getElementById('captureDaywiseSalesCollection'),
+        'Day-wise Sales & Collection — ' + label, buildShareTextDaywiseSalesCollection_());
+    });
+  })();
 
   // Shared "yyyy-MM" options list builder for #reportMonthSelect AND the
   // new #reportWeekMonthSelect (Week view's own month picker) - factored
