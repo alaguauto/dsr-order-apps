@@ -8456,7 +8456,15 @@
         '<div class="sv-field"><label>FOC Qty</label><input type="number" min="1" step="1" class="sv-input-focqty" value="' + acEscapeHtml_(focQty) + '"></div>' +
       '</div>' +
       '<div class="sv-form-row sv-price-fields" style="' + (schemeType === 'Price' ? '' : 'display:none;') + '">' +
-        '<div class="sv-field"><label>Qty</label><input type="number" min="1" step="1" class="sv-input-qtythreshold" value="' + acEscapeHtml_(qtyThreshold) + '"></div>' +
+        // Label explicitly says "(Case)", added 13 Nov 2026 per the
+        // owner's own question ("this scheme qty I have to enter in
+        // case qty or nos qty?") - this Price Scheme only ever applies
+        // when the DSR orders in Case mode (never when toggled to "Nos
+        // (loose)" on a DSR app - see liveCnSchemeText()'s own comment
+        // on every DSR app for why), so the threshold must always be
+        // entered as a CASE count, same convention as the existing bulk
+        // nett-price feature.
+        '<div class="sv-field"><label>Qty (Case)</label><input type="number" min="1" step="1" class="sv-input-qtythreshold" value="' + acEscapeHtml_(qtyThreshold) + '"></div>' +
         '<div class="sv-field"><label>CN Rs (per unit/case)</label><input type="number" min="1" step="0.01" class="sv-input-cnrate" value="' + acEscapeHtml_(cnRate) + '"></div>' +
       '</div>' +
       '<div class="sv-form-row">' +
@@ -8466,6 +8474,15 @@
       '<div class="sv-actions">' +
         '<button type="button" class="admin-save-btn sv-save-btn" data-item="' + acEscapeHtml_(item.id) + '" data-name="' + acEscapeHtml_(item.name) + '" style="padding:7px 14px;font-size:12.5px;">Save</button>' +
         (ep ? ('<button type="button" class="lookup-clear-btn sv-close-btn" data-id="' + acEscapeHtml_(ep.id) + '">Close now</button>') : '') +
+        // "Delete" - added 13 Nov 2026 (owner: "in dashboard need
+        // delete/edit button for scheme is any scheme wrongly saved").
+        // Permanently removes the row (schemeConfigDelete) - distinct
+        // from "Close now" above, which just stops it running but keeps
+        // it listed under Closed Schemes. "Edit" for a still-open
+        // episode is just this same form + Save (already changes its
+        // shape/dates); Delete is for when the whole entry was a
+        // mistake and shouldn't be kept around at all.
+        (ep ? ('<button type="button" class="lookup-clear-btn sv-delete-btn" data-id="' + acEscapeHtml_(ep.id) + '">Delete</button>') : '') +
         '<span class="admin-msg sv-msg" data-item="' + acEscapeHtml_(item.id) + '"></span>' +
       '</div>';
   }
@@ -8529,7 +8546,14 @@
         '<td>' + schemeLabel + '</td>' +
         '<td class="num">' + acEscapeHtml_(fmtDate_(s.validFrom)) + ' - ' + acEscapeHtml_(fmtDate_(s.validTo)) + '</td>' +
         '<td><span class="pill neutral">' + closedNote + '</span></td>' +
-        '<td><button type="button" class="lookup-clear-btn sv-extend-btn" data-id="' + acEscapeHtml_(s.id) + '">Extend</button></td></tr>' +
+        '<td><button type="button" class="lookup-clear-btn sv-extend-btn" data-id="' + acEscapeHtml_(s.id) + '">Extend</button>' +
+        // "Delete" - added 13 Nov 2026, same comment as the one on the
+        // open-episode form's own Delete button above. The main use
+        // case for Delete living here too: a scheme that's wrongly
+        // saved doesn't need to be "closed" first - the owner can just
+        // delete it straight away, whether it's still open or already
+        // shows up here as Closed.
+        ' <button type="button" class="lookup-clear-btn sv-delete-btn" data-id="' + acEscapeHtml_(s.id) + '" style="margin-left:4px;">Delete</button></td></tr>' +
         extendRow;
     }).join('');
     wrap.innerHTML = ageTableWrap_(
@@ -8637,6 +8661,22 @@
         return;
       }
 
+      // "Delete" - added 13 Nov 2026 (owner: "in dashboard need
+      // delete/edit button for scheme is any scheme wrongly saved").
+      // Permanently removes the row via schemeConfigDelete - not
+      // recoverable, hence the explicit confirm wording below (distinct
+      // from Close now's wording).
+      var svDeleteBtn = e.target.closest ? e.target.closest('.sv-delete-btn') : null;
+      if (svDeleteBtn) {
+        var svDelId = svDeleteBtn.getAttribute('data-id');
+        if (!svDelId || !window.confirm('Delete this scheme permanently? This cannot be undone.')) return;
+        dashboardApiPost_('schemeConfigDelete', { id: svDelId }).then(function (res) {
+          if (res && res.ok) fetchSchemeConfig_();
+          else window.alert('Could not delete: ' + ((res && res.error) || 'unknown error'));
+        });
+        return;
+      }
+
       var extendBtn = e.target.closest ? e.target.closest('.sv-extend-btn') : null;
       if (extendBtn) {
         SCHEME_VALIDITY_EXTENDING_ = extendBtn.getAttribute('data-id');
@@ -8694,9 +8734,14 @@
       .catch(function () { /* best-effort - panel just keeps showing its last/loading state */ });
   }
 
+  // Shows the full Valid From - Valid To period, not just one end of it -
+  // changed 13 Nov 2026 per the owner's own feedback ("in promotion valid
+  // till is there na, i need from - to so we can identify this scheme is
+  // applicable from when"). Status label (Active/Upcoming) stays alongside.
   function promoTagHtml_(p) {
-    if (p.status === 'Upcoming') return '<span class="sv-tag upcoming">Upcoming &middot; live from ' + acEscapeHtml_(fmtDate_(p.validFrom)) + '</span>';
-    return '<span class="sv-tag price">Active &middot; live till ' + acEscapeHtml_(fmtDate_(p.validTo)) + '</span>';
+    var cls = p.status === 'Upcoming' ? 'upcoming' : 'price';
+    var statusLabel = p.status === 'Upcoming' ? 'Upcoming' : 'Active';
+    return '<span class="sv-tag ' + cls + '">' + statusLabel + ' &middot; ' + acEscapeHtml_(fmtDate_(p.validFrom)) + ' - ' + acEscapeHtml_(fmtDate_(p.validTo)) + '</span>';
   }
 
   function renderPromotionsActive_() {
@@ -8718,6 +8763,12 @@
           '<div class="sv-actions">' +
             (p.posterUrl ? ('<button type="button" class="lookup-clear-btn promo-poster-btn" data-url="' + acEscapeHtml_(p.posterUrl) + '">View Poster</button>') : '') +
             '<button type="button" class="lookup-clear-btn promo-close-btn" data-id="' + acEscapeHtml_(p.id) + '">Close now</button>' +
+            // "Delete" - added 13 Nov 2026, same convention as Scheme
+            // Validity's own Delete button (see its comment above) -
+            // permanently removes the row via promotionDelete, for a
+            // promotion that was wrongly saved rather than one that
+            // just needs to stop running.
+            '<button type="button" class="lookup-clear-btn promo-delete-btn" data-id="' + acEscapeHtml_(p.id) + '">Delete</button>' +
           '</div>' +
         '</div>' +
       '</div>';
@@ -8750,7 +8801,8 @@
         '<td class="num">' + acEscapeHtml_(fmtDate_(p.validFrom)) + ' - ' + acEscapeHtml_(fmtDate_(p.validTo)) + '</td>' +
         '<td><span class="pill neutral">' + closedNote + '</span></td>' +
         '<td>' + posterCell + '</td>' +
-        '<td><button type="button" class="lookup-clear-btn promo-extend-btn" data-id="' + acEscapeHtml_(p.id) + '">Extend</button></td></tr>' +
+        '<td><button type="button" class="lookup-clear-btn promo-extend-btn" data-id="' + acEscapeHtml_(p.id) + '">Extend</button>' +
+        ' <button type="button" class="lookup-clear-btn promo-delete-btn" data-id="' + acEscapeHtml_(p.id) + '" style="margin-left:4px;">Delete</button></td></tr>' +
         extendRow;
     }).join('');
     wrap.innerHTML = ageTableWrap_(
@@ -8824,6 +8876,20 @@
         dashboardApiPost_('promotionClose', { id: id1 }).then(function (res) {
           if (res && res.ok) fetchPromotions_();
           else window.alert('Could not close: ' + ((res && res.error) || 'unknown error'));
+        });
+        return;
+      }
+
+      // "Delete" - added 13 Nov 2026, same convention/wording as Scheme
+      // Validity's own Delete button above - permanently removes the
+      // row via promotionDelete, not recoverable.
+      var promoDeleteBtn = e.target.closest ? e.target.closest('.promo-delete-btn') : null;
+      if (promoDeleteBtn) {
+        var promoDelId = promoDeleteBtn.getAttribute('data-id');
+        if (!promoDelId || !window.confirm('Delete this promotion permanently? This cannot be undone.')) return;
+        dashboardApiPost_('promotionDelete', { id: promoDelId }).then(function (res) {
+          if (res && res.ok) fetchPromotions_();
+          else window.alert('Could not delete: ' + ((res && res.error) || 'unknown error'));
         });
         return;
       }
