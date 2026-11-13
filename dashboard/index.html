@@ -3477,7 +3477,7 @@
     </summary>
     <div class="dsr-row-body">
       <p class="reorder-note">Click any item below to set up a scheme on it - FOC (bill qty gets free qty) or Price Scheme (qty reached gives a ₹ credit note per unit/case) - then set how long it stays live. Saving here is what every DSR app actually uses at order time; an item past its Valid To date just stops applying on its own, nothing to clear. Closed schemes stay listed further down with an Extend option.</p>
-      <input type="text" id="schemeValiditySearch" class="sv-search" placeholder="Search items…">
+      <select id="schemeValiditySearch" class="sv-search"><option value="">Jump to item…</option></select>
       <div id="schemeValidityItemsWrap"><p class="task-empty-note" style="padding:10px 16px;">Loading…</p></div>
       <p class="reorder-note" style="margin-top:18px;font-weight:700;color:var(--ink);">Closed schemes</p>
       <div class="p2p-table-wrap" id="schemeValidityClosedWrap"><p class="task-empty-note" style="padding:10px 4px;">Loading…</p></div>
@@ -8273,7 +8273,25 @@
   var SCHEME_CONFIG_DATA_ = [];
   var SCHEME_VALIDITY_EXPANDED_ = null; // itemId currently expanded, or null
   var SCHEME_VALIDITY_EXTENDING_ = null; // id of the closed episode whose Extend row is open, or null
-  var SCHEME_VALIDITY_SEARCH_ = '';
+
+  // "Jump to item" dropdown - added 13 Nov 2026, same day as the base
+  // feature, replacing a free-text search box. Picking an item here
+  // doesn't filter the list below (the owner can still see every item
+  // at a glance) - it just expands that one item's form and scrolls it
+  // into view, same as clicking its row directly. The select resets to
+  // the placeholder after each pick so it's ready to jump again.
+  function svPopulateSearchSelect_() {
+    var sel = document.getElementById('schemeValiditySearch');
+    if (!sel || typeof CATALOG_ITEMS === 'undefined') return;
+    var optsHtml = '<option value="">Jump to item…</option>';
+    for (var i = 0; i < CATALOG_ITEMS.length; i++) {
+      var item = CATALOG_ITEMS[i];
+      var ep = svOpenEpisodeForItem_(item.id);
+      var tag = !ep ? '' : (ep.status === 'Upcoming' ? ' (upcoming)' : (ep.schemeType === 'FOC' ? ' (FOC live)' : ' (Price live)'));
+      optsHtml += '<option value="' + acEscapeHtml_(item.id) + '">' + acEscapeHtml_(item.name) + tag + '</option>';
+    }
+    sel.innerHTML = optsHtml;
+  }
 
   function fetchSchemeConfig_() {
     if (typeof ORDERS_API_URL !== "string") return;
@@ -8348,10 +8366,9 @@
   function renderSchemeValidityItems_() {
     var wrap = document.getElementById('schemeValidityItemsWrap');
     if (!wrap || typeof CATALOG_ITEMS === 'undefined') return;
-    var q = SCHEME_VALIDITY_SEARCH_.trim().toLowerCase();
-    var items = !q ? CATALOG_ITEMS : CATALOG_ITEMS.filter(function (it) { return String(it.name || '').toLowerCase().indexOf(q) !== -1; });
+    var items = CATALOG_ITEMS;
     if (!items.length) {
-      wrap.innerHTML = '<p class="task-empty-note" style="padding:10px 16px;">No items match "' + acEscapeHtml_(SCHEME_VALIDITY_SEARCH_) + '".</p>';
+      wrap.innerHTML = '<p class="task-empty-note" style="padding:10px 16px;">No items in the catalog.</p>';
       return;
     }
     wrap.innerHTML = '<div class="sv-items">' + items.map(function (item) {
@@ -8414,14 +8431,21 @@
     }
     renderSchemeValidityItems_();
     renderSchemeValidityClosed_();
+    svPopulateSearchSelect_();
   }
 
   (function () {
-    var searchInput = document.getElementById('schemeValiditySearch');
-    if (searchInput) {
-      searchInput.addEventListener('input', function () {
-        SCHEME_VALIDITY_SEARCH_ = searchInput.value || '';
+    var searchSelect = document.getElementById('schemeValiditySearch');
+    if (searchSelect) {
+      searchSelect.addEventListener('change', function () {
+        var itemId = searchSelect.value;
+        if (!itemId) return;
+        SCHEME_VALIDITY_EXPANDED_ = itemId;
         renderSchemeValidityItems_();
+        searchSelect.value = ''; // reset so it's ready to jump again
+        var itemsWrap = document.getElementById('schemeValidityItemsWrap');
+        var row = itemsWrap ? itemsWrap.querySelector('.sv-item-head[data-item="' + itemId.replace(/"/g, '') + '"]') : null;
+        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
     }
 
