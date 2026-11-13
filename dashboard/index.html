@@ -1196,7 +1196,13 @@
 
   /* "Scheme Validity" admin screen, added 13 Nov 2026 - see the HTML
      comment above #captureSchemeValidity for the full feature. */
-  .sv-search { width:100%; max-width:360px; padding:8px 11px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--ink); font-size:13.5px; font-family:inherit; margin:0 16px 10px; display:block; }
+  .sv-search-wrap { position:relative; display:block; max-width:360px; margin:0 16px 10px; }
+  .sv-search-input { width:100%; padding:8px 11px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--ink); font-size:13.5px; font-family:inherit; display:block; box-sizing:border-box; }
+  .sv-search-dropdown { position:absolute; left:0; top:calc(100% + 4px); width:100%; background:var(--surface); border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow); max-height:260px; overflow-y:auto; z-index:6; }
+  .sv-search-row { padding:8px 12px; font-size:12.5px; cursor:pointer; border-top:1px solid var(--border); }
+  .sv-search-row:first-child { border-top:none; }
+  .sv-search-row:hover { background:var(--surface-2); }
+  .sv-search-row-tag { float:right; font-weight:700; font-size:10.5px; color:var(--ink-muted); }
   .sv-items { display:flex; flex-direction:column; gap:7px; margin:0 16px; }
   .sv-item { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:var(--surface); }
   .sv-item-head { display:flex; align-items:center; gap:8px; padding:9px 12px; cursor:pointer; }
@@ -3476,8 +3482,11 @@
         <span class="card-territory" id="schemeValiditySummaryLine">Loading…</span></span>
     </summary>
     <div class="dsr-row-body">
-      <p class="reorder-note">The list below shows only items currently on a scheme. Use the dropdown to find any other item and add a scheme to it - FOC (bill qty gets free qty) or Price Scheme (qty reached gives a ₹ credit note per unit/case) - then set how long it stays live. Saving here is what every DSR app actually uses at order time; an item past its Valid To date just stops applying on its own, nothing to clear. Closed schemes stay listed further down with an Extend option.</p>
-      <select id="schemeValiditySearch" class="sv-search"><option value="">Add/edit a scheme on item…</option></select>
+      <p class="reorder-note">The list below shows only items currently on a scheme. Type any word from an item's name in the search box to find it and add a scheme - FOC (bill qty gets free qty) or Price Scheme (qty reached gives a ₹ credit note per unit/case) - then set how long it stays live. Saving here is what every DSR app actually uses at order time; an item past its Valid To date just stops applying on its own, nothing to clear. Closed schemes stay listed further down with an Extend option.</p>
+      <div class="sv-search-wrap">
+        <input type="text" id="schemeValiditySearch" class="sv-search-input" placeholder="Add/edit a scheme on item… (search any word)" autocomplete="off">
+        <div class="sv-search-dropdown" id="schemeValiditySearchDropdown" hidden></div>
+      </div>
       <div id="schemeValidityItemsWrap"><p class="task-empty-note" style="padding:10px 16px;">Loading…</p></div>
       <p class="reorder-note" style="margin-top:18px;font-weight:700;color:var(--ink);">Closed schemes</p>
       <div class="p2p-table-wrap" id="schemeValidityClosedWrap"><p class="task-empty-note" style="padding:10px 4px;">Loading…</p></div>
@@ -8274,30 +8283,63 @@
   var SCHEME_VALIDITY_EXPANDED_ = null; // itemId currently expanded, or null
   var SCHEME_VALIDITY_EXTENDING_ = null; // id of the closed episode whose Extend row is open, or null
 
-  // "Add/edit a scheme on item" dropdown - added 13 Nov 2026, same day as
-  // the base feature (replacing a free-text search box), then changed
-  // the same day again: the list below now shows ONLY items currently
-  // on a scheme (owner's own request - the full ~180-item catalog was
-  // pointless clutter once this dropdown existed to find any item
-  // directly). Picking an item here expands that item's form and
-  // scrolls it into view - if the item has no scheme yet, it's added to
-  // the list on the fly (purely client-side, nothing saved yet) so its
-  // blank form has somewhere to render; it drops back out of the list
-  // the moment it's collapsed again without being saved, or stays for
-  // good once Save actually persists an episode on it. The select
-  // resets to the placeholder after each pick so it's ready to jump
-  // again.
-  function svPopulateSearchSelect_() {
-    var sel = document.getElementById('schemeValiditySearch');
-    if (!sel || typeof CATALOG_ITEMS === 'undefined') return;
-    var optsHtml = '<option value="">Add/edit a scheme on item…</option>';
-    for (var i = 0; i < CATALOG_ITEMS.length; i++) {
-      var item = CATALOG_ITEMS[i];
-      var ep = svOpenEpisodeForItem_(item.id);
-      var tag = !ep ? '' : (ep.status === 'Upcoming' ? ' (upcoming)' : (ep.schemeType === 'FOC' ? ' (FOC live)' : ' (Price live)'));
-      optsHtml += '<option value="' + acEscapeHtml_(item.id) + '">' + acEscapeHtml_(item.name) + tag + '</option>';
+  // "Add/edit a scheme on item" type-to-search box - added 13 Nov 2026,
+  // same day as the base feature. Went through two shapes the same day:
+  // first a free-text input (filtered the item list below as you typed
+  // - replaced because the list itself was then changed to show only
+  // items already on a scheme, so filtering it further made no sense),
+  // then a plain <select> dropdown (replaced again because a native
+  // select's own type-ahead only jumps to options starting with what
+  // you type, and the owner asked for matching on any word in the
+  // name, e.g. typing "SYNTIUM" should find "5W40 4 LIT SYNTIUM 3000
+  // SN" even though the name doesn't start with it). This final shape
+  // is the same type-to-search combobox pattern already proven
+  // elsewhere on this dashboard for exactly this reason - the Master
+  // File DB item picker (#mfdbItemSearchInput, built 18 Oct 2026 for
+  // the same "180 items, can't use a plain dropdown" problem) - reusing
+  // its own plain substring match (name.indexOf(term), matches
+  // anywhere in the name, not just the start).
+  //
+  // Picking a result expands that item's form and scrolls it into view
+  // - if the item has no scheme yet, it's added to the list on the fly
+  // (purely client-side, nothing saved yet) so its blank form has
+  // somewhere to render; it drops back out of the list the moment it's
+  // collapsed again without being saved, or stays for good once Save
+  // actually persists an episode on it. The input clears itself after
+  // each pick so it's ready to search again.
+  function svSearchRender_() {
+    var input = document.getElementById('schemeValiditySearch');
+    var dropdown = document.getElementById('schemeValiditySearchDropdown');
+    if (!input || !dropdown || typeof CATALOG_ITEMS === 'undefined') return;
+    var term = (input.value || '').trim().toLowerCase();
+    if (!term) { dropdown.hidden = true; dropdown.innerHTML = ''; return; }
+    var matches = CATALOG_ITEMS.filter(function (item) {
+      return String(item.name || '').toLowerCase().indexOf(term) !== -1;
+    }).slice(0, 20);
+    if (!matches.length) {
+      dropdown.hidden = false;
+      dropdown.innerHTML = '<div class="sv-search-row" style="color:var(--ink-muted);cursor:default;">No matching item.</div>';
+      return;
     }
-    sel.innerHTML = optsHtml;
+    dropdown.innerHTML = matches.map(function (item) {
+      var ep = svOpenEpisodeForItem_(item.id);
+      var tag = !ep ? '' : (ep.status === 'Upcoming' ? 'upcoming' : (ep.schemeType === 'FOC' ? 'FOC live' : 'Price live'));
+      return '<div class="sv-search-row" data-item="' + acEscapeHtml_(item.id) + '">' + acEscapeHtml_(item.name) +
+        (tag ? ('<span class="sv-search-row-tag">' + acEscapeHtml_(tag) + '</span>') : '') + '</div>';
+    }).join('');
+    dropdown.hidden = false;
+    dropdown.querySelectorAll('.sv-search-row[data-item]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var itemId = el.getAttribute('data-item');
+        SCHEME_VALIDITY_EXPANDED_ = itemId;
+        renderSchemeValidityItems_();
+        input.value = '';
+        dropdown.hidden = true;
+        var itemsWrap = document.getElementById('schemeValidityItemsWrap');
+        var row = itemsWrap ? itemsWrap.querySelector('.sv-item-head[data-item="' + itemId.replace(/"/g, '') + '"]') : null;
+        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
   }
 
   function fetchSchemeConfig_() {
@@ -8447,23 +8489,20 @@
     }
     renderSchemeValidityItems_();
     renderSchemeValidityClosed_();
-    svPopulateSearchSelect_();
   }
 
   (function () {
-    var searchSelect = document.getElementById('schemeValiditySearch');
-    if (searchSelect) {
-      searchSelect.addEventListener('change', function () {
-        var itemId = searchSelect.value;
-        if (!itemId) return;
-        SCHEME_VALIDITY_EXPANDED_ = itemId;
-        renderSchemeValidityItems_();
-        searchSelect.value = ''; // reset so it's ready to jump again
-        var itemsWrap = document.getElementById('schemeValidityItemsWrap');
-        var row = itemsWrap ? itemsWrap.querySelector('.sv-item-head[data-item="' + itemId.replace(/"/g, '') + '"]') : null;
-        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      });
+    var searchInput = document.getElementById('schemeValiditySearch');
+    var searchDropdown = document.getElementById('schemeValiditySearchDropdown');
+    if (searchInput) {
+      searchInput.addEventListener('input', svSearchRender_);
+      searchInput.addEventListener('focus', function () { if (searchInput.value) svSearchRender_(); });
     }
+    document.addEventListener('click', function (e) {
+      if (searchDropdown && !searchDropdown.hidden && !e.target.closest('.sv-search-wrap')) {
+        searchDropdown.hidden = true;
+      }
+    });
 
     document.addEventListener('change', function (e) {
       if (e.target && e.target.classList && e.target.classList.contains('sv-type-select')) {
