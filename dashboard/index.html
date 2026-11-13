@@ -3476,8 +3476,8 @@
         <span class="card-territory" id="schemeValiditySummaryLine">Loading…</span></span>
     </summary>
     <div class="dsr-row-body">
-      <p class="reorder-note">Click any item below to set up a scheme on it - FOC (bill qty gets free qty) or Price Scheme (qty reached gives a ₹ credit note per unit/case) - then set how long it stays live. Saving here is what every DSR app actually uses at order time; an item past its Valid To date just stops applying on its own, nothing to clear. Closed schemes stay listed further down with an Extend option.</p>
-      <select id="schemeValiditySearch" class="sv-search"><option value="">Jump to item…</option></select>
+      <p class="reorder-note">The list below shows only items currently on a scheme. Use the dropdown to find any other item and add a scheme to it - FOC (bill qty gets free qty) or Price Scheme (qty reached gives a ₹ credit note per unit/case) - then set how long it stays live. Saving here is what every DSR app actually uses at order time; an item past its Valid To date just stops applying on its own, nothing to clear. Closed schemes stay listed further down with an Extend option.</p>
+      <select id="schemeValiditySearch" class="sv-search"><option value="">Add/edit a scheme on item…</option></select>
       <div id="schemeValidityItemsWrap"><p class="task-empty-note" style="padding:10px 16px;">Loading…</p></div>
       <p class="reorder-note" style="margin-top:18px;font-weight:700;color:var(--ink);">Closed schemes</p>
       <div class="p2p-table-wrap" id="schemeValidityClosedWrap"><p class="task-empty-note" style="padding:10px 4px;">Loading…</p></div>
@@ -8274,16 +8274,23 @@
   var SCHEME_VALIDITY_EXPANDED_ = null; // itemId currently expanded, or null
   var SCHEME_VALIDITY_EXTENDING_ = null; // id of the closed episode whose Extend row is open, or null
 
-  // "Jump to item" dropdown - added 13 Nov 2026, same day as the base
-  // feature, replacing a free-text search box. Picking an item here
-  // doesn't filter the list below (the owner can still see every item
-  // at a glance) - it just expands that one item's form and scrolls it
-  // into view, same as clicking its row directly. The select resets to
-  // the placeholder after each pick so it's ready to jump again.
+  // "Add/edit a scheme on item" dropdown - added 13 Nov 2026, same day as
+  // the base feature (replacing a free-text search box), then changed
+  // the same day again: the list below now shows ONLY items currently
+  // on a scheme (owner's own request - the full ~180-item catalog was
+  // pointless clutter once this dropdown existed to find any item
+  // directly). Picking an item here expands that item's form and
+  // scrolls it into view - if the item has no scheme yet, it's added to
+  // the list on the fly (purely client-side, nothing saved yet) so its
+  // blank form has somewhere to render; it drops back out of the list
+  // the moment it's collapsed again without being saved, or stays for
+  // good once Save actually persists an episode on it. The select
+  // resets to the placeholder after each pick so it's ready to jump
+  // again.
   function svPopulateSearchSelect_() {
     var sel = document.getElementById('schemeValiditySearch');
     if (!sel || typeof CATALOG_ITEMS === 'undefined') return;
-    var optsHtml = '<option value="">Jump to item…</option>';
+    var optsHtml = '<option value="">Add/edit a scheme on item…</option>';
     for (var i = 0; i < CATALOG_ITEMS.length; i++) {
       var item = CATALOG_ITEMS[i];
       var ep = svOpenEpisodeForItem_(item.id);
@@ -8366,9 +8373,18 @@
   function renderSchemeValidityItems_() {
     var wrap = document.getElementById('schemeValidityItemsWrap');
     if (!wrap || typeof CATALOG_ITEMS === 'undefined') return;
-    var items = CATALOG_ITEMS;
+    // Owner's request, 13 Nov 2026 (same day as the base feature): show
+    // only items currently on a scheme here, not the whole ~180-item
+    // catalog - the dropdown above is now the way to reach any other
+    // item. The currently-expanded item is always included too, even
+    // if it has no scheme (yet) - that's how picking a scheme-less item
+    // from the dropdown gets a form to render at all; it drops back out
+    // on its own next render if collapsed again without being saved.
+    var items = CATALOG_ITEMS.filter(function (item) {
+      return !!svOpenEpisodeForItem_(item.id) || SCHEME_VALIDITY_EXPANDED_ === item.id;
+    });
     if (!items.length) {
-      wrap.innerHTML = '<p class="task-empty-note" style="padding:10px 16px;">No items in the catalog.</p>';
+      wrap.innerHTML = '<p class="task-empty-note" style="padding:10px 16px;">No items on a scheme right now - use the dropdown above to add one.</p>';
       return;
     }
     wrap.innerHTML = '<div class="sv-items">' + items.map(function (item) {
