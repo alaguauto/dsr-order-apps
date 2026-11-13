@@ -1984,6 +1984,19 @@
   } catch (e) { /* storage unavailable — carry on with whatever loadDealers returned */ }
 
   var qty = {}; // id -> number
+  // Fix, 13 Nov 2026 (found while wiring up Scheme Validity's live
+  // override): fetchLiveOverlay_() below reads this, but until now it
+  // was declared only inside the separate "Login gate" IIFE further
+  // down the file, which a nested function's own `var` can never leak
+  // out of - every post-login live poll has been throwing
+  // "ReferenceError: loginSessionId is not defined" since the 11 Nov
+  // 2026 fix that added &sessionId= to the ?type=live URL, silently
+  // swallowed by that login flow's own .catch(), so stock/outstanding/
+  // scheme/etc. all silently stopped refreshing after login with no
+  // visible error. Declared here now (outer scope) so the Login gate
+  // IIFE's own assignment reaches this same variable instead of
+  // shadowing it - see its own comment further down.
+  var loginSessionId = null;
   var qtyUnit = {}; // id -> "nos" when a Case item is toggled to loose-piece ordering (default: item's normal unit)
   var searchTerm = "";
   var dealerBlocked = false; // true when the currently-entered dealer is over OUTSTANDING_WARN_DAYS overdue
@@ -2108,10 +2121,35 @@
   // block size is always (paid+free)/nosPerUnit, an order short of one
   // full block shows no FOC at all, and a full block bills "paid" and
   // gives "free" - nothing is ever billed beyond what was selected.
+  // Live Scheme Validity override (added 13 Nov 2026) - set from the
+  // ?type=live poll's `schemeConfig` field (Code.gs's
+  // schemeConfigActiveMap_(), fed by the dashboard's new Owner-only
+  // "Scheme Validity" admin screen - see dsr-app-registry.md's 13 Nov
+  // 2026 entry). {itemId: {type:"FOC", billQty, focQty, validTo}} or
+  // {itemId: {type:"Price", qtyThreshold, cnRate, validTo}}, populated
+  // by applyLiveOverlay_() below. This is now the AUTHORITATIVE source
+  // for a scheme's shape once one exists for an item - every function
+  // below checks it FIRST and only falls back to the item's own static
+  // schemePaid/schemeFree (set the old "tell Claude, Claude edits the
+  // item data" way) when nothing live is on file for that item, so an
+  // item nobody has touched in the new admin screen keeps working
+  // exactly as it always did.
+  var liveSchemeConfig_ = {};
+
+  // {paid, free} from a live FOC episode on this item, or null - the one
+  // place every FOC-scheme function below reads from instead of
+  // it.schemePaid/it.schemeFree directly.
+  function liveFocOverride_(it) {
+    var cfg = liveSchemeConfig_[it.id];
+    if (!cfg || cfg.type !== "FOC") return null;
+    return { paid: Number(cfg.billQty) || 0, free: Number(cfg.focQty) || 0 };
+  }
+
   function schemeBlockCases(it) {
     if (!hasNum(it.nosPerUnit) || it.nosPerUnit <= 0) return null;
-    var paid = hasNum(it.schemePaid) ? it.schemePaid : 0;
-    var free = hasNum(it.schemeFree) ? it.schemeFree : 0;
+    var liveFoc = liveFocOverride_(it);
+    var paid = liveFoc ? liveFoc.paid : (hasNum(it.schemePaid) ? it.schemePaid : 0);
+    var free = liveFoc ? liveFoc.free : (hasNum(it.schemeFree) ? it.schemeFree : 0);
     if (paid <= 0 && free <= 0) return null;
     return (paid + free) / it.nosPerUnit;
   }
@@ -2122,9 +2160,10 @@
   // is left byte-for-byte unchanged below for every item whose block size is 1
   // (all ~30 pre-existing scheme items) — see claude/dsr-app-registry.md.
   function schemeText(it, q) {
-    if (!hasNum(it.schemePaid) && !hasNum(it.schemeFree)) return "";
-    var paid = hasNum(it.schemePaid) ? it.schemePaid : 0;
-    var free = hasNum(it.schemeFree) ? it.schemeFree : 0;
+    var liveFoc = liveFocOverride_(it);
+    if (!liveFoc && !hasNum(it.schemePaid) && !hasNum(it.schemeFree)) return "";
+    var paid = liveFoc ? liveFoc.paid : (hasNum(it.schemePaid) ? it.schemePaid : 0);
+    var free = liveFoc ? liveFoc.free : (hasNum(it.schemeFree) ? it.schemeFree : 0);
     var nos = hasNum(it.nosPerUnit) ? it.nosPerUnit : 0;
     var blockCases = schemeBlockCases(it);
 
@@ -2168,6 +2207,32 @@
     return "";
   }
 
+  // Live "Price Scheme" (Qty -> ₹ CN per unit/case ordered) - added 13
+  // Nov 2026, the second scheme shape from the new Scheme Validity admin
+  // screen (the first being the FOC override above liveFocOverride_()).
+  // Wholly separate from bulkNetPriceText/bulkNetPriceBracket above (a
+  // reduced per-piece PRICE) and from schemePaid/schemeFree (free
+  // STOCK) - this is a ₹ credit note, computed as cnRate × the qty
+  // actually ordered once that qty reaches qtyThreshold (owner's own
+  // clarification when asked: "CN value... per unit/case ordered", not
+  // a flat one-time amount). Only ever driven by liveSchemeConfig_ - a
+  // Price scheme only exists once set up on the new dashboard admin
+  // screen, there is no static/legacy field for this shape.
+  function liveCnSchemeText(it) {
+    var cfg = liveSchemeConfig_[it.id];
+    if (!cfg || cfg.type !== "Price") return "";
+    return "₹" + formatNum(cfg.cnRate) + " CN/pc at " + cfg.qtyThreshold + "+ " + it.unit;
+  }
+  // Bracket appended to an order line once the threshold is actually met, e.g.
+  // "... — 6 Case (CN ₹3000)" - same "only shown once the qty selected reaches
+  // the threshold" convention as bulkNetPriceBracket() above.
+  function liveCnSchemeBracket(it, q) {
+    var cfg = liveSchemeConfig_[it.id];
+    if (!cfg || cfg.type !== "Price") return "";
+    if (q >= cfg.qtyThreshold) return " (CN ₹" + formatNum(cfg.cnRate * q) + ")";
+    return "";
+  }
+
   // Scheme nett price (added 5 Oct 2026, per the owner's request: "if any items
   // having scheme can u show the price what will be the nett after less of that
   // scheme") — for an FOC-scheme item (schemePaid/schemeFree), works out the
@@ -2197,10 +2262,14 @@
     // one item's badge show the owner's corrected figure directly, with
     // every other scheme item still computed the normal way below.
     if (hasNum(it.schemeNettPriceOverride)) return "Scheme nett ₹" + formatNum(Math.round(it.schemeNettPriceOverride)) + "/pc incl GST";
-    if (!hasNum(it.schemePaid) && !hasNum(it.schemeFree)) return "";
+    // Live Scheme Validity override, added 13 Nov 2026 - same
+    // liveFocOverride_() every other FOC-scheme function above now
+    // checks first; see its own comment above schemeBlockCases().
+    var liveFoc = liveFocOverride_(it);
+    if (!liveFoc && !hasNum(it.schemePaid) && !hasNum(it.schemeFree)) return "";
     if (!hasNum(it.rate)) return "";
-    var paid = hasNum(it.schemePaid) ? it.schemePaid : 0;
-    var free = hasNum(it.schemeFree) ? it.schemeFree : 0;
+    var paid = liveFoc ? liveFoc.paid : (hasNum(it.schemePaid) ? it.schemePaid : 0);
+    var free = liveFoc ? liveFoc.free : (hasNum(it.schemeFree) ? it.schemeFree : 0);
     var total = paid + free;
     if (total <= 0 || paid <= 0) return "";
     var nettRateInclGst = (it.rate * (paid / total)) * (1 + GST_RATE_PCT / 100);
@@ -2294,6 +2363,9 @@
     var nettHtml = nett ? '<div class="scheme-badge nett-badge">' + escapeHtml(nett) + "</div>" : "";
     var schemeNett = mode === "unit" ? schemeNettPriceText(it) : "";
     var schemeNettHtml = schemeNett ? '<div class="scheme-badge nett-badge">' + escapeHtml(schemeNett) + "</div>" : "";
+    // Live "Price Scheme" badge, added 13 Nov 2026 - see liveCnSchemeText()'s own comment.
+    var liveCn = mode === "unit" ? liveCnSchemeText(it) : "";
+    var liveCnHtml = liveCn ? '<div class="scheme-badge nett-badge">' + escapeHtml(liveCn) + "</div>" : "";
 
     return (
       '<div class="item-row' + (q > 0 ? " has-qty" : "") + (overStock ? " over-stock" : "") + '">' +
@@ -2302,6 +2374,7 @@
         valuesHtml +
         schemeHtml +
         schemeNettHtml +
+        liveCnHtml +
         ltrHtml +
         nettHtml +
         warn +
@@ -2386,12 +2459,14 @@
   }
 
   // Items on Scheme -- filters the live catalog down to items that currently
-  // carry an active FOC scheme or bulk-nett-price offer, reusing the existing,
-  // already-proven schemeText()/bulkNetPriceText() functions directly so this
-  // list can never drift out of sync with each item's own on-row badge.
+  // carry an active FOC scheme, bulk-nett-price offer, or a live "Price
+  // Scheme" (CN) from the new Scheme Validity admin screen - reusing the
+  // existing, already-proven schemeText()/bulkNetPriceText()/
+  // liveCnSchemeText() functions directly so this list can never drift
+  // out of sync with each item's own on-row badge.
   function schemeEligibleItems_() {
     return items.filter(function (it) {
-      return !!(schemeText(it, 0) || bulkNetPriceText(it));
+      return !!(schemeText(it, 0) || bulkNetPriceText(it) || liveCnSchemeText(it));
     });
   }
   function renderSchemeItems() {
@@ -2792,6 +2867,10 @@
         if (scheme) lineText += " *(Scheme: " + scheme + ")*";
         var nettBracket = mode === "unit" ? bulkNetPriceBracket(it, q) : "";
         if (nettBracket) lineText += " *" + nettBracket.trim() + "*";
+        // Live "Price Scheme" (CN) bracket, added 13 Nov 2026 - see
+        // liveCnSchemeBracket()'s own comment above.
+        var cnBracket = mode === "unit" ? liveCnSchemeBracket(it, q) : "";
+        if (cnBracket) lineText += " *" + cnBracket.trim() + "*";
         lines.push(lineText);
       }
     });
@@ -3511,6 +3590,18 @@
         if (upd.mrp !== null && upd.mrp !== undefined && !isNaN(upd.mrp) && items[i].mrp !== upd.mrp) { items[i].mrp = upd.mrp; stockChanged = true; }
       }
     }
+    // Scheme Validity (added 13 Nov 2026) - see liveSchemeConfig_'s own
+    // comment above schemeBlockCases(). Keyed by item id (same ids as
+    // this app's own `items`/DEFAULT_ITEMS, and the dashboard's
+    // CATALOG_ITEMS the owner picks from), {type:"FOC"|"Price", ...} -
+    // lean, ACTIVE-episodes-only, straight off Code.gs's
+    // schemeConfigActiveMap_(). Reuses the same stockChanged re-render
+    // flag as the stock/rate/mrp block above (not a separate flag) since
+    // a scheme-badge change is exactly as visible on this same item list.
+    if (data.schemeConfig && JSON.stringify(data.schemeConfig) !== JSON.stringify(liveSchemeConfig_)) {
+      liveSchemeConfig_ = data.schemeConfig;
+      stockChanged = true;
+    }
     var dealersChanged = false;
     // Added 8 Sep 2026: auto-add genuinely new, currently-active dealers
     // straight into this DSR's own list, sourced from Tally via the watcher
@@ -3849,23 +3940,6 @@
     }
   }
 
-  // loginSessionId - declared here (outer scope) instead of inside the
-  // login-gate IIFE further down, fixing a bug from the 11 Nov 2026
-  // sessionId fix: fetchLiveOverlay_() below references loginSessionId,
-  // but that variable used to be declared with `var` INSIDE the separate
-  // "(function () { ... })();" login-gate block near the bottom of this
-  // file - a sibling closure, not a parent of this function. Referencing
-  // it from here threw "loginSessionId is not defined" (a real
-  // ReferenceError, not just undefined) every single time
-  // fetchLiveOverlay_() ran, which silently aborted the rest of
-  // proceedAfterLogin() too (including the setInterval(fetchLiveOverlay_,
-  // ...) line right after it) - so the live overlay never ran even once,
-  // on any of the 8 apps, even after the sessionId fix was correctly
-  // uploaded to GitHub and the app was freshly reopened. Moving the
-  // declaration up here (and assigning to this same variable, not
-  // re-declaring it, inside proceedAfterLogin()/the heartbeat function
-  // below) puts it in a scope both places can actually see.
-  var loginSessionId = null;
   function fetchLiveOverlay_() {
     if (!apiConfigured()) return;
     // Fix, 11 Nov 2026: ?type=live has required a valid sessionId since the
@@ -6831,10 +6905,6 @@
   (function () {
     var APP_LOGIN_NAME = "Anandh";
     var APP_DISPLAY = "Anandh Order Slip";
-    // loginSessionId moved to outer scope (see the comment above
-    // fetchLiveOverlay_()'s own declaration far above) - this block now
-    // just assigns to that same shared variable, it no longer declares
-    // its own separate one.
     var loginHeartbeatTimer = null;
     // "Stay logged in on this device" - added 1 Oct 2026 after DSRs said
     // re-entering the password every single time they opened the app felt

@@ -1193,6 +1193,27 @@
   .ac-row-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
   .ac-open { font-size: 12.5px; font-weight: 600; color: var(--accent, #2f6f8f); text-decoration: none; white-space: nowrap; }
   .p2p-table-wrap { margin: 10px 16px 18px; }
+
+  /* "Scheme Validity" admin screen, added 13 Nov 2026 - see the HTML
+     comment above #captureSchemeValidity for the full feature. */
+  .sv-search { width:100%; max-width:360px; padding:8px 11px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--ink); font-size:13.5px; font-family:inherit; margin:0 16px 10px; display:block; }
+  .sv-items { display:flex; flex-direction:column; gap:7px; margin:0 16px; }
+  .sv-item { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:var(--surface); }
+  .sv-item-head { display:flex; align-items:center; gap:8px; padding:9px 12px; cursor:pointer; }
+  .sv-item-head .sv-caret { font-weight:700; color:var(--accent); width:14px; flex-shrink:0; }
+  .sv-item-name { flex:1; font-size:12.5px; font-weight:600; color:var(--ink); }
+  .sv-tag { font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+  .sv-tag.foc { background:var(--accent-soft); color:var(--accent); }
+  .sv-tag.price { background:var(--live-soft); color:var(--live); }
+  .sv-tag.upcoming { background:var(--surface-2); color:var(--ink-muted); }
+  .sv-item-body { padding:10px 12px; border-top:1px solid var(--border); }
+  .sv-form-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:8px; }
+  .sv-field { display:flex; flex-direction:column; gap:3px; }
+  .sv-field label { font-size:10.5px; color:var(--ink-muted); font-weight:600; }
+  .sv-field select, .sv-field input { font-family:inherit; font-size:13px; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--surface); color:var(--ink); min-width:120px; }
+  .sv-field.wide select { min-width:220px; }
+  .sv-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .sv-extend-row { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; padding:8px 4px; }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a4a44">
@@ -3425,6 +3446,41 @@
     <div class="dsr-row-body">
       <p class="reorder-note">Bucket % = this month's collection against each DSR's 60+ day frozen-baseline bills (same figures as the "60+ days overdue" list) &divide; the DSR's total collection this month. Target % is editable per DSR below (default 20%, saved on this device). This is a visibility panel, not an automatic block.</p>
       <div class="dsr-list" id="bucketTargetsWrap"></div>
+    </div>
+  </details>
+</div>
+
+<!-- "Scheme Validity" - added 13 Nov 2026 at the owner's request
+     ("in dashboard owner only need this scheme set up last after
+     Collection Bucket Targets with + to expand... in that need all
+     items list, if i click a item down i want to select a drop down
+     box as foc or price scheme..."). Owner only - same isManagerRole_
+     (role) gate as Collection Bucket Targets just above, see
+     afterLogin_() below. This is the live admin screen that REPLACES
+     the old "tell Claude, Claude edits the static item data" workflow
+     for PETRONAS trade schemes: every item in CATALOG_ITEMS is listed,
+     and opening one lets the owner set FOC (Bill Qty -> Free Qty) or
+     Price Scheme (Qty threshold -> Rs CN per unit/case) with a Valid
+     From/Valid To window. Saving reaches every DSR app's own order-time
+     scheme math within minutes via the existing ?type=live poll
+     (Code.gs's schemeConfigActiveMap_(), see its own long comment) -
+     this is NOT just a tracking/visibility panel, confirmed with the
+     owner before building (see dsr-app-registry.md's 13 Nov 2026
+     entry). Closed/expired schemes stay listed below with an Extend
+     action - see renderSchemeValidityClosed_() further down. -->
+<div id="captureSchemeValidity">
+  <details class="dsr-row" id="schemeValidityDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Scheme Validity</span>
+        <span class="card-territory" id="schemeValiditySummaryLine">Loading…</span></span>
+    </summary>
+    <div class="dsr-row-body">
+      <p class="reorder-note">Click any item below to set up a scheme on it - FOC (bill qty gets free qty) or Price Scheme (qty reached gives a ₹ credit note per unit/case) - then set how long it stays live. Saving here is what every DSR app actually uses at order time; an item past its Valid To date just stops applying on its own, nothing to clear. Closed schemes stay listed further down with an Extend option.</p>
+      <input type="text" id="schemeValiditySearch" class="sv-search" placeholder="Search items…">
+      <div id="schemeValidityItemsWrap"><p class="task-empty-note" style="padding:10px 16px;">Loading…</p></div>
+      <p class="reorder-note" style="margin-top:18px;font-weight:700;color:var(--ink);">Closed schemes</p>
+      <div class="p2p-table-wrap" id="schemeValidityClosedWrap"><p class="task-empty-note" style="padding:10px 4px;">Loading…</p></div>
     </div>
   </details>
 </div>
@@ -8201,6 +8257,286 @@
         if (res && res.ok) fetchPromises_();
         else window.alert('Could not delete: ' + ((res && res.error) || 'unknown error'));
       });
+    });
+  })();
+
+  // ===================================================================
+  // "Scheme Validity" (Owner-only) - added 13 Nov 2026, see the HTML
+  // comment above #captureSchemeValidity for the full feature. Live-wired
+  // to Code.gs's schemeConfigAll/schemeConfigSave/schemeConfigClose/
+  // schemeConfigExtend (see the big comment block above
+  // handleSchemeConfigSave_() there) - this screen is the single place
+  // the owner now sets up a PETRONAS trade scheme; saving here is what
+  // every DSR app actually uses at order time (schemeConfigActiveMap_()
+  // on Code.gs, threaded into ?type=live as `schemeConfig`), not just a
+  // tracking/visibility layer.
+  var SCHEME_CONFIG_DATA_ = [];
+  var SCHEME_VALIDITY_EXPANDED_ = null; // itemId currently expanded, or null
+  var SCHEME_VALIDITY_EXTENDING_ = null; // id of the closed episode whose Extend row is open, or null
+  var SCHEME_VALIDITY_SEARCH_ = '';
+
+  function fetchSchemeConfig_() {
+    if (typeof ORDERS_API_URL !== "string") return;
+    fetch(ORDERS_API_URL + "?type=schemeConfigAll&sessionId=" + encodeURIComponent(CURRENT_SESSION_ID || "") + "&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        SCHEME_CONFIG_DATA_ = (data && data.ok && data.schemes) || [];
+        renderSchemeValidity_();
+      })
+      .catch(function () { /* best-effort - panel just keeps showing its last/loading state */ });
+  }
+
+  // The one open (Active or Upcoming) episode on an item, if any - by
+  // construction (schemeConfigCreateEpisode_ on Code.gs auto-closes any
+  // prior open episode on the same item before appending a new one)
+  // there is never more than one.
+  function svOpenEpisodeForItem_(itemId) {
+    for (var i = 0; i < SCHEME_CONFIG_DATA_.length; i++) {
+      var s = SCHEME_CONFIG_DATA_[i];
+      if (s.itemId === itemId && (s.status === 'Active' || s.status === 'Upcoming')) return s;
+    }
+    return null;
+  }
+
+  function svTagHtml_(ep) {
+    if (!ep) return '';
+    var typeLabel = ep.schemeType === 'FOC' ? 'FOC' : 'Price Scheme';
+    if (ep.status === 'Upcoming') return '<span class="sv-tag upcoming">' + acEscapeHtml_(typeLabel) + ' · live from ' + acEscapeHtml_(fmtDate_(ep.validFrom)) + '</span>';
+    var cls = ep.schemeType === 'FOC' ? 'foc' : 'price';
+    return '<span class="sv-tag ' + cls + '">' + acEscapeHtml_(typeLabel) + ' · live till ' + acEscapeHtml_(fmtDate_(ep.validTo)) + '</span>';
+  }
+
+  // The expanded item's own inline form - defaults to the item's current
+  // open episode's values if it has one (so the owner can review/adjust
+  // a live scheme, not just create a fresh one), otherwise a blank FOC
+  // form starting today.
+  function svItemFormHtml_(item, ep) {
+    var schemeType = ep ? ep.schemeType : 'FOC';
+    var billQty = ep && ep.schemeType === 'FOC' ? ep.billQty : '';
+    var focQty = ep && ep.schemeType === 'FOC' ? ep.focQty : '';
+    var qtyThreshold = ep && ep.schemeType === 'Price' ? ep.qtyThreshold : '';
+    var cnRate = ep && ep.schemeType === 'Price' ? ep.cnRate : '';
+    var validFrom = ep ? ep.validFrom : new Date().toISOString().slice(0, 10);
+    var validTo = ep ? ep.validTo : '';
+    return '' +
+      '<div class="sv-form-row">' +
+        '<div class="sv-field wide"><label>Scheme type</label>' +
+          '<select class="sv-type-select" data-item="' + acEscapeHtml_(item.id) + '">' +
+            '<option value="FOC"' + (schemeType === 'FOC' ? ' selected' : '') + '>FOC (Bill Qty &rarr; Free Qty)</option>' +
+            '<option value="Price"' + (schemeType === 'Price' ? ' selected' : '') + '>Price Scheme (Qty &rarr; CN Value)</option>' +
+          '</select></div>' +
+      '</div>' +
+      '<div class="sv-form-row sv-foc-fields" style="' + (schemeType === 'FOC' ? '' : 'display:none;') + '">' +
+        '<div class="sv-field"><label>Bill Qty</label><input type="number" min="1" step="1" class="sv-input-billqty" value="' + acEscapeHtml_(billQty) + '"></div>' +
+        '<div class="sv-field"><label>FOC Qty</label><input type="number" min="1" step="1" class="sv-input-focqty" value="' + acEscapeHtml_(focQty) + '"></div>' +
+      '</div>' +
+      '<div class="sv-form-row sv-price-fields" style="' + (schemeType === 'Price' ? '' : 'display:none;') + '">' +
+        '<div class="sv-field"><label>Qty</label><input type="number" min="1" step="1" class="sv-input-qtythreshold" value="' + acEscapeHtml_(qtyThreshold) + '"></div>' +
+        '<div class="sv-field"><label>CN Rs (per unit/case)</label><input type="number" min="1" step="0.01" class="sv-input-cnrate" value="' + acEscapeHtml_(cnRate) + '"></div>' +
+      '</div>' +
+      '<div class="sv-form-row">' +
+        '<div class="sv-field"><label>Valid from</label><input type="date" class="sv-input-validfrom" value="' + acEscapeHtml_(validFrom) + '"></div>' +
+        '<div class="sv-field"><label>Valid to</label><input type="date" class="sv-input-validto" value="' + acEscapeHtml_(validTo) + '"></div>' +
+      '</div>' +
+      '<div class="sv-actions">' +
+        '<button type="button" class="admin-save-btn sv-save-btn" data-item="' + acEscapeHtml_(item.id) + '" data-name="' + acEscapeHtml_(item.name) + '" style="padding:7px 14px;font-size:12.5px;">Save</button>' +
+        (ep ? ('<button type="button" class="lookup-clear-btn sv-close-btn" data-id="' + acEscapeHtml_(ep.id) + '">Close now</button>') : '') +
+        '<span class="admin-msg sv-msg" data-item="' + acEscapeHtml_(item.id) + '"></span>' +
+      '</div>';
+  }
+
+  function renderSchemeValidityItems_() {
+    var wrap = document.getElementById('schemeValidityItemsWrap');
+    if (!wrap || typeof CATALOG_ITEMS === 'undefined') return;
+    var q = SCHEME_VALIDITY_SEARCH_.trim().toLowerCase();
+    var items = !q ? CATALOG_ITEMS : CATALOG_ITEMS.filter(function (it) { return String(it.name || '').toLowerCase().indexOf(q) !== -1; });
+    if (!items.length) {
+      wrap.innerHTML = '<p class="task-empty-note" style="padding:10px 16px;">No items match "' + acEscapeHtml_(SCHEME_VALIDITY_SEARCH_) + '".</p>';
+      return;
+    }
+    wrap.innerHTML = '<div class="sv-items">' + items.map(function (item) {
+      var ep = svOpenEpisodeForItem_(item.id);
+      var expanded = SCHEME_VALIDITY_EXPANDED_ === item.id;
+      var body = expanded ? ('<div class="sv-item-body">' + svItemFormHtml_(item, ep) + '</div>') : '';
+      return '<div class="sv-item">' +
+        '<div class="sv-item-head" data-item="' + acEscapeHtml_(item.id) + '">' +
+          '<span class="sv-caret">' + (expanded ? '−' : '+') + '</span>' +
+          '<span class="sv-item-name">' + acEscapeHtml_(item.name) + '</span>' +
+          svTagHtml_(ep) +
+        '</div>' + body +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  function renderSchemeValidityClosed_() {
+    var wrap = document.getElementById('schemeValidityClosedWrap');
+    if (!wrap) return;
+    var closed = SCHEME_CONFIG_DATA_.filter(function (s) { return s.status === 'Closed'; });
+    closed.sort(function (a, b) { return String(b.setAt || '').localeCompare(String(a.setAt || '')); });
+    if (!closed.length) {
+      wrap.innerHTML = '<p class="task-empty-note" style="padding:10px 4px;">No closed schemes yet.</p>';
+      return;
+    }
+    var rowsHtml = closed.map(function (s) {
+      var schemeLabel = s.schemeType === 'FOC'
+        ? (acEscapeHtml_(s.billQty) + ' Bill &rarr; ' + acEscapeHtml_(s.focQty) + ' Free')
+        : (acEscapeHtml_(s.qtyThreshold) + ' Qty &rarr; &#8377;' + acEscapeHtml_(s.cnRate) + ' CN');
+      var closedNote = s.closedAt ? ('Closed, ended early ' + acEscapeHtml_(fmtDate_(String(s.closedAt).slice(0, 10)))) : ('Closed (ran to ' + acEscapeHtml_(fmtDate_(s.validTo)) + ')');
+      var extendRow = SCHEME_VALIDITY_EXTENDING_ === s.id
+        ? ('<tr><td colspan="6" style="border-bottom:1px solid var(--border);">' +
+            '<div class="sv-extend-row">' +
+              '<div class="sv-field"><label>Valid from</label><input type="date" class="sv-input-extendfrom" value="' + acEscapeHtml_(new Date().toISOString().slice(0, 10)) + '"></div>' +
+              '<div class="sv-field"><label>Valid to</label><input type="date" class="sv-input-extendto" value=""></div>' +
+              '<button type="button" class="admin-save-btn sv-extend-confirm-btn" data-id="' + acEscapeHtml_(s.id) + '" style="padding:7px 14px;font-size:12.5px;">Confirm</button>' +
+              '<button type="button" class="lookup-clear-btn sv-extend-cancel-btn">Cancel</button>' +
+              '<span class="admin-msg sv-extend-msg"></span>' +
+            '</div></td></tr>')
+        : '';
+      return '<tr><td style="text-align:left;">' + acEscapeHtml_(s.itemName) + '</td><td>' + acEscapeHtml_(s.schemeType === 'FOC' ? 'FOC' : 'Price Scheme') + '</td>' +
+        '<td>' + schemeLabel + '</td>' +
+        '<td class="num">' + acEscapeHtml_(fmtDate_(s.validFrom)) + ' - ' + acEscapeHtml_(fmtDate_(s.validTo)) + '</td>' +
+        '<td><span class="pill neutral">' + closedNote + '</span></td>' +
+        '<td><button type="button" class="lookup-clear-btn sv-extend-btn" data-id="' + acEscapeHtml_(s.id) + '">Extend</button></td></tr>' +
+        extendRow;
+    }).join('');
+    wrap.innerHTML = ageTableWrap_(
+      '<thead><tr><th>Item</th><th>Type</th><th>Scheme</th><th>Was valid</th><th>Status</th><th></th></tr></thead>',
+      rowsHtml, 'wide'
+    );
+  }
+
+  function renderSchemeValidity_() {
+    var summaryEl = document.getElementById('schemeValiditySummaryLine');
+    if (summaryEl) {
+      var liveCount = SCHEME_CONFIG_DATA_.filter(function (s) { return s.status === 'Active'; }).length;
+      var closedCount = SCHEME_CONFIG_DATA_.filter(function (s) { return s.status === 'Closed'; }).length;
+      summaryEl.textContent = liveCount + ' live · ' + closedCount + ' closed';
+    }
+    renderSchemeValidityItems_();
+    renderSchemeValidityClosed_();
+  }
+
+  (function () {
+    var searchInput = document.getElementById('schemeValiditySearch');
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        SCHEME_VALIDITY_SEARCH_ = searchInput.value || '';
+        renderSchemeValidityItems_();
+      });
+    }
+
+    document.addEventListener('change', function (e) {
+      if (e.target && e.target.classList && e.target.classList.contains('sv-type-select')) {
+        var body = e.target.closest('.sv-item-body');
+        if (!body) return;
+        var isFoc = e.target.value === 'FOC';
+        var focFields = body.querySelector('.sv-foc-fields');
+        var priceFields = body.querySelector('.sv-price-fields');
+        if (focFields) focFields.style.display = isFoc ? '' : 'none';
+        if (priceFields) priceFields.style.display = isFoc ? 'none' : '';
+      }
+    });
+
+    document.addEventListener('click', function (e) {
+      var head = e.target.closest ? e.target.closest('.sv-item-head') : null;
+      if (head) {
+        var itemId = head.getAttribute('data-item');
+        SCHEME_VALIDITY_EXPANDED_ = (SCHEME_VALIDITY_EXPANDED_ === itemId) ? null : itemId;
+        renderSchemeValidityItems_();
+        return;
+      }
+
+      var saveBtn = e.target.closest ? e.target.closest('.sv-save-btn') : null;
+      if (saveBtn) {
+        var body2 = saveBtn.closest('.sv-item-body');
+        if (!body2) return;
+        var itemIdS = saveBtn.getAttribute('data-item');
+        var itemNameS = saveBtn.getAttribute('data-name');
+        var msgEl = body2.querySelector('.sv-msg');
+        var typeSel = body2.querySelector('.sv-type-select');
+        var schemeType = typeSel ? typeSel.value : 'FOC';
+        var payload = {
+          itemId: itemIdS, itemName: itemNameS, schemeType: schemeType,
+          validFrom: (body2.querySelector('.sv-input-validfrom') || {}).value || '',
+          validTo: (body2.querySelector('.sv-input-validto') || {}).value || ''
+        };
+        if (schemeType === 'FOC') {
+          payload.billQty = Number((body2.querySelector('.sv-input-billqty') || {}).value) || 0;
+          payload.focQty = Number((body2.querySelector('.sv-input-focqty') || {}).value) || 0;
+        } else {
+          payload.qtyThreshold = Number((body2.querySelector('.sv-input-qtythreshold') || {}).value) || 0;
+          payload.cnRate = Number((body2.querySelector('.sv-input-cnrate') || {}).value) || 0;
+        }
+        saveBtn.disabled = true;
+        if (msgEl) msgEl.textContent = 'Saving…';
+        dashboardApiPost_('schemeConfigSave', payload).then(function (res) {
+          saveBtn.disabled = false;
+          if (res && res.ok) {
+            if (msgEl) msgEl.textContent = 'Saved ✓';
+            // Delayed on purpose - fetchSchemeConfig_() rebuilds this whole
+            // item's form (and this very message span) from the server's
+            // fresh copy, which would otherwise wipe "Saved ✓" off the
+            // screen before the owner ever sees it (confirmed in testing -
+            // an immediate re-fetch made the confirmation invisible).
+            setTimeout(fetchSchemeConfig_, 900);
+          } else {
+            if (msgEl) msgEl.textContent = (res && res.error) || 'Could not save.';
+          }
+        }).catch(function () {
+          saveBtn.disabled = false;
+          if (msgEl) msgEl.textContent = 'Could not reach the server.';
+        });
+        return;
+      }
+
+      var closeBtn = e.target.closest ? e.target.closest('.sv-close-btn') : null;
+      if (closeBtn) {
+        var id1 = closeBtn.getAttribute('data-id');
+        if (!id1 || !window.confirm('Close this scheme now?')) return;
+        dashboardApiPost_('schemeConfigClose', { id: id1 }).then(function (res) {
+          if (res && res.ok) fetchSchemeConfig_();
+          else window.alert('Could not close: ' + ((res && res.error) || 'unknown error'));
+        });
+        return;
+      }
+
+      var extendBtn = e.target.closest ? e.target.closest('.sv-extend-btn') : null;
+      if (extendBtn) {
+        SCHEME_VALIDITY_EXTENDING_ = extendBtn.getAttribute('data-id');
+        renderSchemeValidityClosed_();
+        return;
+      }
+
+      var extendCancelBtn = e.target.closest ? e.target.closest('.sv-extend-cancel-btn') : null;
+      if (extendCancelBtn) {
+        SCHEME_VALIDITY_EXTENDING_ = null;
+        renderSchemeValidityClosed_();
+        return;
+      }
+
+      var extendConfirmBtn = e.target.closest ? e.target.closest('.sv-extend-confirm-btn') : null;
+      if (extendConfirmBtn) {
+        var id2 = extendConfirmBtn.getAttribute('data-id');
+        var row = extendConfirmBtn.closest('.sv-extend-row');
+        var fromVal = row ? (row.querySelector('.sv-input-extendfrom') || {}).value : '';
+        var toVal = row ? (row.querySelector('.sv-input-extendto') || {}).value : '';
+        var extendMsgEl = row ? row.querySelector('.sv-extend-msg') : null;
+        if (!toVal) { if (extendMsgEl) extendMsgEl.textContent = 'Valid To is required.'; return; }
+        extendConfirmBtn.disabled = true;
+        dashboardApiPost_('schemeConfigExtend', { id: id2, validFrom: fromVal, validTo: toVal }).then(function (res) {
+          extendConfirmBtn.disabled = false;
+          if (res && res.ok) {
+            SCHEME_VALIDITY_EXTENDING_ = null;
+            fetchSchemeConfig_();
+          } else {
+            if (extendMsgEl) extendMsgEl.textContent = (res && res.error) || 'Could not extend.';
+          }
+        }).catch(function () {
+          extendConfirmBtn.disabled = false;
+          if (extendMsgEl) extendMsgEl.textContent = 'Could not reach the server.';
+        });
+        return;
+      }
     });
   })();
 
@@ -13388,6 +13724,16 @@
     // Manager/Area Manager roles, same owner request as Dead Stock.
     var bucketTargetsBlock = document.getElementById('captureBucketTargets');
     if (bucketTargetsBlock) bucketTargetsBlock.hidden = isManagerRole_(role);
+    // "Scheme Validity" - added 13 Nov 2026, same gating convention as
+    // Collection Bucket Targets just above (Owner only - hidden for
+    // Manager/Area Manager). See the HTML comment above
+    // #captureSchemeValidity for the full feature.
+    var schemeValidityBlock = document.getElementById('captureSchemeValidity');
+    if (schemeValidityBlock) schemeValidityBlock.hidden = isManagerRole_(role);
+    if (schemeValidityBlock && !schemeValidityBlock.hidden) {
+      fetchSchemeConfig_();
+      setInterval(fetchSchemeConfig_, 60000);
+    }
     // DSR Visit Remarks - previously ungated (visible to every role that
     // reaches this dashboard). Hidden for Manager/Area Manager, 6 Nov 2026.
     var visitRemarksBlock = document.getElementById('captureVisitRemarks');
