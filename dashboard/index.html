@@ -3493,6 +3493,58 @@
     </div>
   </details>
 </div>
+
+<!-- "Promotional Schemes" - added 13 Nov 2026, same day as Scheme
+     Validity above, after the owner shared a real PETRONAS poster
+     ("TWO WHEELER MECHANIC SCHEME - Scan 50 Nos. MCO Coupon & Get a
+     Stool FREE! Scanning Period: 11.11.26 to 31.12.26") and asked for
+     a "promotional scheme also that name also i want to write, period
+     and scheme". Confirmed with the owner via two quick questions
+     before building: this is a STANDALONE, company-wide promotion -
+     NOT tied to any one catalog item (unlike FOC/Price Scheme above),
+     so several can run at once (e.g. a mechanic scheme and a dealer
+     scheme together) - and the poster image/PDF travels as a pasted
+     link, not a real file upload: the owner uploads it himself to
+     Google Photos/Drive and pastes the share link here, which shows
+     as a "View Poster" button wherever the promotion is live. This has
+     no effect on any order math - it's purely a visibility panel (same
+     class as every other panel on this dashboard), fed to every DSR
+     app's own order screen via the same ?type=live poll that already
+     carries Scheme Validity's live schemeConfig map (see Code.gs's
+     promotionsActiveList_()). Separate sheet/episode model from
+     SchemeConfig above - no auto-close-on-create, see Code.gs's own
+     long comment on the Promotions block for why. -->
+<div id="capturePromotions">
+  <details class="dsr-row" id="promotionsDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Promotional Schemes</span>
+        <span class="card-territory" id="promotionsSummaryLine">Loading…</span></span>
+    </summary>
+    <div class="dsr-row-body">
+      <p class="reorder-note">Standalone company-wide promotions (like "scan 50 coupons, get a free stool") - not tied to any one item, so more than one can run at the same time. Give it a name and how long it runs; the poster link is optional - upload the poster to Google Photos/Drive yourself, then paste its share link here, and a "View Poster" button will show wherever it's live. This has no effect on order math; it's just so everyone can see what's currently running.</p>
+      <div class="sv-item-body" id="promotionAddForm" style="border:1px solid var(--border);border-radius:10px;margin:0 16px 14px;">
+        <div class="sv-form-row">
+          <div class="sv-field wide" style="flex:1;"><label>Scheme name</label><input type="text" id="promoInputName" placeholder="e.g. Two Wheeler Mechanic Scheme - Scan 50 MCO Coupons, Get a Stool Free" style="width:100%;min-width:220px;"></div>
+        </div>
+        <div class="sv-form-row">
+          <div class="sv-field"><label>Valid from</label><input type="date" id="promoInputValidFrom"></div>
+          <div class="sv-field"><label>Valid to</label><input type="date" id="promoInputValidTo"></div>
+        </div>
+        <div class="sv-form-row">
+          <div class="sv-field wide" style="flex:1;"><label>Poster link (optional)</label><input type="text" id="promoInputPosterUrl" placeholder="Paste a Google Photos / Drive share link…" style="width:100%;min-width:220px;"></div>
+        </div>
+        <div class="sv-actions">
+          <button type="button" class="admin-save-btn" id="promoAddBtn" style="padding:7px 14px;font-size:12.5px;">Add promotion</button>
+          <span class="admin-msg" id="promoAddMsg"></span>
+        </div>
+      </div>
+      <div id="promotionsActiveWrap"><p class="task-empty-note" style="padding:10px 16px;">Loading…</p></div>
+      <p class="reorder-note" style="margin-top:18px;font-weight:700;color:var(--ink);">Closed promotions</p>
+      <div class="p2p-table-wrap" id="promotionsClosedWrap"><p class="task-empty-note" style="padding:10px 4px;">Loading…</p></div>
+    </div>
+  </details>
+</div>
   </div>
 </div>
 
@@ -8283,6 +8335,12 @@
   var SCHEME_VALIDITY_EXPANDED_ = null; // itemId currently expanded, or null
   var SCHEME_VALIDITY_EXTENDING_ = null; // id of the closed episode whose Extend row is open, or null
 
+  // "Promotional Schemes" - added 13 Nov 2026, see the HTML comment
+  // above #capturePromotions for the full feature. Standalone from
+  // Scheme Validity above - own data array, own sheet on Code.gs.
+  var PROMOTIONS_DATA_ = [];
+  var PROMOTIONS_EXTENDING_ = null; // id of the closed promotion whose Extend row is open, or null
+
   // "Add/edit a scheme on item" type-to-search box - added 13 Nov 2026,
   // same day as the base feature. Went through two shapes the same day:
   // first a free-text input (filtered the item list below as you typed
@@ -8607,6 +8665,197 @@
           if (res && res.ok) {
             SCHEME_VALIDITY_EXTENDING_ = null;
             fetchSchemeConfig_();
+          } else {
+            if (extendMsgEl) extendMsgEl.textContent = (res && res.error) || 'Could not extend.';
+          }
+        }).catch(function () {
+          extendConfirmBtn.disabled = false;
+          if (extendMsgEl) extendMsgEl.textContent = 'Could not reach the server.';
+        });
+        return;
+      }
+    });
+  })();
+
+  // "Promotional Schemes" - added 13 Nov 2026, see the HTML comment
+  // above #capturePromotions for the full feature. Standalone, simpler
+  // model than Scheme Validity above: no catalog item, no per-item
+  // expand/collapse - just an always-visible Add form, an Active/
+  // Upcoming list, and a Closed list with Extend (same Extend UX as
+  // Scheme Validity's own closed list, reusing its .sv-extend-row CSS).
+  function fetchPromotions_() {
+    if (typeof ORDERS_API_URL !== "string") return;
+    fetch(ORDERS_API_URL + "?type=promotionsAll&sessionId=" + encodeURIComponent(CURRENT_SESSION_ID || "") + "&_ts=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        PROMOTIONS_DATA_ = (data && data.ok && data.promotions) || [];
+        renderPromotions_();
+      })
+      .catch(function () { /* best-effort - panel just keeps showing its last/loading state */ });
+  }
+
+  function promoTagHtml_(p) {
+    if (p.status === 'Upcoming') return '<span class="sv-tag upcoming">Upcoming &middot; live from ' + acEscapeHtml_(fmtDate_(p.validFrom)) + '</span>';
+    return '<span class="sv-tag price">Active &middot; live till ' + acEscapeHtml_(fmtDate_(p.validTo)) + '</span>';
+  }
+
+  function renderPromotionsActive_() {
+    var wrap = document.getElementById('promotionsActiveWrap');
+    if (!wrap) return;
+    var items = PROMOTIONS_DATA_.filter(function (p) { return p.status === 'Active' || p.status === 'Upcoming'; });
+    if (!items.length) {
+      wrap.innerHTML = '<p class="task-empty-note" style="padding:10px 16px;">No promotions running right now - use the form above to add one.</p>';
+      return;
+    }
+    items.sort(function (a, b) { return String(b.setAt || '').localeCompare(String(a.setAt || '')); });
+    wrap.innerHTML = '<div class="sv-items">' + items.map(function (p) {
+      return '<div class="sv-item">' +
+        '<div class="sv-item-head" style="cursor:default;">' +
+          '<span class="sv-item-name">' + acEscapeHtml_(p.name) + '</span>' +
+          promoTagHtml_(p) +
+        '</div>' +
+        '<div class="sv-item-body">' +
+          '<div class="sv-actions">' +
+            (p.posterUrl ? ('<button type="button" class="lookup-clear-btn promo-poster-btn" data-url="' + acEscapeHtml_(p.posterUrl) + '">View Poster</button>') : '') +
+            '<button type="button" class="lookup-clear-btn promo-close-btn" data-id="' + acEscapeHtml_(p.id) + '">Close now</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  function renderPromotionsClosed_() {
+    var wrap = document.getElementById('promotionsClosedWrap');
+    if (!wrap) return;
+    var closed = PROMOTIONS_DATA_.filter(function (p) { return p.status === 'Closed'; });
+    closed.sort(function (a, b) { return String(b.setAt || '').localeCompare(String(a.setAt || '')); });
+    if (!closed.length) {
+      wrap.innerHTML = '<p class="task-empty-note" style="padding:10px 4px;">No closed promotions yet.</p>';
+      return;
+    }
+    var rowsHtml = closed.map(function (p) {
+      var closedNote = p.closedAt ? ('Closed, ended early ' + acEscapeHtml_(fmtDate_(String(p.closedAt).slice(0, 10)))) : ('Closed (ran to ' + acEscapeHtml_(fmtDate_(p.validTo)) + ')');
+      var posterCell = p.posterUrl ? ('<button type="button" class="lookup-clear-btn promo-poster-btn" data-url="' + acEscapeHtml_(p.posterUrl) + '">View</button>') : '&mdash;';
+      var extendRow = PROMOTIONS_EXTENDING_ === p.id
+        ? ('<tr><td colspan="5" style="border-bottom:1px solid var(--border);">' +
+            '<div class="sv-extend-row">' +
+              '<div class="sv-field"><label>Valid from</label><input type="date" class="promo-input-extendfrom" value="' + acEscapeHtml_(new Date().toISOString().slice(0, 10)) + '"></div>' +
+              '<div class="sv-field"><label>Valid to</label><input type="date" class="promo-input-extendto" value=""></div>' +
+              '<button type="button" class="admin-save-btn promo-extend-confirm-btn" data-id="' + acEscapeHtml_(p.id) + '" style="padding:7px 14px;font-size:12.5px;">Confirm</button>' +
+              '<button type="button" class="lookup-clear-btn promo-extend-cancel-btn">Cancel</button>' +
+              '<span class="admin-msg promo-extend-msg"></span>' +
+            '</div></td></tr>')
+        : '';
+      return '<tr><td style="text-align:left;">' + acEscapeHtml_(p.name) + '</td>' +
+        '<td class="num">' + acEscapeHtml_(fmtDate_(p.validFrom)) + ' - ' + acEscapeHtml_(fmtDate_(p.validTo)) + '</td>' +
+        '<td><span class="pill neutral">' + closedNote + '</span></td>' +
+        '<td>' + posterCell + '</td>' +
+        '<td><button type="button" class="lookup-clear-btn promo-extend-btn" data-id="' + acEscapeHtml_(p.id) + '">Extend</button></td></tr>' +
+        extendRow;
+    }).join('');
+    wrap.innerHTML = ageTableWrap_(
+      '<thead><tr><th>Scheme</th><th>Was valid</th><th>Status</th><th>Poster</th><th></th></tr></thead>',
+      rowsHtml, 'wide'
+    );
+  }
+
+  function renderPromotions_() {
+    var summaryEl = document.getElementById('promotionsSummaryLine');
+    if (summaryEl) {
+      var liveCount = PROMOTIONS_DATA_.filter(function (p) { return p.status === 'Active'; }).length;
+      var closedCount = PROMOTIONS_DATA_.filter(function (p) { return p.status === 'Closed'; }).length;
+      summaryEl.textContent = liveCount + ' live &middot; ' + closedCount + ' closed';
+    }
+    renderPromotionsActive_();
+    renderPromotionsClosed_();
+  }
+
+  (function () {
+    var addBtn = document.getElementById('promoAddBtn');
+    if (addBtn) {
+      addBtn.addEventListener('click', function () {
+        var nameEl = document.getElementById('promoInputName');
+        var fromEl = document.getElementById('promoInputValidFrom');
+        var toEl = document.getElementById('promoInputValidTo');
+        var urlEl = document.getElementById('promoInputPosterUrl');
+        var msgEl = document.getElementById('promoAddMsg');
+        var payload = {
+          name: (nameEl || {}).value || '',
+          validFrom: (fromEl || {}).value || '',
+          validTo: (toEl || {}).value || '',
+          posterUrl: (urlEl || {}).value || ''
+        };
+        addBtn.disabled = true;
+        if (msgEl) msgEl.textContent = 'Saving…';
+        dashboardApiPost_('promotionSave', payload).then(function (res) {
+          addBtn.disabled = false;
+          if (res && res.ok) {
+            if (msgEl) msgEl.textContent = 'Added ✓';
+            if (nameEl) nameEl.value = '';
+            if (fromEl) fromEl.value = '';
+            if (toEl) toEl.value = '';
+            if (urlEl) urlEl.value = '';
+            // Same deliberate delay as Scheme Validity's own Save button
+            // above - an immediate re-fetch would wipe "Added ✓" off the
+            // screen before the owner ever sees it.
+            setTimeout(fetchPromotions_, 900);
+          } else {
+            if (msgEl) msgEl.textContent = (res && res.error) || 'Could not save.';
+          }
+        }).catch(function () {
+          addBtn.disabled = false;
+          if (msgEl) msgEl.textContent = 'Could not reach the server.';
+        });
+      });
+    }
+
+    document.addEventListener('click', function (e) {
+      var posterBtn = e.target.closest ? e.target.closest('.promo-poster-btn') : null;
+      if (posterBtn) {
+        var url = posterBtn.getAttribute('data-url');
+        if (url) window.open(url, '_blank', 'noopener');
+        return;
+      }
+
+      var closeBtn = e.target.closest ? e.target.closest('.promo-close-btn') : null;
+      if (closeBtn) {
+        var id1 = closeBtn.getAttribute('data-id');
+        if (!id1 || !window.confirm('Close this promotion now?')) return;
+        dashboardApiPost_('promotionClose', { id: id1 }).then(function (res) {
+          if (res && res.ok) fetchPromotions_();
+          else window.alert('Could not close: ' + ((res && res.error) || 'unknown error'));
+        });
+        return;
+      }
+
+      var extendBtn = e.target.closest ? e.target.closest('.promo-extend-btn') : null;
+      if (extendBtn) {
+        PROMOTIONS_EXTENDING_ = extendBtn.getAttribute('data-id');
+        renderPromotionsClosed_();
+        return;
+      }
+
+      var extendCancelBtn = e.target.closest ? e.target.closest('.promo-extend-cancel-btn') : null;
+      if (extendCancelBtn) {
+        PROMOTIONS_EXTENDING_ = null;
+        renderPromotionsClosed_();
+        return;
+      }
+
+      var extendConfirmBtn = e.target.closest ? e.target.closest('.promo-extend-confirm-btn') : null;
+      if (extendConfirmBtn) {
+        var id2 = extendConfirmBtn.getAttribute('data-id');
+        var row = extendConfirmBtn.closest('.sv-extend-row');
+        var fromVal = row ? (row.querySelector('.promo-input-extendfrom') || {}).value : '';
+        var toVal = row ? (row.querySelector('.promo-input-extendto') || {}).value : '';
+        var extendMsgEl = row ? row.querySelector('.promo-extend-msg') : null;
+        if (!toVal) { if (extendMsgEl) extendMsgEl.textContent = 'Valid To is required.'; return; }
+        extendConfirmBtn.disabled = true;
+        dashboardApiPost_('promotionExtend', { id: id2, validFrom: fromVal, validTo: toVal }).then(function (res) {
+          extendConfirmBtn.disabled = false;
+          if (res && res.ok) {
+            PROMOTIONS_EXTENDING_ = null;
+            fetchPromotions_();
           } else {
             if (extendMsgEl) extendMsgEl.textContent = (res && res.error) || 'Could not extend.';
           }
@@ -13812,6 +14061,15 @@
     if (schemeValidityBlock && !schemeValidityBlock.hidden) {
       fetchSchemeConfig_();
       setInterval(fetchSchemeConfig_, 60000);
+    }
+    // "Promotional Schemes" - added 13 Nov 2026, same gating convention
+    // as Scheme Validity just above (Owner only). See the HTML comment
+    // above #capturePromotions for the full feature.
+    var promotionsBlock = document.getElementById('capturePromotions');
+    if (promotionsBlock) promotionsBlock.hidden = isManagerRole_(role);
+    if (promotionsBlock && !promotionsBlock.hidden) {
+      fetchPromotions_();
+      setInterval(fetchPromotions_, 60000);
     }
     // DSR Visit Remarks - previously ungated (visible to every role that
     // reaches this dashboard). Hidden for Manager/Area Manager, 6 Nov 2026.
