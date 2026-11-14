@@ -1302,7 +1302,7 @@
           <button type="button" id="adminSaveBtn" class="admin-save-btn">Save</button>
         </div>
         <div id="adminMsg" class="admin-msg"></div>
-        <div class="admin-msg" style="opacity:0.75;">Manager sees every DSR. Area Manager sees only the areas you list below - type the exact DSR card names separated by commas, e.g. Prabha,Arun,Chellamani (required for this role - it won't save blank). Areas is ignored for DSR/Owner.</div>
+        <div class="admin-msg" style="opacity:0.75;">Manager sees every DSR. Area Manager sees only the areas you list below - type the exact DSR card names separated by commas, e.g. Prabha,Arun,Ajith (required for this role - it won't save blank). Areas is ignored for DSR/Owner.</div>
         <div class="admin-msg" style="opacity:0.75;">"Hide these people's logins" is about the usage report only, not the DSR data above - it's one-directional and per-person: e.g. type "Anbu" while Bala is selected to stop Bala (only) from seeing Anbu's logins; Anbu's own view is unaffected unless you set something on his row too. Leave blank to hide nobody.</div>
         <!-- Blank-password metadata-only save, added 11 Oct 2026 - picking
              an EXISTING user and leaving New Password blank now saves just
@@ -2277,7 +2277,8 @@
        DSR's own card above (DSRS[i].monthLtr, populated in fetchLive()
        above), grouped into the office's own real Tally area-group
        hierarchy (confirmed with the owner): AAA Direct stands alone;
-       "Madurai Total Area" = Arun + Chellamani + Prabha; "Tirunelveli
+       "Madurai Total Area" = Arun + Ajith + Prabha (renamed 14 Nov 2026,
+       Ajith inherits Chellamani's card); "Tirunelveli
        Total Area" = Madhu + Anandh + Nagaraj. No new backend field - a
        purely client-side sum of numbers this dashboard already has. See
        renderPetronasAreaTable_() below. Purely additive, appended at the
@@ -2809,7 +2810,7 @@
      Collection Plan ... want like this one page chart , include aarav
      also in this , need month wise dropdown"). Sits directly above
      #captureMasterFile below, per his explicit placement. 10 fixed rows
-     (AAA, Pioneer, VARI, Anandh, Arun, Chellamani, Madhu, Nagaraj,
+     (AAA, Pioneer, VARI, Anandh, Arun, Ajith, Madhu, Nagaraj,
      Prabha, Aarav) + TOTAL - NO per-row expand ("no need for expand just
      total need", his own words, after an earlier dealer/beat drill-down
      proposal). Each row's Plan (Sales Ltr + Collection Rs) is editable
@@ -3723,15 +3724,22 @@
     { name: "Prabha",     dsrName: "PETRONAS THENI AREA (PRABHA)",         territory: "Theni Area",        appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4300, collectionTarget: 1004558, todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
     { name: "Arun",       dsrName: "PETRONAS DINDIGUL AREA (ARUN)",        territory: "Dindigul Area",     appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4000, collectionTarget: 1671027,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
     { name: "Nagaraj",    dsrName: "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)", territory: "Virudhunagar Area", appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4000, collectionTarget: 1867376,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
-    { name: "Chellamani", dsrName: "PETRONAS MDU AREA (CHELLAMANI)",       territory: "MDU Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5000, collectionTarget: 1902282,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
+    { name: "Ajith",      dsrName: "PETRONAS MDU AREA (AJITH)",            territory: "MDU Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5000, collectionTarget: 1902282,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
     { name: "Anandh",     dsrName: "PETRONAS TVL1 AREA (ANANDH)",          territory: "TVL1 Area",         appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 5500, collectionTarget: 2877541,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
     { name: "Madhu",      dsrName: "PETRONAS NKL AREA (MADHU)",            territory: "NKL Area",          appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 2000, collectionTarget: 861225,   todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null },
     // AAA Direct added 18 Sep 2026, per the owner's request. Saravanan is
-    // NOT added as his own card - his dealers are a separate Tally Group
-    // but his orders are taken through Chellamani's app and counted under
-    // her name, so the watcher folds his real Tally Sales/Collection into
-    // her totals instead (see _merge_saravanan_into_chellamani() in
-    // tally_live_watcher.py).
+    // still NOT added as his own card - 14 Nov 2026: Chellamani quit and
+    // her area (plus most of Saravanan's, per the owner's reassignment
+    // Excel) now belongs to Ajith, so this card was renamed/repointed to
+    // him rather than adding a new one. IMPORTANT, outside this codebase:
+    // the live watcher's _merge_saravanan_into_chellamani() in
+    // tally_live_watcher.py (on the owner's own Tally machine) used to
+    // fold ALL of Saravanan's real Tally Sales/Collection into this card -
+    // only ~172 of his ~231 dealers are actually Ajith's now (55 are
+    // Vacant, 4 moved to AAA Direct), so that script still needs the
+    // owner to update or remove the merge there, or Ajith's live Sales/
+    // Collection figures below will keep over-counting the Vacant/AAA-
+    // Direct dealers' Tally sales too.
     { name: "AAA Direct", dsrName: "PETRONAS AAA DIRECT AREA SALES",       territory: "AAA Direct Area",   appTodayLtr: 0, appMonthLtr: 0, todayLtr: 0, monthLtr: null, target: 4500, collectionTarget: 1180153,  todayCollected: 0, monthCollected: null, lastMonthSameDateLtr: null, lastMonthFullLtr: null, lastMonthSameDate: null, lastMonthFull: null, avg6moLtr: null, avg6moRs: null, avg6moCollectedRs: null }
   ];
 
@@ -4118,17 +4126,19 @@
   // per Tally (not orders logged - the same source as the primary Sales
   // figure everywhere else on this dashboard), plus the average Ltr per
   // billed dealer (monthLtr / MB). Uses knownDealerDsrMap_() (defined
-  // below, hoisted) so Chellamani's count already folds in Saravanan's
-  // dealers the same way every other per-DSR figure on this dashboard
-  // does. Needs no new Tally request or backend field - dealerRoster and
+  // below, hoisted) - 14 Nov 2026: that no longer folds Saravanan's
+  // dealers into Ajith's (removed, since only ~172 of his ~231 dealers
+  // are actually Ajith's now), so Ajith's MB count is scoped to exactly
+  // his own roster, same as every other DSR. Needs no new Tally request
+  // or backend field - dealerRoster and
   // salesByDealer are both already flowing in via fetchLive().
   // Shared counter behind both mbLineHtml_() (Sales, Ltr) and
   // mbCollectionLineHtml_() (Collection, Rs, added 20 Sep 2026 at the
   // owner's follow-up: "like sales mb put collection also") - counts
   // DISTINCT dealers with a real >0 "month" figure in whichever byDealer
   // map is passed (salesByDealer or collectionByDealer), scoped to one
-  // DSR via knownDealerDsrMap_() (already folds Saravanan into
-  // Chellamani, same as every other per-DSR figure here).
+  // DSR via knownDealerDsrMap_() (no longer folds Saravanan into Ajith,
+  // same as every other per-DSR figure here, 14 Nov 2026).
   function countMB_(dsrDisplayName, byDealerMap) {
     if (!byDealerMap || !dealerRoster) return 0;
     var dsrMap = knownDealerDsrMap_();
@@ -4601,7 +4611,7 @@
       // This DSR's own overdue dealers (moved in from the old standalone
       // Needs Attention per-DSR cards grid, 22 Sep 2026) - same 5-row cap
       // + "view all" link to the existing openAttnSheet_() modal, so a big
-      // territory (e.g. Chellamani) never dumps 100+ rows into one
+      // territory (e.g. Ajith) never dumps 100+ rows into one
       // expanded panel.
       var attnSection = '';
       if (lastAttnSummary) {
@@ -4781,16 +4791,17 @@
   // routes on one combined view wouldn't mean anything. Sunday
   // intentionally has no key anywhere here (sheet has no Sunday column
   // either) - matches this project's standing "Sunday is never a beat
-  // day" convention. AAA Direct and Saravanan intentionally absent below
-  // (no beat areas set yet in the sheet) - Saravanan isn't even
-  // selectable here anyway (his Tally figures are folded into
-  // Chellamani's, see the DSRS comment above).
+  // day" convention. AAA Direct and Saravanan(Vacant) intentionally absent
+  // below (no beat areas set yet in the sheet) - the Vacant/Saravanan
+  // bucket isn't even selectable here anyway, and 14 Nov 2026: Ajith's
+  // Tally figures are no longer folded with that bucket's - his own card
+  // below, scoped to exactly his own area.
   var BEAT_AREA_NAMES_ = {
     "PETRONAS DINDIGUL AREA (ARUN)": { Mon: "Dindigul", Tue: "Nilakottai", Wed: "Vedasandur", Thu: "Oddanchatram", Fri: "Vadamadurai", Sat: "Natham" },
     "PETRONAS THENI AREA (PRABHA)": { Mon: "Theni", Tue: "Aundipatti", Wed: "Chinnamanur", Thu: "Cumbum", Fri: "Periyakulam", Sat: "Chinnamanur" },
     "PETRONAS NKL AREA (MADHU)": { Mon: "Nagercoil", Tue: "Marthandam", Wed: "Nagercoil", Thu: "Nagercoil", Fri: "Valliyur" },
     "PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)": { Mon: "Kovilpatti", Tue: "Virudhunagar", Wed: "Sivakasi", Thu: "Dhalavaipuram", Fri: "Srivilliputhur", Sat: "Rajapalayam" },
-    "PETRONAS MDU AREA (CHELLAMANI)": { Mon: "Simmakkal", Tue: "Annanagar", Wed: "Villapuram", Thu: "Melur", Fri: "Usilampatti", Sat: "Thirumangalam" },
+    "PETRONAS MDU AREA (AJITH)": { Mon: "Simmakkal", Tue: "Annanagar", Wed: "Villapuram", Thu: "Melur", Fri: "Usilampatti", Sat: "Thirumangalam" },
     "PETRONAS TVL1 AREA (ANANDH)": { Mon: "Tirunelveli", Tue: "Tenkasi", Wed: "Surandai", Thu: "Ambasamudram", Fri: "Sankarankovil", Sat: "Tirunelveli (other side)" }
   };
   function renderSalesCollectionHeatmap_() {
@@ -5298,11 +5309,11 @@
   // read by this dashboard before) to build the real, known dealer set
   // for these 7 DSRs specifically - only an outstanding entry whose name
   // is actually in one of these DSRs' own dealer lists is ever counted
-  // or shown now. Saravanan's dealer list is folded into Chellamani's
-  // here too, same reasoning as the Sales/Collection merge
-  // (_merge_saravanan_into_chellamani() in tally_live_watcher.py) - his
-  // dealers are a separate Tally Group but count as her territory
-  // everywhere else on this dashboard.
+  // or shown now. 14 Nov 2026: Saravanan's dealer list is NO LONGER
+  // folded into Ajith's here - only ~172 of his ~231 dealers are
+  // actually Ajith's now (55 Vacant, 4 moved to AAA Direct per the
+  // owner's reassignment Excel), so this is scoped to exactly Ajith's
+  // own roster, same as every other DSR.
   //
   // Sign note: a dealer who genuinely owes money has a NEGATIVE balance/
   // pendingAmount (Tally's own negative=Dr/positive=Cr convention, same
@@ -5333,19 +5344,20 @@
 
   function knownDealerDsrMap_() {
     // {dealerName: dsrDisplayName} for exactly the 7 dashboard DSRs' own
-    // real dealers (Saravanan's folded into Chellamani's, same as Sales/
-    // Collection). 27 Sep 2026: iterates visibleDsrs_() instead of the
+    // real dealers. 27 Sep 2026: iterates visibleDsrs_() instead of the
     // raw DSRS, so a restricted Area Manager's dealers-only-under-my-own-
     // areas requirement cascades for free into every downstream reader of
     // this map (Needs Attention, the aging table, MB/Dormant/Reactivated
     // counts, Top 5 Customers, dealer lookup) - see visibleDsrs_() above.
+    // 14 Nov 2026: this used to also fold Saravanan's dealer list into
+    // Chellamani's (removed - only ~172 of his ~231 dealers are actually
+    // Ajith's now; the other 55/4 are Vacant/AAA Direct and must rely on
+    // the owner's own Tally-side restructuring to land under the right
+    // group, not a wholesale merge here).
     var map = {};
     if (!dealerRoster) return map;
     visibleDsrs_().forEach(function (d) {
       var names = (dealerRoster[d.dsrName] || []).slice();
-      if (d.name === 'Chellamani' && dealerRoster['PETRONAS MDU AREA (SARAVANAN)']) {
-        names = names.concat(dealerRoster['PETRONAS MDU AREA (SARAVANAN)']);
-      }
       names.forEach(function (dealerName) { map[dealerName] = d.name; });
     });
     return map;
@@ -5648,8 +5660,9 @@
   // Dormant dealers, added 18 Sep 2026 - the owner's exact rule: a dealer
   // with a real Tally sale within the last 100 days, but nothing ordered
   // this calendar month (so far). Reuses knownDealerDsrMap_() (built for
-  // Needs Attention) for the same real-dealer/Saravanan-into-Chellamani
-  // scoping, and salesByDealer's new lastSaleDate field (see fetch_sales()
+  // Needs Attention) for the same real-dealer scoping (no longer folds
+  // Saravanan into Ajith, 14 Nov 2026), and salesByDealer's new
+  // lastSaleDate field (see fetch_sales()
   // in tally_live_watcher.py and handleLiveGet_() in Code.gs) - no new
   // network call, salesByDealer is already fetched by fetchLive() above.
   // Cards show 5 per DSR by default; clicking a DSR's name opens a modal
@@ -5795,19 +5808,17 @@
   // firstSeenDate - this narrows that down to dealers first seen THIS
   // calendar month who have also actually billed this month
   // (salesByDealer[name].month > 0), so a dealer who was newly onboarded
-  // but hasn't ordered yet doesn't inflate the count. Same
-  // Saravanan-into-Chellamani folding as knownDealerDsrMap_()/
-  // dealerRoster, since newDealers is keyed the same way (by Tally's own
-  // DSR group name, not the dashboard's 7 display names).
+  // but hasn't ordered yet doesn't inflate the count. 14 Nov 2026: no
+  // longer folds Saravanan into Ajith here (same reasoning as
+  // knownDealerDsrMap_()/dealerRoster above) - newDealers is keyed the
+  // same way (by Tally's own DSR group name, not the dashboard's 7
+  // display names).
   function newDealersBilledByDsr_() {
     var out = {};
     if (!newDealers || !salesByDealer) return out;
     var ym = currentYyyyMm_();
     visibleDsrs_().forEach(function (d) {
       var list = (newDealers[d.dsrName] || []).slice();
-      if (d.name === 'Chellamani' && newDealers['PETRONAS MDU AREA (SARAVANAN)']) {
-        list = list.concat(newDealers['PETRONAS MDU AREA (SARAVANAN)']);
-      }
       out[d.name] = list.filter(function (r) {
         if (!r.firstSeenDate || r.firstSeenDate.slice(0, 7) !== ym) return false;
         var rec = salesByDealer[r.name];
@@ -5825,9 +5836,6 @@
     var ym = currentYyyyMm_();
     visibleDsrs_().forEach(function (d) {
       var list = (newDealers[d.dsrName] || []).slice();
-      if (d.name === 'Chellamani' && newDealers['PETRONAS MDU AREA (SARAVANAN)']) {
-        list = list.concat(newDealers['PETRONAS MDU AREA (SARAVANAN)']);
-      }
       out[d.name] = list.filter(function (r) {
         if (!r.firstSeenDate || r.firstSeenDate.slice(0, 7) !== ym) return false;
         var rec = salesByDealer[r.name];
@@ -6113,7 +6121,7 @@
   // below can enumerate the same per-DSR breakdown, added 25 Sep 2026 at
   // the owner's request to expand each Total row and see its members.
   var PETRONAS_AREA_GROUPS_ = [
-    { key: 'madurai', label: 'Madurai Total Area', members: ['Arun', 'Chellamani', 'Prabha'] },
+    { key: 'madurai', label: 'Madurai Total Area', members: ['Arun', 'Ajith', 'Prabha'] },
     { key: 'tvl', label: 'Tirunelveli Total Area', members: ['Madhu', 'Anandh', 'Nagaraj'] }
   ];
   // Shared row-builder for both the Sales (Ltr) and Collection (Rs) area
@@ -9340,7 +9348,7 @@
     var name = dvcEsc_(d.dsr);
     // "No visit log today" - its own neutral state, see the long HTML
     // comment above #captureDealerVisitCheck for why this must never read
-    // as "missed every dealer" (Chellamani/Nagaraj/Prabha's real, known,
+    // as "missed every dealer" (Ajith/Nagaraj/Prabha's real, known,
     // non-bug reasons for near-zero logged visits on many days).
     if (!d.loggedToday) {
       return '<div class="dvc-row">' +
@@ -10354,19 +10362,17 @@
   }
 
   // Dealer lookup, added 20 Sep 2026 - a single search box across every
-  // dealer this dashboard knows about (dealerRoster, company-wide,
-  // Saravanan's folded into Chellamani's list same as everywhere else),
-  // pulling Sales/Collection/Outstanding/Last order into one card instead
-  // of making the owner hunt across Needs Attention/Dormant/Top Customers.
+  // dealer this dashboard knows about (dealerRoster, company-wide; 14
+  // Nov 2026: no longer folds Saravanan into Ajith's list, same as
+  // everywhere else), pulling Sales/Collection/Outstanding/Last order
+  // into one card instead of making the owner hunt across Needs
+  // Attention/Dormant/Top Customers.
   var lookupSelectedDealer = null; // {name, dsrName} or null
   function allKnownDealers_() {
     var out = [];
     if (!dealerRoster) return out;
     visibleDsrs_().forEach(function (d) {
       var names = (dealerRoster[d.dsrName] || []).slice();
-      if (d.name === 'Chellamani' && dealerRoster['PETRONAS MDU AREA (SARAVANAN)']) {
-        names = names.concat(dealerRoster['PETRONAS MDU AREA (SARAVANAN)']);
-      }
       names.forEach(function (name) { out.push({ name: name, dsrName: d.name, territory: d.territory }); });
     });
     return out;
@@ -10948,9 +10954,9 @@
   }
 
   // {name, dsrShort, dsrFull} for every dealer this dashboard knows about
-  // - same grouping (Saravanan folded into Chellamani) as
-  // allKnownDealers_()/knownDealerDsrMap_() above, just carrying BOTH the
-  // short display name and the full Tally dsrName in one place, since
+  // - same grouping (14 Nov 2026: no longer folds Saravanan into Ajith)
+  // as allKnownDealers_()/knownDealerDsrMap_() above, just carrying BOTH
+  // the short display name and the full Tally dsrName in one place, since
   // the "last month purchase" branch below needs the full name for its
   // ORDERS_API_URL call while the ranking/answer labels want the short one.
   function askDealerCandidates_() {
@@ -10958,9 +10964,6 @@
     if (!dealerRoster) return out;
     visibleDsrs_().forEach(function (d) {
       var names = (dealerRoster[d.dsrName] || []).slice();
-      if (d.name === 'Chellamani' && dealerRoster['PETRONAS MDU AREA (SARAVANAN)']) {
-        names = names.concat(dealerRoster['PETRONAS MDU AREA (SARAVANAN)']);
-      }
       names.forEach(function (name) { out.push({ name: name, dsrShort: d.name, dsrFull: d.dsrName }); });
     });
     return out;
@@ -13251,7 +13254,7 @@
   // fetch (same cadence as the task list itself) but preserves the
   // current selection when it's still a valid option, so the filter
   // doesn't silently reset under the owner every 60 seconds.
-  var TM_DSR_KNOWN_ORDER_ = ["Prabha", "Arun", "Nagaraj", "Chellamani", "Anandh", "Madhu", "AAA Direct"];
+  var TM_DSR_KNOWN_ORDER_ = ["Prabha", "Arun", "Nagaraj", "Ajith", "Anandh", "Madhu", "AAA Direct"];
   function populateTmDsrFilterOptions_(tasks) {
     var selEl = document.getElementById("tmDsrFilter");
     if (!selEl) return;
@@ -13471,9 +13474,8 @@
     if (!shortName) { dealerSel.innerHTML = '<option value="">Not set</option>'; return; }
     // {dealerName: dsrDisplayName}, already-proven-reliable mapping this
     // dashboard builds elsewhere from dealerRoster (see that function's
-    // own comment, ~line 3533) - already folds Saravanan's dealers into
-    // Chellamani's, already scoped to visibleDsrs_() for a restricted
-    // Area Manager, so this picks all of that up for free.
+    // own comment, ~line 3533) - already scoped to visibleDsrs_() for a
+    // restricted Area Manager, so this picks all of that up for free.
     var map = knownDealerDsrMap_();
     var names = Object.keys(map).filter(function (dealerName) {
       return map[dealerName] === shortName;
@@ -14072,7 +14074,7 @@
     CURRENT_USER_NAME = name;
     CURRENT_USER_ROLE = role;
     // Parse the login response's allowedAreas string ("Prabha,Arun,
-    // Chellamani" or "" for unrestricted) into CURRENT_ALLOWED_AREAS - see
+    // Ajith" or "" for unrestricted) into CURRENT_ALLOWED_AREAS - see
     // its declaration above for what this gates. Blank/missing = null =
     // unrestricted (Owner, and full Managers like Anbu/Bala).
     var areasList = String(allowedAreas || '').split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s; });
@@ -16276,20 +16278,20 @@
     var ROWS = [
       ['PETRONAS AAA DIRECT AREA SALES', 0, 'AAA Direct'], ['PETRONAS MADURAI TOTAL AREA', 0, null],
       ['PETRONAS DHARAPURAM AREA (ARUN)', 1, 'Arun'], ['PETRONAS DINDIGUL AREA (ARUN)', 1, 'Arun'],
-      ['PETRONAS MDU AREA (CHELLAMANI)', 1, 'Chellamani'], ['PETRONAS MDU AREA (SARAVANAN)', 1, 'Saravanan'],
+      ['PETRONAS MDU AREA (AJITH)', 1, 'Ajith'], ['PETRONAS MDU AREA (SARAVANAN)', 1, 'Vacant'],
       ['PETRONAS THENI AREA (PRABHA)', 1, 'Prabha'], ['PETRONAS OTHER AREA', 0, null],
       ['PETRONAS RAMNAD AREA (PIONEER)', 0, null], ['PETRONAS TIRUNELVELI TOTAL AREA', 0, null],
       ['PETRONAS NKL AREA (MADHU)', 1, 'Madhu'], ['PETRONAS TVL1 AREA (ANANDH)', 1, 'Anandh'],
       ['PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)', 1, 'Nagaraj']
     ];
     var KIDS = {
-      'PETRONAS MADURAI TOTAL AREA': ['PETRONAS DINDIGUL AREA (ARUN)', 'PETRONAS MDU AREA (CHELLAMANI)', 'PETRONAS MDU AREA (SARAVANAN)', 'PETRONAS THENI AREA (PRABHA)'],
+      'PETRONAS MADURAI TOTAL AREA': ['PETRONAS DINDIGUL AREA (ARUN)', 'PETRONAS MDU AREA (AJITH)', 'PETRONAS MDU AREA (SARAVANAN)', 'PETRONAS THENI AREA (PRABHA)'],
       'PETRONAS TIRUNELVELI TOTAL AREA': ['PETRONAS NKL AREA (MADHU)', 'PETRONAS TVL1 AREA (ANANDH)', 'PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)']
     };
     // Only these come live from the Tally sync's LiveSales / LiveCollection
     // (Saravanan's row there stopped updating 18 Sep 2026, so it stays on
     // the history sheet like Dharapuram / Other / Ramnad).
-    var LIVE_GROUPS = ['PETRONAS THENI AREA (PRABHA)', 'PETRONAS DINDIGUL AREA (ARUN)', 'PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)', 'PETRONAS MDU AREA (CHELLAMANI)', 'PETRONAS TVL1 AREA (ANANDH)', 'PETRONAS NKL AREA (MADHU)', 'PETRONAS AAA DIRECT AREA SALES'];
+    var LIVE_GROUPS = ['PETRONAS THENI AREA (PRABHA)', 'PETRONAS DINDIGUL AREA (ARUN)', 'PETRONAS VIRUDHUNAGAR AREA (NAGARAJ)', 'PETRONAS MDU AREA (AJITH)', 'PETRONAS TVL1 AREA (ANANDH)', 'PETRONAS NKL AREA (MADHU)', 'PETRONAS AAA DIRECT AREA SALES'];
     var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     var salesDet = document.getElementById('momSalesDetails');
@@ -16444,7 +16446,7 @@
     // Dropdown order: same DSRs as the cards above, then the two field staff
     // who aren't order-app DSRs. Any other name found in the sheet is added
     // after these automatically.
-    var VR_DSR_ORDER = ["Prabha", "Arun", "Nagaraj", "Chellamani", "Anandh", "Madhu", "Prakash", "Vimal"];
+    var VR_DSR_ORDER = ["Prabha", "Arun", "Nagaraj", "Ajith", "Anandh", "Madhu", "Prakash", "Vimal"];
     var VR_DSR_LABEL = { "Prakash": "Prakash (CBE rep)", "Vimal": "Vimal (FMR)" };
     var VR_FOLLOWUP_CATS = {
       "Payment follow-up / promise": "Payment",
@@ -16663,7 +16665,7 @@
       "NKL NGL NAGERCOIL NAGERCOVIL", "VLR VALLIYUR VALLIOOR VALLIYOOR VALIYUR", "MDM MARTHANDAM",
       "KKRI KKMRI KANYAKUMARI KANNIYAKUMARI KANAYAKUMARI KANYAKUMARIOIL", "EATHAMOZHI EATHAMOZHY",
       "MULAGUMODU MULUGUMOODU", "ATTOOR ATOOR", "KAVALKINARU KAVALKINARAU", "SUCHINDRUM SUDHINDRAM SUCHINDRAM",
-      // Madurai (Chellamani)
+      // Madurai (Ajith)
       "MDU MADURAI", "USILAI USILAMPATTI USPT", "TMLM TIRUMANGALAM THIRUMANGALAM", "MLR MELUR", "KKDI KKD KARAIKUDI",
       "SVG SIVAGANGAI SIVGANGAI", "MNM MANAMADURAI", "PYR PERAIYUR", "TPVNM TIRUPPUVANAM", "CHEKKANURANI CHECKANURANI"
     ].forEach(function (grp) {
