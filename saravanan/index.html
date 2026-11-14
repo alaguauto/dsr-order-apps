@@ -1547,8 +1547,29 @@
     <details class="manage" id="schemeItemsDetails">
       <summary>Items on Scheme <span id="schemeItemsCount" class="num" style="font-weight:500;"></span></summary>
       <div class="manage-body">
-        <p class="hint">Only items with a live scheme or nett-price offer right now -- order straight from here, it's the same order as the list above.</p>
+        <p class="hint">Standing schemes and nett-price offers that don't have a closing date -- order straight from here, it's the same order as the list above. Time-limited schemes are in "Limited Time Scheme" below.</p>
         <div id="schemeItemsList"></div>
+      </div>
+    </details>
+
+    <!-- Limited Time Scheme -- added 14 Nov 2026, split out of Items on
+         Scheme above per the owner's request after seeing both kinds of
+         scheme side by side there with no clear way to tell them apart
+         ("cannot see clear which is show time scheme"). Every item whose
+         FOC or Price scheme comes from a LIVE Scheme Validity episode
+         (liveFocOverride_(it) / a live "Price" config - always carries a
+         Valid To) now shows up ONLY here, not in Items on Scheme above --
+         schemeEligibleItems_() below explicitly excludes them so there's
+         no duplication. A legacy static schemePaid/schemeFree item (no
+         live override, never had a closing date) and any bulk-nett-price
+         item (never time-limited at all) stay in Items on Scheme. Same
+         itemRowHtml() row markup / qty stepper / order wiring as the
+         other item lists, so ordering from here works exactly the same. -->
+    <details class="manage" id="limitedSchemeItemsDetails">
+      <summary>Limited Time Scheme <span id="limitedSchemeItemsCount" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">Items on a live, time-limited scheme right now -- order straight from here, same as the list above.</p>
+        <div id="limitedSchemeItemsList"></div>
       </div>
     </details>
 
@@ -1839,6 +1860,8 @@
   var itemListEl = document.getElementById("itemList");
   var schemeItemsListEl = document.getElementById("schemeItemsList");
   var schemeItemsCountEl = document.getElementById("schemeItemsCount");
+  var limitedSchemeItemsListEl = document.getElementById("limitedSchemeItemsList");
+  var limitedSchemeItemsCountEl = document.getElementById("limitedSchemeItemsCount");
   var promotionsStripListEl = document.getElementById("promotionsStripList");
   var promotionsStripCountEl = document.getElementById("promotionsStripCount");
   var dealerInput = document.getElementById("dealerName");
@@ -2213,7 +2236,17 @@
 
     var warn = overStock ? '<div class="stock-warn">Only ' + formatNum(it.stock) + " " + escapeHtml(it.unit) + " in stock</div>" : "";
     var scheme = mode === "unit" ? schemeText(it, q) : "";
-    var schemeHtml = scheme ? '<div class="scheme-badge">Scheme: ' + escapeHtml(scheme) + "</div>" : "";
+    // Explicit "Limited time"/"Standing offer" label, added 14 Nov 2026
+    // (owner, after the new Scheme Validity live schemes and the old
+    // static item-level ones started showing side by side in Items on
+    // Scheme with no visual way to tell which is which: "cannot see
+    // clear which is show time scheme"). A live override from the
+    // Scheme Validity admin screen always carries a Valid To, a legacy
+    // static schemePaid/schemeFree item never does - that's the same
+    // distinction liveFocOverride_(it) already makes, just reused here
+    // for the label instead of re-deriving it.
+    var schemeLabel = mode === "unit" && liveFocOverride_(it) ? "Limited time: " : "Standing offer: ";
+    var schemeHtml = scheme ? '<div class="scheme-badge">' + schemeLabel + escapeHtml(scheme) + "</div>" : "";
     var ltr = rowLtrText(it, q, mode);
     var ltrHtml = ltr ? '<div class="scheme-badge ltr-badge">' + escapeHtml(ltr) + "</div>" : "";
     var nett = mode === "unit" ? bulkNetPriceText(it) : "";
@@ -2221,8 +2254,13 @@
     var schemeNett = mode === "unit" ? schemeNettPriceText(it) : "";
     var schemeNettHtml = schemeNett ? '<div class="scheme-badge nett-badge">' + escapeHtml(schemeNett) + "</div>" : "";
     // Live "Price Scheme" badge, added 13 Nov 2026 - see liveCnSchemeText()'s own comment.
+    // Always "Limited time" - a Price Scheme only ever exists as a live
+    // Scheme Validity episode (see liveCnSchemeText()'s own comment: "no
+    // static/legacy field for this shape"), so it's never a standing
+    // offer - added 14 Nov 2026, same label convention as the FOC badge
+    // just above.
     var liveCn = mode === "unit" ? liveCnSchemeText(it) : "";
-    var liveCnHtml = liveCn ? '<div class="scheme-badge nett-badge">' + escapeHtml(liveCn) + "</div>" : "";
+    var liveCnHtml = liveCn ? '<div class="scheme-badge nett-badge">Limited time: ' + escapeHtml(liveCn) + "</div>" : "";
 
     return (
       '<div class="item-row' + (q > 0 ? " has-qty" : "") + (overStock ? " over-stock" : "") + '">' +
@@ -2269,6 +2307,7 @@
 
   function renderItemList() {
     renderSchemeItems();
+    renderLimitedSchemeItems_();
     renderPromotionsStrip_();
     var term = searchTerm.trim().toLowerCase();
     var filtered = items.filter(function (it) {
@@ -2324,7 +2363,12 @@
   // out of sync with each item's own on-row badge.
   function schemeEligibleItems_() {
     return items.filter(function (it) {
-      return !!(schemeText(it, 0) || bulkNetPriceText(it) || liveCnSchemeText(it));
+      // Moved out to "Limited Time Scheme" below, added 14 Nov 2026 - see
+      // the HTML comment above #limitedSchemeItemsDetails. Any item whose
+      // scheme is a LIVE Scheme Validity episode (FOC or Price) no longer
+      // counts here, so it never shows in both lists at once.
+      if (liveFocOverride_(it) || liveCnSchemeText(it)) return false;
+      return !!(schemeText(it, 0) || bulkNetPriceText(it));
     });
   }
   function renderSchemeItems() {
@@ -2334,6 +2378,25 @@
     schemeItemsListEl.innerHTML = eligible.length
       ? eligible.map(itemRowHtml).join("")
       : '<p class="empty-note">No items are currently on a scheme.</p>';
+  }
+
+  // Limited Time Scheme -- added 14 Nov 2026, see the HTML comment above
+  // #limitedSchemeItemsDetails. Every item currently carrying a LIVE
+  // Scheme Validity episode (FOC override or Price scheme - both always
+  // have a Valid To), split out of schemeEligibleItems_() above so the
+  // two lists never overlap.
+  function limitedSchemeEligibleItems_() {
+    return items.filter(function (it) {
+      return !!(liveFocOverride_(it) || liveCnSchemeText(it));
+    });
+  }
+  function renderLimitedSchemeItems_() {
+    if (!limitedSchemeItemsListEl) return;
+    var eligible = limitedSchemeEligibleItems_();
+    if (limitedSchemeItemsCountEl) limitedSchemeItemsCountEl.textContent = "(" + eligible.length + ")";
+    limitedSchemeItemsListEl.innerHTML = eligible.length
+      ? eligible.map(itemRowHtml).join("")
+      : '<p class="empty-note">No limited-time schemes running right now.</p>';
   }
 
   // Promotions (added 13 Nov 2026) - see the HTML comment above
@@ -5709,6 +5772,10 @@
   if (schemeItemsListEl) {
     schemeItemsListEl.addEventListener("click", handleItemListClick);
     schemeItemsListEl.addEventListener("input", handleItemListInput);
+  }
+  if (limitedSchemeItemsListEl) {
+    limitedSchemeItemsListEl.addEventListener("click", handleItemListClick);
+    limitedSchemeItemsListEl.addEventListener("input", handleItemListInput);
   }
 
   // Search

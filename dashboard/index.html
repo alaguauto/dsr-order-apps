@@ -3545,6 +3545,50 @@
     </div>
   </details>
 </div>
+
+<!-- "Items on Scheme" / "Promotions" - READ-ONLY, added 14 Nov 2026 at
+     the owner's request ("Items on Scheme & Promotions like dsr app it
+     want to show in manager and area manager login in dashboard, just
+     show no edit"). Manager/Area Manager only (opposite gate of Scheme
+     Validity/Promotional Schemes above, which stay Owner-only for
+     editing) - see afterLogin_() below. Deliberately NOT built from the
+     Owner-only ?type=schemeConfigAll/promotionsAll admin routes (those
+     would 403 for a Manager session, and schemeConfigAll only covers
+     live Scheme Validity episodes anyway, missing the older static
+     schemePaid/schemeFree items DSR apps also show here) - instead reads
+     straight off the SAME role-agnostic ?type=live payload every DSR app
+     already gets (res.schemeConfig/res.promotions, captured into
+     LIVE_SCHEME_CONFIG_/LIVE_PROMOTIONS_VIEW_ in
+     applyLivePayloadToState_() below), and mirrors each DSR app's own
+     schemeText()/liveCnSchemeText()/schemeEligibleItems_() logic
+     client-side - see renderItemsOnSchemeView_()/renderPromotionsView_()
+     further down for the full port. "Limited time:"/"Standing offer:"
+     labels match the same 14 Nov 2026 wording just added to every DSR
+     app's own badges. -->
+<div id="captureItemsOnSchemeView">
+  <details class="dsr-row" id="itemsOnSchemeViewDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Items on Scheme</span>
+        <span class="card-territory">View only - same as every DSR app's own list</span></span>
+    </summary>
+    <div class="dsr-row-body">
+      <div id="itemsOnSchemeViewWrap"><p class="task-empty-note" style="padding:10px 16px;">Loading…</p></div>
+    </div>
+  </details>
+</div>
+<div id="capturePromotionsView">
+  <details class="dsr-row" id="promotionsViewDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Promotions</span>
+        <span class="card-territory">View only - company-wide, not tied to any item</span></span>
+    </summary>
+    <div class="dsr-row-body">
+      <div id="promotionsViewWrap"><p class="task-empty-note" style="padding:10px 16px;">Loading…</p></div>
+    </div>
+  </details>
+</div>
   </div>
 </div>
 
@@ -8341,6 +8385,16 @@
   var PROMOTIONS_DATA_ = [];
   var PROMOTIONS_EXTENDING_ = null; // id of the closed promotion whose Extend row is open, or null
 
+  // "Items on Scheme" / "Promotions" READ-ONLY view for Manager/Area
+  // Manager, added 14 Nov 2026 - see the HTML comment above
+  // #captureItemsOnSchemeView for the full feature. Deliberately
+  // separate from SCHEME_CONFIG_DATA_/PROMOTIONS_DATA_ above (those come
+  // from the Owner-only admin routes and would 403 here) - these two are
+  // populated straight from the same role-agnostic ?type=live payload
+  // every DSR app already reads (applyLivePayloadToState_() below).
+  var LIVE_SCHEME_CONFIG_ = {}; // itemId -> {type, validTo, billQty, focQty, qtyThreshold, cnRate}
+  var LIVE_PROMOTIONS_VIEW_ = []; // [{id, name, validFrom, validTo, posterUrl}, ...]
+
   // "Add/edit a scheme on item" type-to-search box - added 13 Nov 2026,
   // same day as the base feature. Went through two shapes the same day:
   // first a free-text input (filtered the item list below as you typed
@@ -8820,6 +8874,79 @@
     }
     renderPromotionsActive_();
     renderPromotionsClosed_();
+  }
+
+  // ===================================================================
+  // "Items on Scheme" / "Promotions" READ-ONLY view (Manager/Area
+  // Manager) - added 14 Nov 2026. See LIVE_SCHEME_CONFIG_/
+  // LIVE_PROMOTIONS_VIEW_'s own comment above, and the HTML comment
+  // above #captureItemsOnSchemeView, for the full feature. Faithful,
+  // display-only port of each DSR app's own schemeText()/
+  // liveCnSchemeText()/schemeEligibleItems_() - same q=0 ("at rest",
+  // not scaled to an order qty, since there's no order happening here)
+  // branch of schemeText() every DSR app falls back to when nothing's
+  // been entered in its own qty stepper yet.
+  function schemeBlockCasesView_(it, liveFoc) {
+    if (!(Number(it.nosPerUnit) > 0)) return null;
+    var paid = liveFoc ? liveFoc.billQty : (Number(it.schemePaid) || 0);
+    var free = liveFoc ? liveFoc.focQty : (Number(it.schemeFree) || 0);
+    if (paid <= 0 && free <= 0) return null;
+    return (paid + free) / it.nosPerUnit;
+  }
+  function schemeTextView_(it) {
+    var live = LIVE_SCHEME_CONFIG_[it.id];
+    var liveFoc = live && live.type === 'FOC' ? live : null;
+    if (!liveFoc && !(Number(it.schemePaid) > 0) && !(Number(it.schemeFree) > 0)) return '';
+    var paid = liveFoc ? liveFoc.billQty : (Number(it.schemePaid) || 0);
+    var free = liveFoc ? liveFoc.focQty : (Number(it.schemeFree) || 0);
+    var blockCases = schemeBlockCasesView_(it, liveFoc);
+    var validToSuffix = (liveFoc && liveFoc.validTo) ? (' · till ' + liveFoc.validTo) : '';
+    if (!blockCases || blockCases <= 1) return mfNum_(paid) + '+' + mfNum_(free) + ' FOC per ' + it.unit + validToSuffix;
+    return mfNum_(paid) + '+' + mfNum_(free) + ' FOC per ' + blockCases + ' ' + it.unit + validToSuffix;
+  }
+  function liveCnSchemeTextView_(it) {
+    var live = LIVE_SCHEME_CONFIG_[it.id];
+    if (!live || live.type !== 'Price') return '';
+    return '₹' + mfNum_(live.cnRate) + ' CN/pc at ' + live.qtyThreshold + '+ ' + it.unit + (live.validTo ? (' · till ' + live.validTo) : '');
+  }
+  // Same "Limited time:"/"Standing offer:" wording just added to every
+  // DSR app's own badges, 14 Nov 2026 (owner: "cannot see clear which is
+  // show time scheme") - a live override always has a Valid To (it only
+  // ever comes from the Scheme Validity admin screen), a legacy static
+  // schemePaid/schemeFree item never does; a Price scheme has no static
+  // equivalent at all, so it's always "Limited time:".
+  function schemeViewBadgesHtml_(item) {
+    var live = LIVE_SCHEME_CONFIG_[item.id];
+    var foc = schemeTextView_(item);
+    var focHtml = foc ? ('<span class="sv-tag foc">' + (live && live.type === 'FOC' ? 'Limited time: ' : 'Standing offer: ') + acEscapeHtml_(foc) + '</span>') : '';
+    var price = liveCnSchemeTextView_(item);
+    var priceHtml = price ? ('<span class="sv-tag price">Limited time: ' + acEscapeHtml_(price) + '</span>') : '';
+    return focHtml + priceHtml;
+  }
+  function renderItemsOnSchemeView_() {
+    var wrap = document.getElementById('itemsOnSchemeViewWrap');
+    if (!wrap || typeof CATALOG_ITEMS === 'undefined') return;
+    var items = CATALOG_ITEMS.filter(function (item) { return !!schemeTextView_(item) || !!liveCnSchemeTextView_(item); });
+    if (!items.length) { wrap.innerHTML = '<p class="task-empty-note" style="padding:10px 16px;">No items on a scheme right now.</p>'; return; }
+    wrap.innerHTML = '<div class="sv-items">' + items.map(function (item) {
+      return '<div class="sv-item"><div class="sv-item-head" style="cursor:default;flex-wrap:wrap;">' +
+        '<span class="sv-item-name">' + acEscapeHtml_(item.name) + '</span>' + schemeViewBadgesHtml_(item) +
+        '</div></div>';
+    }).join('') + '</div>';
+  }
+  function renderPromotionsView_() {
+    var wrap = document.getElementById('promotionsViewWrap');
+    if (!wrap) return;
+    var items = LIVE_PROMOTIONS_VIEW_ || [];
+    if (!items.length) { wrap.innerHTML = '<p class="task-empty-note" style="padding:10px 16px;">No promotions running right now.</p>'; return; }
+    wrap.innerHTML = '<div class="sv-items">' + items.map(function (p) {
+      var period = p.validFrom ? (acEscapeHtml_(fmtDate_(p.validFrom)) + ' - ' + acEscapeHtml_(fmtDate_(p.validTo || ''))) : acEscapeHtml_(fmtDate_(p.validTo || ''));
+      return '<div class="sv-item"><div class="sv-item-head" style="cursor:default;flex-wrap:wrap;">' +
+        '<span class="sv-item-name">' + acEscapeHtml_(p.name || '') + '</span>' +
+        '<span class="sv-tag price">Valid ' + period + '</span>' +
+        (p.posterUrl ? ('<a href="' + acEscapeHtml_(p.posterUrl) + '" target="_blank" rel="noopener" class="lookup-clear-btn" style="font-size:11px;padding:3px 9px;">View Poster</a>') : '') +
+        '</div></div>';
+    }).join('') + '</div>';
   }
 
   (function () {
@@ -14137,6 +14264,26 @@
       fetchPromotions_();
       setInterval(fetchPromotions_, 60000);
     }
+    // "Items on Scheme" / "Promotions" READ-ONLY view - added 14 Nov
+    // 2026 (owner: "Items on Scheme & Promotions like dsr app it want
+    // to show in manager and area manager login in dashboard, just show
+    // no edit"). Opposite gate from Scheme Validity/Promotional Schemes
+    // just above - shown ONLY for Manager/Area Manager (Owner already
+    // has the full editable versions, doesn't need a view-only
+    // duplicate). No separate fetch needed - both render straight off
+    // whatever fetchLive()/applyLivePayloadToState_() already captured
+    // into LIVE_SCHEME_CONFIG_/LIVE_PROMOTIONS_VIEW_, so they're already
+    // current by the time this runs; render once now in case fetchLive()
+    // already resolved before this login flow reached here, then every
+    // later live refresh keeps them current automatically.
+    var itemsOnSchemeViewBlock = document.getElementById('captureItemsOnSchemeView');
+    if (itemsOnSchemeViewBlock) itemsOnSchemeViewBlock.hidden = !isManagerRole_(role);
+    var promotionsViewBlock = document.getElementById('capturePromotionsView');
+    if (promotionsViewBlock) promotionsViewBlock.hidden = !isManagerRole_(role);
+    if (isManagerRole_(role)) {
+      renderItemsOnSchemeView_();
+      renderPromotionsView_();
+    }
     // DSR Visit Remarks - previously ungated (visible to every role that
     // reaches this dashboard). Hidden for Manager/Area Manager, 6 Nov 2026.
     var visitRemarksBlock = document.getElementById('captureVisitRemarks');
@@ -14587,6 +14734,11 @@
     // Kept for the month-on-month cards (see the MOM module near the
     // Visit Remarks card) - same payload, nothing else reads this.
     if (res && res.ok) { MOM_LIVE = { sales: res.sales || null, collection: res.collection || null, groupSummary: res.groupSummary || null }; if (typeof momRerender_ === 'function') momRerender_(); }
+    // "Items on Scheme" / "Promotions" read-only view (Manager/Area
+    // Manager) - added 14 Nov 2026, see LIVE_SCHEME_CONFIG_/
+    // LIVE_PROMOTIONS_VIEW_'s own comment above.
+    if (res && res.ok && res.schemeConfig) { LIVE_SCHEME_CONFIG_ = res.schemeConfig; if (typeof renderItemsOnSchemeView_ === 'function') renderItemsOnSchemeView_(); }
+    if (res && res.ok && res.promotions) { LIVE_PROMOTIONS_VIEW_ = res.promotions; if (typeof renderPromotionsView_ === 'function') renderPromotionsView_(); }
     // See LIVE_CACHED_AT_ISO's own comment above.
     LIVE_CACHED_AT_ISO = (res && res.ok && res._cachedAt) ? res._cachedAt : null;
     var collection = (res && res.ok && res.collection) ? res.collection : null;
