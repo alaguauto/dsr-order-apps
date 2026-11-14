@@ -16168,25 +16168,32 @@
 
     function build() {
       var cur = monthKey(new Date());
-      var prev = prevKey(cur);
       var cell = {};
       function put(g, m) { var k = g + '|' + m; if (!cell[k]) cell[k] = { ltr: null, rs: null, ltrLive: false, rsLive: false, closed: false }; return cell[k]; }
       (hist || []).forEach(function (h) { var c = put(h.group, h.month); c.ltr = h.ltr; c.rs = h.rs; c.closed = h.source === 'Tally'; });
       var live = MOM_LIVE || {};
+      // Live overlay is CURRENT MONTH ONLY (owner, 14 Nov 2026: "only the
+      // current month should be live"). This used to also overlay the
+      // PREVIOUS month with the watcher's "lastMonthFull" figure whenever
+      // the History sheet's row for that month wasn't yet stamped with the
+      // exact Source "Tally" - meant as a short bridge for the few days
+      // right after a month turns over, before that row gets finalized.
+      // In practice that row can sit un-finalized indefinitely (October's
+      // History row is still "Tally 22-10-2026", a mid-month snapshot, two
+      // weeks into November) and the live dot never goes away, which is
+      // exactly the "removing old dates still showing live" the owner
+      // flagged. Previous/earlier months now come ONLY from the History
+      // sheet, same as every other past month - nothing here overrides
+      // them, so correcting a row directly in that sheet is reliable and
+      // shows up with no fight from this live overlay.
       LIVE_GROUPS.forEach(function (g) {
         var s = live.sales && live.sales[g];
-        if (s) {
-          if (s.month != null) { var c = put(g, cur); c.ltr = s.month; c.ltrLive = true; }
-          var p = put(g, prev); if (!p.closed && s.lastMonthFullLtr != null) { p.ltr = s.lastMonthFullLtr; p.ltrLive = true; }
-        }
+        if (s && s.month != null) { var c = put(g, cur); c.ltr = s.month; c.ltrLive = true; }
         var co = live.collection && live.collection[g];
-        if (co) {
-          if (co.month != null) { var c2 = put(g, cur); c2.rs = co.month; c2.rsLive = true; }
-          var p2 = put(g, prev); if (!p2.closed && co.lastMonthFull != null) { p2.rs = co.lastMonthFull; p2.rsLive = true; }
-        }
+        if (co && co.month != null) { var c2 = put(g, cur); c2.rs = co.month; c2.rsLive = true; }
       });
       Object.keys(KIDS).forEach(function (t) {
-        [cur, prev].forEach(function (m) {
+        [cur].forEach(function (m) {
           var ch = KIDS[t].map(function (k) { return cell[k + '|' + m]; }).filter(Boolean);
           var tc = put(t, m);
           if (ch.some(function (c) { return c.ltrLive; })) { tc.ltr = ch.reduce(function (a, c) { return a + (c.ltr || 0); }, 0); tc.ltrLive = true; }

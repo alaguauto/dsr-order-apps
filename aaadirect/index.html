@@ -770,6 +770,15 @@
     margin: 0 0 10px;
   }
 
+  /* Promotions strip - added 13 Nov 2026, see the HTML comment above
+     #promotionsStripDetails for the full feature. Standalone, company-
+     wide promotions (not tied to any item), so plain name/period/poster
+     cards - no qty stepper or order wiring like Items on Scheme above. */
+  .promo-strip-row { border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); padding: 9px 12px; margin-bottom: 8px; }
+  .promo-strip-name { font-weight: 600; font-size: 13.5px; color: var(--text); margin-bottom: 3px; }
+  .promo-strip-meta { font-size: 12px; color: var(--text-muted); }
+  .promo-strip-poster { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--accent-strong); text-decoration: none; }
+
   /* Today's orders + target */
   .target-strip {
     display: flex;
@@ -1612,6 +1621,30 @@
       </div>
     </details>
 
+    <!-- Promotions -- added 13 Nov 2026, after the owner shared a real
+         PETRONAS poster ("TWO WHEELER MECHANIC SCHEME - Scan 50 Nos. MCO
+         Coupon & Get a Stool FREE! Scanning Period: 11.11.26 to
+         31.12.26") and asked for a "promotional scheme also". Confirmed
+         with the owner before building: standalone/company-wide, NOT
+         tied to any one item (unlike the Items on Scheme section just
+         above), so no qty stepper or order wiring here - just the
+         scheme's name, its period, and a "View Poster" link when the
+         owner pasted one (he uploads the poster to Google Photos/Drive
+         himself and pastes the share link on the dashboard's own
+         "Promotional Schemes" admin screen). Pure visibility, no effect
+         on order math. Fed from data.promotions on the same ?type=live
+         poll that already carries Items on Scheme's live scheme data -
+         see applyLiveOverlay_() below. Built first on aaadirect per this
+         project's own new-feature convention; roll out to the other 7
+         DSR apps once this is confirmed working. -->
+    <details class="manage" id="promotionsStripDetails">
+      <summary>Promotions <span id="promotionsStripCount" class="num" style="font-weight:500;"></span></summary>
+      <div class="manage-body">
+        <p class="hint">Company-wide schemes running right now - not tied to any one item.</p>
+        <div id="promotionsStripList"></div>
+      </div>
+    </details>
+
     <!-- Dealer Targets - added 6 Oct 2026. Each dealer's own Sales
          Target (Ltr) / Collection Plan (Rs) for the current month,
          fillable here by this DSR; Owner/Manager can also edit any of
@@ -1877,6 +1910,8 @@
   var itemListEl = document.getElementById("itemList");
   var schemeItemsListEl = document.getElementById("schemeItemsList");
   var schemeItemsCountEl = document.getElementById("schemeItemsCount");
+  var promotionsStripListEl = document.getElementById("promotionsStripList");
+  var promotionsStripCountEl = document.getElementById("promotionsStripCount");
   var dealerInput = document.getElementById("dealerName");
   var dealerDropdown = document.getElementById("dealerDropdown");
   var manageDealerListEl = document.getElementById("manageDealerList");
@@ -2009,13 +2044,24 @@
   // exactly as it always did.
   var liveSchemeConfig_ = {};
 
+  // Promotions (added 13 Nov 2026) - see the HTML comment above
+  // #promotionsStripDetails for the full feature. An ARRAY (not a map
+  // like liveSchemeConfig_ above, since these aren't keyed by item id),
+  // straight off Code.gs's promotionsActiveList_() - [{id, name,
+  // validTo, posterUrl}], active/upcoming only.
+  var liveActivePromotions_ = [];
+
   // {paid, free} from a live FOC episode on this item, or null - the one
   // place every FOC-scheme function below reads from instead of
   // it.schemePaid/it.schemeFree directly.
   function liveFocOverride_(it) {
     var cfg = liveSchemeConfig_[it.id];
     if (!cfg || cfg.type !== "FOC") return null;
-    return { paid: Number(cfg.billQty) || 0, free: Number(cfg.focQty) || 0 };
+    // validTo added 13 Nov 2026 (owner: "in dsr app scheme closing
+    // period is not showing") - schemeConfigActiveMap_() on Code.gs
+    // already sends this on every live FOC episode, just wasn't being
+    // read here before.
+    return { paid: Number(cfg.billQty) || 0, free: Number(cfg.focQty) || 0, validTo: cfg.validTo || "" };
   }
 
   function schemeBlockCases(it) {
@@ -2039,15 +2085,21 @@
     var free = liveFoc ? liveFoc.free : (hasNum(it.schemeFree) ? it.schemeFree : 0);
     var nos = hasNum(it.nosPerUnit) ? it.nosPerUnit : 0;
     var blockCases = schemeBlockCases(it);
+    // Closing date suffix, added 13 Nov 2026 (owner: "in dsr app scheme
+    // closing period is not showing") - only for a LIVE episode from the
+    // Scheme Validity admin screen (liveFoc), which actually has a Valid
+    // To; a legacy static schemePaid/schemeFree item never had a closing
+    // date concept at all, so it stays exactly as before (no suffix).
+    var validToSuffix = (liveFoc && liveFoc.validTo) ? (" · till " + liveFoc.validTo) : "";
 
     // Original behavior, unchanged: scales linearly per case ordered, no minimum.
     if (!blockCases || blockCases <= 1) {
-      if (q > 0) return (paid * q) + "+" + (free * q) + " FOC";
-      return paid + "+" + free + " FOC per " + it.unit;
+      if (q > 0) return (paid * q) + "+" + (free * q) + " FOC" + validToSuffix;
+      return paid + "+" + free + " FOC per " + it.unit + validToSuffix;
     }
 
     if (q <= 0) {
-      return paid + "+" + free + " FOC per " + blockCases + " " + it.unit;
+      return paid + "+" + free + " FOC per " + blockCases + " " + it.unit + validToSuffix;
     }
 
     // Floors to complete blocks only - no partial/pro-rated credit for an order
@@ -2059,7 +2111,7 @@
     if (blocks < 1) return "";
     var leftoverCases = q - blocks * blockCases;
     var leftoverPaidNos = leftoverCases * nos;
-    return (paid * blocks + leftoverPaidNos) + "+" + (free * blocks) + " FOC";
+    return (paid * blocks + leftoverPaidNos) + "+" + (free * blocks) + " FOC" + validToSuffix;
   }
 
   // Bulk nett-price display (added 28 Sep 2026) — wholly separate from the FOC
@@ -2094,7 +2146,10 @@
   function liveCnSchemeText(it) {
     var cfg = liveSchemeConfig_[it.id];
     if (!cfg || cfg.type !== "Price") return "";
-    return "₹" + formatNum(cfg.cnRate) + " CN/pc at " + cfg.qtyThreshold + "+ " + it.unit;
+    // Closing date suffix, added 13 Nov 2026 - same owner feedback as
+    // schemeText()'s own comment above ("in dsr app scheme closing
+    // period is not showing").
+    return "₹" + formatNum(cfg.cnRate) + " CN/pc at " + cfg.qtyThreshold + "+ " + it.unit + (cfg.validTo ? (" · till " + cfg.validTo) : "");
   }
   // Bracket appended to an order line once the threshold is actually met, e.g.
   // "... — 6 Case (CN ₹3000)" - same "only shown once the qty selected reaches
@@ -2285,6 +2340,7 @@
 
   function renderItemList() {
     renderSchemeItems();
+    renderPromotionsStrip_();
     var term = searchTerm.trim().toLowerCase();
     var filtered = items.filter(function (it) {
       return !term || it.name.toLowerCase().indexOf(term) !== -1;
@@ -2349,6 +2405,29 @@
     schemeItemsListEl.innerHTML = eligible.length
       ? eligible.map(itemRowHtml).join("")
       : '<p class="empty-note">No items are currently on a scheme.</p>';
+  }
+
+  // Promotions (added 13 Nov 2026) - see the HTML comment above
+  // #promotionsStripDetails for the full feature. Plain name/period/
+  // poster cards - standalone from any item, no qty stepper or order
+  // wiring like renderSchemeItems() above.
+  function renderPromotionsStrip_() {
+    if (!promotionsStripListEl) return;
+    if (promotionsStripCountEl) promotionsStripCountEl.textContent = "(" + liveActivePromotions_.length + ")";
+    promotionsStripListEl.innerHTML = liveActivePromotions_.length
+      ? liveActivePromotions_.map(function (p) {
+          // Shows the full Valid From - Valid To period, added 13 Nov
+          // 2026 (owner: "in promotion valid till is there na, i need
+          // from - to so we can identify this scheme is applicable from
+          // when") - previously only showed the closing date.
+          var period = p.validFrom ? (escapeHtml(p.validFrom) + " - " + escapeHtml(p.validTo || "")) : escapeHtml(p.validTo || "");
+          return '<div class="promo-strip-row">' +
+            '<div class="promo-strip-name">' + escapeHtml(p.name || "") + '</div>' +
+            '<div class="promo-strip-meta">Valid ' + period + '</div>' +
+            (p.posterUrl ? ('<a class="promo-strip-poster" href="' + escapeHtml(p.posterUrl) + '" target="_blank" rel="noopener">View Poster</a>') : '') +
+          '</div>';
+        }).join("")
+      : '<p class="empty-note">No promotions running right now.</p>';
   }
 
   // Photo preview (eye button on each item row). imgUrl is a Google Drive share link
@@ -3128,6 +3207,15 @@
     // a scheme-badge change is exactly as visible on this same item list.
     if (data.schemeConfig && JSON.stringify(data.schemeConfig) !== JSON.stringify(liveSchemeConfig_)) {
       liveSchemeConfig_ = data.schemeConfig;
+      stockChanged = true;
+    }
+    // Promotions (added 13 Nov 2026) - see liveActivePromotions_'s own
+    // comment above for the full feature. Same re-render-via-
+    // stockChanged convention as Scheme Validity just above, since
+    // renderItemList() (gated on stockChanged below) is what calls
+    // renderPromotionsStrip_().
+    if (data.promotions && JSON.stringify(data.promotions) !== JSON.stringify(liveActivePromotions_)) {
+      liveActivePromotions_ = data.promotions;
       stockChanged = true;
     }
     var dealersChanged = false;
