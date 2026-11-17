@@ -249,6 +249,8 @@
   .itemgroup-picker-row:first-child { border-top: none; }
   .itemgroup-picker-row:hover { background: var(--surface-2); }
   .itemgroup-picker-row .num { font-weight: 600; color: var(--ink-secondary); white-space: nowrap; }
+  .anbu-tn-scope-dealer-cell { cursor: pointer; text-decoration: underline dotted; text-decoration-color: var(--ink-muted); }
+  .anbu-tn-scope-dealer-cell:hover { color: var(--accent); }
   .stat.balance .stat-value { color: var(--accent); }
   .stat.balance.done .stat-value { color: var(--good); }
   .stat.balance.money-stat .stat-value { color: var(--money); }
@@ -2669,20 +2671,41 @@
     </div>
   </details>
 </div>
-<!-- "Anbu / TN Head Scope" - added 17 Nov 2026, at the owner's request to
-     split K. Anbumani (PETRONAS ASM-level contact) out as "TN Head" with
-     his own view of Sales+Purchase across Coimbatore, Maruti and TATA
-     (3 sub-groups combined) - confirmed over 3 rounds of real
-     --dump-anbu-tn-scope diagnostic runs (16-17 Nov 2026, see
-     tally_live_watcher.py's ANBU_TN_SCOPE_CONFIRMED_/fetch_anbu_tn_scope()
-     for the full confirmation story). Shown as 3 separate month-wise
-     tables (owner's own choice: the FULL history, not current-month-only
-     like Petronas Business Summary above). Coimbatore shows Sales only -
-     its Purchase is genuinely unavailable (confirmed dormant on the real
-     17 Nov 2026 run: it shares the same main company-wide Petronas
-     purchase ledger as the rest of the business, with no area tag to
-     split a Coimbatore-only figure back out) - shown as a dash, never a
+<!-- "Coimbatore + Maruti + TATA Sales/Purchase" (internal id/var names
+     still say "anbuTnScope" - only the user-visible title changed, per
+     the owner's own rename request, 17 Nov 2026: "change Anbu / TN Head
+     Scope to Coimbatore + Maruti + TATA sales/purchase" - renaming every
+     internal identifier too would be a much bigger, riskier refactor for
+     zero behavior change, so it was deliberately skipped). Originally
+     added 17 Nov 2026, at the owner's request to split K. Anbumani
+     (PETRONAS ASM-level contact) out as "TN Head" with his own view of
+     Sales+Purchase across Coimbatore, Maruti and TATA (3 sub-groups
+     combined) - confirmed over 3 rounds of real --dump-anbu-tn-scope
+     diagnostic runs (16-17 Nov 2026, see tally_live_watcher.py's
+     ANBU_TN_SCOPE_CONFIRMED_/fetch_anbu_tn_scope() for the full
+     confirmation story). Shown as 3 separate month-wise tables (owner's
+     own choice: the FULL history, not current-month-only like Petronas
+     Business Summary above). Coimbatore shows Sales only - its Purchase
+     is genuinely unavailable (confirmed dormant on the real 17 Nov 2026
+     run: it shares the same main company-wide Petronas purchase ledger
+     as the rest of the business, with no area tag to split a
+     Coimbatore-only figure back out) - shown as a dash, never a
      fabricated 0.
+
+     Dealers-list popup, added 17 Nov 2026 (same day, owner's follow-up
+     request: "if click inside the numbers then the dealers list should
+     be pop up for coimbatore and maruti , tata no need") - clicking the
+     Sales Ltr or Sales Value cell on a Coimbatore or Maruti row opens
+     #anbuTnScopeDealersPopupOverlay below, showing that bucket+month's
+     Sales broken down by dealer (highest Ltr first) - fetched on demand
+     via the new ?type=anbuTnScopeDealers&bucket=...&month=... route, not
+     bundled into every ?type=live response (same "fetch only when
+     opened" idea as the folder Day Book picker). TATA's Sales cells stay
+     plain, non-clickable text - explicitly out of scope per the owner's
+     own answer. Purchase cells are never clickable either, for either
+     bucket - Purchase is booked against PETRONAS/supplier ledgers, not
+     dealers, so there is no dealer breakdown to show there (confirmed
+     with the owner via AskUserQuestion before building).
 
      Visible ONLY to Anbu and Alagu (Owner), gated by NAME not role (see
      afterLogin_()'s anbuTnScopeBlock line) - Bala shares Anbu's "Manager"
@@ -2695,8 +2718,8 @@
   <details class="dsr-row" id="anbuTnScopeDetails">
     <summary class="dsr-row-summary">
       <span class="dsr-row-toggle" aria-hidden="true"></span>
-      <span class="dsr-row-headtext"><span class="card-name">Anbu / TN Head Scope</span>
-        <span class="card-territory">Coimbatore + Maruti + TATA (combined) · Jan 2026 – present · live</span></span>
+      <span class="dsr-row-headtext"><span class="card-name">Coimbatore + Maruti + TATA Sales/Purchase</span>
+        <span class="card-territory">Jan 2026 – present · live</span></span>
       <span class="dsr-row-headright">
         <button type="button" class="share-icon-btn small" id="exportAnbuTnScopeXlsxBtn" title="Export as Excel" style="margin-left:6px;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
@@ -2705,9 +2728,28 @@
     </summary>
     <div class="dsr-row-body">
       <div id="anbuTnScopeWrap"></div>
-      <p style="font-size:11px;color:var(--ink-muted);margin:8px 4px 0;">Coimbatore: Sales only - Purchase is shared with the main company-wide Petronas purchase ledger, not separately available. Maruti/TATA: Purchase + Sales. Synced automatically from Tally (roughly twice a day).</p>
+      <p style="font-size:11px;color:var(--ink-muted);margin:8px 4px 0;">Coimbatore: Sales only - Purchase is shared with the main company-wide Petronas purchase ledger, not separately available. Maruti/TATA: Purchase + Sales. Synced automatically from Tally (roughly twice a day). Click a Coimbatore or Maruti Sales figure to see the dealer breakdown.</p>
     </div>
   </details>
+</div>
+<!-- Dealers-list popup, added 17 Nov 2026 - see the long HTML comment
+     above #captureAnbuTnScope for the full story. A plain overlay (same
+     "dormant-overlay"/"dormant-sheet" shape already used by
+     #folderDaybookMonthPickerOverlay etc.), built fresh each time it
+     opens by anbuTnScopeOpenDealersPopup_() below rather than at page
+     load, since its title/rows depend entirely on which cell was
+     clicked. -->
+<div class="dormant-overlay" id="anbuTnScopeDealersPopupOverlay" style="display:none;">
+  <div class="dormant-sheet">
+    <div class="dormant-sheet-head">
+      <div>
+        <p class="dormant-sheet-title" id="anbuTnScopeDealersPopupTitle">Dealers</p>
+        <p class="dormant-sheet-sub" id="anbuTnScopeDealersPopupSub"></p>
+      </div>
+      <button type="button" class="dormant-close" id="anbuTnScopeDealersPopupCloseBtn" aria-label="Close">&times;</button>
+    </div>
+    <div id="anbuTnScopeDealersPopupList"></div>
+  </div>
 </div>
 <!-- TATA / Coimbatore (CBE) "folders" - added 17 Nov 2026, owner's request
      ("CREATE TATA FOLER , COIMBATORE FOLDER IN THAT PUT SALES, PURCHASE,
@@ -9450,19 +9492,29 @@
   // dash, same "never a fabricated 0" convention as fmtRsOrDash_() above.
   function fmtLtrOrDash_(v) { return (v === null || v === undefined) ? '—' : fmt(v); }
 
-  function anbuTnScopeRowHtml_(r) {
+  // dealersClickable (added 17 Nov 2026, the dealers-list popup) makes
+  // the Sales Ltr/Value cells open anbuTnScopeOpenDealersPopup_() below
+  // via a data-dealer-* attribute the click-delegation handler reads -
+  // Coimbatore + Maruti only, Sales only, never Purchase, never TATA (see
+  // the long HTML comment above #captureAnbuTnScope for why). The Total
+  // row is never clickable - it spans every month, so there's no single
+  // month to ask the dealers endpoint for.
+  function anbuTnScopeRowHtml_(r, dealersClickable) {
+    var salesAttrs = dealersClickable ?
+      ' class="num anbu-tn-scope-dealer-cell" data-dealer-bucket="' + r.bucket + '" data-dealer-month="' + r.month +
+      '" data-dealer-monthlabel="' + r.monthLabel + '"' : ' class="num"';
     return '<tr><td style="text-align:left;">' + r.monthLabel + '</td>' +
       '<td class="num">' + fmtLtrOrDash_(r.purchaseLtr) + '</td>' +
-      '<td class="num">' + fmt(r.salesLtr || 0) + '</td>' +
-      '<td class="num">' + fmtRs(r.salesValue || 0) + '</td></tr>';
+      '<td' + salesAttrs + '>' + fmt(r.salesLtr || 0) + '</td>' +
+      '<td' + salesAttrs + '>' + fmtRs(r.salesValue || 0) + '</td></tr>';
   }
 
-  function anbuTnScopeBucketTableHtml_(bucketLabel, rows) {
+  function anbuTnScopeBucketTableHtml_(bucketLabel, rows, dealersClickable) {
     var heading = '<h4 style="margin:14px 4px 4px;font-size:13px;color:var(--ink);">' + bucketLabel + '</h4>';
     if (!rows.length) {
       return heading + '<p style="font-size:12px;color:var(--ink-muted);margin:0 4px 8px;">Not yet synced from Tally.</p>';
     }
-    var rowsHtml = rows.map(anbuTnScopeRowHtml_).join('');
+    var rowsHtml = rows.map(function (r) { return anbuTnScopeRowHtml_(r, dealersClickable); }).join('');
     var totals = rows.reduce(function (t, r) {
       if (r.purchaseLtr !== null && r.purchaseLtr !== undefined) { t.purchaseLtr += r.purchaseLtr; t.purchaseSeen = true; }
       t.salesLtr += r.salesLtr || 0; t.salesValue += r.salesValue || 0;
@@ -9472,8 +9524,10 @@
       '<td class="num">' + (totals.purchaseSeen ? fmt(totals.purchaseLtr) : '—') + '</td>' +
       '<td class="num">' + fmt(totals.salesLtr) + '</td>' +
       '<td class="num">' + fmtRs(totals.salesValue) + '</td></tr>';
+    var note = dealersClickable ?
+      '<p style="font-size:11px;color:var(--ink-muted);margin:4px 4px 0;">Click a Sales figure above for the dealer breakdown.</p>' : '';
     return heading + '<div class="age-table-scroll"><table class="age-table petronas-summary-table">' +
-      ANBU_TN_SCOPE_HEAD_ + '<tbody>' + rowsHtml + '</tbody></table></div>';
+      ANBU_TN_SCOPE_HEAD_ + '<tbody>' + rowsHtml + '</tbody></table></div>' + note;
   }
 
   function anbuTnScopeByBucket_() {
@@ -9489,10 +9543,69 @@
     if (!wrap) return;
     var byBucket = anbuTnScopeByBucket_();
     wrap.innerHTML =
-      anbuTnScopeBucketTableHtml_('Coimbatore (Sales only)', byBucket.Coimbatore) +
-      anbuTnScopeBucketTableHtml_('Maruti', byBucket.Maruti) +
-      anbuTnScopeBucketTableHtml_('TATA (Brake Fluid + CBE + OE combined)', byBucket.TATA);
+      anbuTnScopeBucketTableHtml_('Coimbatore (Sales only)', byBucket.Coimbatore, true) +
+      anbuTnScopeBucketTableHtml_('Maruti', byBucket.Maruti, true) +
+      anbuTnScopeBucketTableHtml_('TATA (Brake Fluid + CBE + OE combined)', byBucket.TATA, false);
   }
+
+  // Dealers-list popup (added 17 Nov 2026) - fetched on demand via the
+  // new ?type=anbuTnScopeDealers route, never bundled into ?type=live
+  // (same "fetch only when opened" idea as the folder Day Book picker
+  // above). Rows already come back sorted highest Sales Ltr first from
+  // Code.gs's handleAnbuTnScopeDealersGet_().
+  function anbuTnScopeOpenDealersPopup_(bucket, month, monthLabel) {
+    var overlay = document.getElementById('anbuTnScopeDealersPopupOverlay');
+    var listEl = document.getElementById('anbuTnScopeDealersPopupList');
+    var titleEl = document.getElementById('anbuTnScopeDealersPopupTitle');
+    var subEl = document.getElementById('anbuTnScopeDealersPopupSub');
+    if (!overlay || !listEl) return;
+    titleEl.textContent = bucket + ' — Dealers';
+    subEl.textContent = (monthLabel || month) + ' · Sales (Ltr), highest first';
+    listEl.innerHTML = '<p style="font-size:12px;color:var(--ink-muted);margin:10px 4px;">Loading…</p>';
+    overlay.style.display = 'flex';
+    var url = ORDERS_API_URL + '?type=anbuTnScopeDealers&bucket=' + encodeURIComponent(bucket) +
+      '&month=' + encodeURIComponent(month) + '&sessionId=' + encodeURIComponent(CURRENT_SESSION_ID || '') + '&_ts=' + Date.now();
+    fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.ok) {
+          listEl.innerHTML = '<p style="font-size:12px;color:var(--ink-muted);margin:10px 4px;">Could not load dealers right now.</p>';
+          return;
+        }
+        var rows = res.rows || [];
+        if (!rows.length) {
+          listEl.innerHTML = '<p style="font-size:12px;color:var(--ink-muted);margin:10px 4px;">No dealer data for this month yet.</p>';
+          return;
+        }
+        listEl.innerHTML = rows.map(function (r) {
+          return '<div class="itemgroup-picker-row"><span>' + mfEscapeHtml_(r.dealer) + '</span>' +
+            '<span class="num">' + fmt(r.salesLtr) + ' Ltr</span></div>';
+        }).join('');
+      })
+      .catch(function () {
+        listEl.innerHTML = '<p style="font-size:12px;color:var(--ink-muted);margin:10px 4px;">Could not load dealers right now.</p>';
+      });
+  }
+
+  (function () {
+    var overlay = document.getElementById('anbuTnScopeDealersPopupOverlay');
+    var wrap = document.getElementById('anbuTnScopeWrap');
+    if (!overlay || !wrap) return;
+    function closePopup_() { overlay.style.display = 'none'; }
+    var closeBtn = document.getElementById('anbuTnScopeDealersPopupCloseBtn');
+    if (closeBtn) closeBtn.addEventListener('click', closePopup_);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) closePopup_(); });
+    // Click-delegation on the wrap (rebuilt wholesale on every render) -
+    // targets the data-dealer-bucket attribute anbuTnScopeRowHtml_() adds
+    // to the Sales Ltr/Value cells when dealersClickable is true.
+    wrap.addEventListener('click', function (e) {
+      var cell = e.target.closest('[data-dealer-bucket]');
+      if (!cell) return;
+      anbuTnScopeOpenDealersPopup_(
+        cell.getAttribute('data-dealer-bucket'), cell.getAttribute('data-dealer-month'),
+        cell.getAttribute('data-dealer-monthlabel'));
+    });
+  })();
 
   // "Anbu / TN Head Scope" Export as Excel - same client-side SheetJS
   // pattern as exportPetronasSummaryXlsxBtn above, one combined sheet with
