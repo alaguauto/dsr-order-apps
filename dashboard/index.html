@@ -2669,6 +2669,46 @@
     </div>
   </details>
 </div>
+<!-- "Anbu / TN Head Scope" - added 17 Nov 2026, at the owner's request to
+     split K. Anbumani (PETRONAS ASM-level contact) out as "TN Head" with
+     his own view of Sales+Purchase across Coimbatore, Maruti and TATA
+     (3 sub-groups combined) - confirmed over 3 rounds of real
+     --dump-anbu-tn-scope diagnostic runs (16-17 Nov 2026, see
+     tally_live_watcher.py's ANBU_TN_SCOPE_CONFIRMED_/fetch_anbu_tn_scope()
+     for the full confirmation story). Shown as 3 separate month-wise
+     tables (owner's own choice: the FULL history, not current-month-only
+     like Petronas Business Summary above). Coimbatore shows Sales only -
+     its Purchase is genuinely unavailable (confirmed dormant on the real
+     17 Nov 2026 run: it shares the same main company-wide Petronas
+     purchase ledger as the rest of the business, with no area tag to
+     split a Coimbatore-only figure back out) - shown as a dash, never a
+     fabricated 0.
+
+     Visible ONLY to Anbu and Alagu (Owner), gated by NAME not role (see
+     afterLogin_()'s anbuTnScopeBlock line) - Bala shares Anbu's "Manager"
+     role but was never asked for this panel (owner's own second
+     AskUserQuestion answer, 17 Nov 2026), and this intentionally does NOT
+     go through the role-based sectionHidden_()/SECTION_VIS mechanism
+     (Owner/Manager/Area Manager) used elsewhere on this dashboard, since
+     that can't express "this one Manager, not that one". -->
+<div id="captureAnbuTnScope">
+  <details class="dsr-row" id="anbuTnScopeDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Anbu / TN Head Scope</span>
+        <span class="card-territory">Coimbatore + Maruti + TATA (combined) · Jan 2026 – present · live</span></span>
+      <span class="dsr-row-headright">
+        <button type="button" class="share-icon-btn small" id="exportAnbuTnScopeXlsxBtn" title="Export as Excel" style="margin-left:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        </button>
+      </span>
+    </summary>
+    <div class="dsr-row-body">
+      <div id="anbuTnScopeWrap"></div>
+      <p style="font-size:11px;color:var(--ink-muted);margin:8px 4px 0;">Coimbatore: Sales only - Purchase is shared with the main company-wide Petronas purchase ledger, not separately available. Maruti/TATA: Purchase + Sales. Synced automatically from Tally (roughly twice a day).</p>
+    </div>
+  </details>
+</div>
 <!-- "Today's Dealer Visit Check" - added 26 Oct 2026 at the owner's request
      ("by eve report if he did not sync with that dealer can u inform me in
      dashboard with matching of todays dealer vs visited = missed dealer").
@@ -9302,6 +9342,97 @@
       PETRONAS_SUMMARY_HEAD_ + '<tbody>' + rowsHtml + '</tbody></table></div>';
   }
 
+  // "Anbu / TN Head Scope" - added 17 Nov 2026, see the long HTML comment
+  // above #captureAnbuTnScope for the full feature/confirmation story.
+  // Populated by fetchLive() below from the ?type=live response's
+  // anbuTnScope field (Code.gs's buildLivePayload_(), reading the
+  // LiveAnbuTnScope sheet that tally_live_watcher.py's
+  // maybe_push_anbu_tn_scope() upserts into). Unlike petronasSummaryLive
+  // above, there is no static baked-in history here - starts empty, and
+  // renderAnbuTnScope_() shows a plain "not yet synced" note per bucket
+  // until the first live fetch resolves.
+  var anbuTnScopeLive = [];
+
+  var ANBU_TN_SCOPE_HEAD_ = '<thead><tr><th>Month</th><th>Purchase (Ltr)</th><th>Sales (Ltr)</th><th>Sales (Value)</th></tr></thead>';
+
+  // null (not 0) for Coimbatore's Purchase Ltr means genuinely unavailable
+  // - see the HTML comment above #captureAnbuTnScope for why - shown as a
+  // dash, same "never a fabricated 0" convention as fmtRsOrDash_() above.
+  function fmtLtrOrDash_(v) { return (v === null || v === undefined) ? '—' : fmt(v); }
+
+  function anbuTnScopeRowHtml_(r) {
+    return '<tr><td style="text-align:left;">' + r.monthLabel + '</td>' +
+      '<td class="num">' + fmtLtrOrDash_(r.purchaseLtr) + '</td>' +
+      '<td class="num">' + fmt(r.salesLtr || 0) + '</td>' +
+      '<td class="num">' + fmtRs(r.salesValue || 0) + '</td></tr>';
+  }
+
+  function anbuTnScopeBucketTableHtml_(bucketLabel, rows) {
+    var heading = '<h4 style="margin:14px 4px 4px;font-size:13px;color:var(--ink);">' + bucketLabel + '</h4>';
+    if (!rows.length) {
+      return heading + '<p style="font-size:12px;color:var(--ink-muted);margin:0 4px 8px;">Not yet synced from Tally.</p>';
+    }
+    var rowsHtml = rows.map(anbuTnScopeRowHtml_).join('');
+    var totals = rows.reduce(function (t, r) {
+      if (r.purchaseLtr !== null && r.purchaseLtr !== undefined) { t.purchaseLtr += r.purchaseLtr; t.purchaseSeen = true; }
+      t.salesLtr += r.salesLtr || 0; t.salesValue += r.salesValue || 0;
+      return t;
+    }, { purchaseLtr: 0, salesLtr: 0, salesValue: 0, purchaseSeen: false });
+    rowsHtml += '<tr style="font-weight:600;border-top:2px solid var(--border);"><td style="text-align:left;">Total</td>' +
+      '<td class="num">' + (totals.purchaseSeen ? fmt(totals.purchaseLtr) : '—') + '</td>' +
+      '<td class="num">' + fmt(totals.salesLtr) + '</td>' +
+      '<td class="num">' + fmtRs(totals.salesValue) + '</td></tr>';
+    return heading + '<div class="age-table-scroll"><table class="age-table petronas-summary-table">' +
+      ANBU_TN_SCOPE_HEAD_ + '<tbody>' + rowsHtml + '</tbody></table></div>';
+  }
+
+  function anbuTnScopeByBucket_() {
+    var byBucket = { Coimbatore: [], Maruti: [], TATA: [] };
+    anbuTnScopeLive.forEach(function (r) {
+      if (byBucket[r.bucket]) byBucket[r.bucket].push(r);
+    });
+    return byBucket;
+  }
+
+  function renderAnbuTnScope_() {
+    var wrap = document.getElementById('anbuTnScopeWrap');
+    if (!wrap) return;
+    var byBucket = anbuTnScopeByBucket_();
+    wrap.innerHTML =
+      anbuTnScopeBucketTableHtml_('Coimbatore (Sales only)', byBucket.Coimbatore) +
+      anbuTnScopeBucketTableHtml_('Maruti', byBucket.Maruti) +
+      anbuTnScopeBucketTableHtml_('TATA (Brake Fluid + CBE + OE combined)', byBucket.TATA);
+  }
+
+  // "Anbu / TN Head Scope" Export as Excel - same client-side SheetJS
+  // pattern as exportPetronasSummaryXlsxBtn above, one combined sheet with
+  // a Bucket column (rather than 3 separate sheets) so it stays a single
+  // flat export, same shape as the data itself is pushed in.
+  (function () {
+    var btn = document.getElementById('exportAnbuTnScopeXlsxBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof XLSX === 'undefined') {
+        alert('Excel export isn\'t available right now — the export library didn\'t load. Check your connection and try again.');
+        return;
+      }
+      var rows = [['Bucket', 'Month', 'Purchase (Ltr)', 'Sales (Ltr)', 'Sales (Value)']];
+      anbuTnScopeLive.forEach(function (r) {
+        rows.push([
+          r.bucket, r.monthLabel,
+          (r.purchaseLtr === null || r.purchaseLtr === undefined) ? '' : r.purchaseLtr,
+          r.salesLtr || 0, Math.round(r.salesValue || 0)
+        ]);
+      });
+      var wb = XLSX.utils.book_new();
+      var ws = XLSX.utils.aoa_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, 'Anbu TN Scope');
+      XLSX.writeFile(wb, 'anbu_tn_scope_' + todayISO() + '.xlsx');
+    });
+  })();
+
   // "Today's Dealer Visit Check" - added 26 Oct 2026, see the long HTML
   // comment above #captureDealerVisitCheck for the full request/design
   // story. Populated by fetchLive() below from the ?type=live response's
@@ -14215,6 +14346,17 @@
     if (stockDetails) stockDetails.hidden = sectionHidden_('stocks');
     var petronasSummaryBlock = document.getElementById('capturePetronasSummary');
     if (petronasSummaryBlock) petronasSummaryBlock.hidden = sectionHidden_('petronasSummary');
+    // "Anbu / TN Head Scope", added 17 Nov 2026 - see the long HTML
+    // comment above #captureAnbuTnScope for the full story. Gated by
+    // NAME, not role or sectionHidden_() - visible ONLY to Anbu and
+    // Alagu (Owner), per the owner's own explicit choice (17 Nov 2026):
+    // Bala shares Anbu's "Manager" role but was never asked for this
+    // panel, so a role-based rule would wrongly show it to him too.
+    var anbuTnScopeBlock = document.getElementById('captureAnbuTnScope');
+    if (anbuTnScopeBlock) {
+      anbuTnScopeBlock.hidden = (name !== 'Alagu' && name !== 'Anbu');
+      if (!anbuTnScopeBlock.hidden) renderAnbuTnScope_();
+    }
     // "Reorder Level & Sales Status", added 21 Oct 2026 - company-wide
     // stock-in-hand + purchasing figures, same sensitivity class as
     // Stocks/Day Book/Petronas Business Summary above, but 'reorder'
@@ -14846,6 +14988,19 @@
     if (res && res.ok && res.petronasSummary) {
       petronasSummaryLive = res.petronasSummary;
       renderPetronasSummary_();
+    }
+
+    // "Anbu / TN Head Scope", added 17 Nov 2026 - see renderAnbuTnScope_()'s
+    // own comment above for the full story. Re-render immediately on every
+    // live fetch, same "don't wait for some other panel's render" reasoning
+    // as petronasSummary just above - harmless even while the panel itself
+    // is hidden (anbuTnScopeBlock.hidden, set in afterLogin_() by name),
+    // since the data is always fetched for everyone's ?type=live response
+    // (same as every other live field) and only the DOM element's hidden
+    // flag decides who actually sees it rendered.
+    if (res && res.ok && res.anbuTnScope) {
+      anbuTnScopeLive = res.anbuTnScope;
+      renderAnbuTnScope_();
     }
 
     // "Today's Dealer Visit Check", added 26 Oct 2026 - see the long HTML
