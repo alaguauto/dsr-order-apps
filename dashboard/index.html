@@ -2709,6 +2709,96 @@
     </div>
   </details>
 </div>
+<!-- TATA / Coimbatore (CBE) "folders" - added 17 Nov 2026, owner's request
+     ("CREATE TATA FOLER , COIMBATORE FOLDER IN THAT PUT SALES, PURCHASE,
+     DAYBOOK,STOCK EVERYTHING IT WILL EASY TO LOOK WITH DOWNLOAD OPTION").
+     Same Anbu+Alagu-only name gating as #captureAnbuTnScope above.
+
+     IMPORTANT - "Coimbatore" here is a DIFFERENT, separate definition from
+     #captureAnbuTnScope's own Coimbatore bucket above: that one is the
+     dealer/ledger-area split (Sales only, Purchase confirmed dormant);
+     this one is an item-group split confirmed 17 Nov 2026 - PETRONAS
+     BARREL (CBE) (0) / PCMO (CBE) (0) / TVS (CBE) (2) - which DOES have
+     real Purchase data. Bucket name "Coimbatore CBE" in the data feed
+     keeps the two from ever colliding - see tally_live_watcher.py's
+     ANBU_TN_SCOPE_CONFIRMED_ for the full story.
+
+     Sales+Purchase reuse anbuTnScopeLive (same data #captureAnbuTnScope
+     reads, just a different bucket key) - renderFolder_() below builds
+     both folders from one shared function rather than duplicating markup-
+     building code twice. Stock is a current snapshot (bucketStockLive,
+     from Code.gs's new bucketStock field) - not month-wise, stock is a
+     running balance. Day Book reuses the EXISTING Day Book data via the
+     new ?type=bucketDaybook endpoint (filters by Item Group - no new
+     Tally fetch), one month at a time via its own month-picker
+     (#folderDaybookMonthPickerOverlay below), defaulting to the current
+     month on first open. One combined Export as Excel per folder bundles
+     all 3 (Sales+Purchase history, Stock, whichever Day Book month is
+     currently shown) into one multi-sheet workbook. -->
+<div id="captureFolderTATA">
+  <details class="dsr-row" id="folderTATADetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">TATA</span>
+        <span class="card-territory">Brake Fluid + CBE + OE combined · Sales, Purchase, Stock, Day Book</span></span>
+      <span class="dsr-row-headright">
+        <button type="button" class="share-icon-btn small" id="exportFolderTATAXlsxBtn" title="Export as Excel" style="margin-left:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        </button>
+      </span>
+    </summary>
+    <div class="dsr-row-body">
+      <div id="folderTATAStockLine" style="font-size:13px;margin:4px 4px 10px;"></div>
+      <div id="folderTATASalesPurchaseWrap"></div>
+      <div style="margin-top:14px;">
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 4px 6px;">
+          <strong style="font-size:13px;">Day Book</strong>
+          <button type="button" class="share-icon-btn small" id="folderTATADaybookMonthBtn" title="Change month">Change month</button>
+        </div>
+        <div id="folderTATADaybookWrap"></div>
+      </div>
+      <p style="font-size:11px;color:var(--ink-muted);margin:8px 4px 0;">Synced automatically from Tally (roughly twice a day).</p>
+    </div>
+  </details>
+</div>
+<div id="captureFolderCoimbatoreCBE">
+  <details class="dsr-row" id="folderCoimbatoreCBEDetails">
+    <summary class="dsr-row-summary">
+      <span class="dsr-row-toggle" aria-hidden="true"></span>
+      <span class="dsr-row-headtext"><span class="card-name">Coimbatore</span>
+        <span class="card-territory">Barrel + PCMO + TVS (CBE) item groups · Sales, Purchase, Stock, Day Book</span></span>
+      <span class="dsr-row-headright">
+        <button type="button" class="share-icon-btn small" id="exportFolderCoimbatoreCBEXlsxBtn" title="Export as Excel" style="margin-left:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        </button>
+      </span>
+    </summary>
+    <div class="dsr-row-body">
+      <div id="folderCoimbatoreCBEStockLine" style="font-size:13px;margin:4px 4px 10px;"></div>
+      <div id="folderCoimbatoreCBESalesPurchaseWrap"></div>
+      <div style="margin-top:14px;">
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 4px 6px;">
+          <strong style="font-size:13px;">Day Book</strong>
+          <button type="button" class="share-icon-btn small" id="folderCoimbatoreCBEDaybookMonthBtn" title="Change month">Change month</button>
+        </div>
+        <div id="folderCoimbatoreCBEDaybookWrap"></div>
+      </div>
+      <p style="font-size:11px;color:var(--ink-muted);margin:8px 4px 0;">Synced automatically from Tally (roughly twice a day).</p>
+    </div>
+  </details>
+</div>
+<div class="dormant-overlay" id="folderDaybookMonthPickerOverlay" style="display:none;">
+  <div class="dormant-sheet">
+    <div class="dormant-sheet-head">
+      <div>
+        <p class="dormant-sheet-title">Day Book for which month?</p>
+        <p class="dormant-sheet-sub">Pick a month to view/export for this folder.</p>
+      </div>
+      <button type="button" class="dormant-close" id="folderDaybookMonthPickerCloseBtn" aria-label="Close">&times;</button>
+    </div>
+    <div id="folderDaybookMonthPickerList"></div>
+  </div>
+</div>
 <!-- "Today's Dealer Visit Check" - added 26 Oct 2026 at the owner's request
      ("by eve report if he did not sync with that dealer can u inform me in
      dashboard with matching of todays dealer vs visited = missed dealer").
@@ -9433,6 +9523,194 @@
     });
   })();
 
+  // TATA / Coimbatore (CBE) "folders" - added 17 Nov 2026, see the long
+  // HTML comment above #captureFolderTATA for the full request/design
+  // story. One shared renderFolder_()/fetchFolderDaybook_() pair drives
+  // both folders, parameterized by bucket key + DOM id prefix, rather than
+  // duplicating the same logic twice.
+  var bucketStockLive_ = {}; // {bucketKey: ltr|null} - populated by fetchLive() below
+  var folderDaybookState_ = {}; // {bucketKey: {monthKey, rows}} - populated on demand
+
+  var FOLDER_DEF_ = {
+    'TATA': { idPrefix: 'folderTATA', label: 'TATA (Brake Fluid + CBE + OE combined)' },
+    'Coimbatore CBE': { idPrefix: 'folderCoimbatoreCBE', label: 'Coimbatore (Barrel + PCMO + TVS (CBE))' }
+  };
+
+  function renderFolderStockLine_(bucketKey) {
+    var def = FOLDER_DEF_[bucketKey];
+    var el = document.getElementById(def.idPrefix + 'StockLine');
+    if (!el) return;
+    var v = bucketStockLive_[bucketKey];
+    el.innerHTML = '<strong>Current Stock:</strong> ' +
+      ((v === null || v === undefined) ? 'Not yet synced from Tally.' : fmt(v) + ' Ltr');
+  }
+
+  function renderFolderSalesPurchase_(bucketKey) {
+    var def = FOLDER_DEF_[bucketKey];
+    var el = document.getElementById(def.idPrefix + 'SalesPurchaseWrap');
+    if (!el) return;
+    var rows = anbuTnScopeLive.filter(function (r) { return r.bucket === bucketKey; });
+    el.innerHTML = anbuTnScopeBucketTableHtml_(def.label, rows);
+  }
+
+  var FOLDER_DAYBOOK_HEAD_ = '<thead><tr><th>Date</th><th>Voucher #</th><th>Type</th><th>Party</th>' +
+    '<th>Item</th><th>Qty</th><th>Alt Qty (Ltr)</th><th>Amount</th></tr></thead>';
+
+  function folderDaybookRowHtml_(r) {
+    return '<tr><td style="text-align:left;">' + (r.date || '') + '</td>' +
+      '<td style="text-align:left;">' + mfEscapeHtml_(r.voucherNumber || '') + '</td>' +
+      '<td style="text-align:left;">' + mfEscapeHtml_(r.voucherType || '') + '</td>' +
+      '<td style="text-align:left;">' + mfEscapeHtml_(r.party || '') + '</td>' +
+      '<td style="text-align:left;">' + mfEscapeHtml_(r.itemName || '') + '</td>' +
+      '<td class="num">' + (r.qty === null || r.qty === undefined || r.qty === '' ? '' : r.qty) + '</td>' +
+      '<td class="num">' + (r.altQtyLtr === null || r.altQtyLtr === undefined || r.altQtyLtr === '' ? '' : fmt(Number(r.altQtyLtr))) + '</td>' +
+      '<td class="num">' + (r.amount === null || r.amount === undefined || r.amount === '' ? '' : fmtRs(Number(r.amount))) + '</td></tr>';
+  }
+
+  function renderFolderDaybook_(bucketKey) {
+    var def = FOLDER_DEF_[bucketKey];
+    var el = document.getElementById(def.idPrefix + 'DaybookWrap');
+    if (!el) return;
+    var state = folderDaybookState_[bucketKey];
+    if (!state || !state.monthKey) {
+      el.innerHTML = '<p style="font-size:12px;color:var(--ink-muted);margin:0 4px;">Loading…</p>';
+      return;
+    }
+    var heading = '<p style="font-size:12px;color:var(--ink-muted);margin:0 4px 6px;">' +
+      reportMonthLabelFor_(state.monthKey) + '</p>';
+    if (!state.rows.length) {
+      el.innerHTML = heading + '<p style="font-size:12px;color:var(--ink-muted);margin:0 4px;">No Day Book rows for this bucket this month.</p>';
+      return;
+    }
+    el.innerHTML = heading + '<div class="age-table-scroll"><table class="age-table petronas-summary-table">' +
+      FOLDER_DAYBOOK_HEAD_ + '<tbody>' + state.rows.map(folderDaybookRowHtml_).join('') + '</tbody></table></div>';
+  }
+
+  // Fetches one month's Day Book for one bucket (?type=bucketDaybook) and
+  // stores it in folderDaybookState_ - called once automatically per
+  // bucket on first render (defaulting to the current month, so there's
+  // something to look at immediately) and again whenever the user picks a
+  // different month via #folderDaybookMonthPickerOverlay below.
+  function fetchFolderDaybook_(bucketKey, monthKey) {
+    var def = FOLDER_DEF_[bucketKey];
+    var el = document.getElementById(def.idPrefix + 'DaybookWrap');
+    if (el) el.innerHTML = '<p style="font-size:12px;color:var(--ink-muted);margin:0 4px;">Loading…</p>';
+    var url = ORDERS_API_URL + '?type=bucketDaybook&bucket=' + encodeURIComponent(bucketKey) +
+      '&month=' + encodeURIComponent(monthKey) + '&sessionId=' + encodeURIComponent(CURRENT_SESSION_ID || '') + '&_ts=' + Date.now();
+    return fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        folderDaybookState_[bucketKey] = { monthKey: monthKey, rows: (res && res.ok) ? (res.rows || []) : [] };
+        renderFolderDaybook_(bucketKey);
+      })
+      .catch(function () {
+        folderDaybookState_[bucketKey] = { monthKey: monthKey, rows: [] };
+        renderFolderDaybook_(bucketKey);
+      });
+  }
+
+  function renderFolder_(bucketKey) {
+    renderFolderStockLine_(bucketKey);
+    renderFolderSalesPurchase_(bucketKey);
+    if (!folderDaybookState_[bucketKey]) {
+      fetchFolderDaybook_(bucketKey, currentMonthKey_());
+    } else {
+      renderFolderDaybook_(bucketKey);
+    }
+  }
+
+  // Shared month-picker for both folders' Day Book - same markup/overlay
+  // pattern as #daybookMonthPickerOverlay above, reusing its own already-
+  // built daybookAvailableMonths_() month list, but kept as a fully
+  // separate overlay/element so this never touches that existing, already
+  // -tested flow.
+  (function () {
+    var overlay = document.getElementById('folderDaybookMonthPickerOverlay');
+    var list = document.getElementById('folderDaybookMonthPickerList');
+    if (!overlay || !list) return;
+    function openPicker_(bucketKey) {
+      var months = daybookAvailableMonths_();
+      var curKey = currentMonthKey_();
+      list.innerHTML = months.map(function (m) {
+        return '<div class="itemgroup-picker-row" data-pick-month="' + m + '"><span>' +
+          reportMonthLabelFor_(m) + (m === curKey ? ' (current)' : '') + '</span></div>';
+      }).join('');
+      overlay._bucket = bucketKey;
+      overlay.style.display = 'flex';
+    }
+    function closePicker_() { overlay.style.display = 'none'; }
+    document.getElementById('folderDaybookMonthPickerCloseBtn').addEventListener('click', closePicker_);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) closePicker_(); });
+    list.addEventListener('click', function (e) {
+      var row = e.target.closest('.itemgroup-picker-row');
+      if (!row) return;
+      var monthKey = row.getAttribute('data-pick-month');
+      var bucketKey = overlay._bucket;
+      closePicker_();
+      fetchFolderDaybook_(bucketKey, monthKey);
+    });
+    ['TATA', 'Coimbatore CBE'].forEach(function (bucketKey) {
+      var def = FOLDER_DEF_[bucketKey];
+      var btn = document.getElementById(def.idPrefix + 'DaybookMonthBtn');
+      if (btn) btn.addEventListener('click', function () { openPicker_(bucketKey); });
+    });
+  })();
+
+  // One combined "Export as Excel" per folder - Sales+Purchase history,
+  // current Stock, and whichever Day Book month is currently shown, as 3
+  // sheets in one workbook. Everything here is already loaded on the page
+  // (no extra fetch), except Day Book defaults to the current month the
+  // moment the folder first renders, so there's normally always something
+  // to include.
+  (function () {
+    ['TATA', 'Coimbatore CBE'].forEach(function (bucketKey) {
+      var def = FOLDER_DEF_[bucketKey];
+      // Button ids are "exportFolderTATAXlsxBtn" / "exportFolderCoimbatoreCBEXlsxBtn".
+      var btn = document.getElementById(
+        bucketKey === 'TATA' ? 'exportFolderTATAXlsxBtn' : 'exportFolderCoimbatoreCBEXlsxBtn');
+      if (!btn) return;
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof XLSX === 'undefined') {
+          alert('Excel export isn\'t available right now — the export library didn\'t load. Check your connection and try again.');
+          return;
+        }
+        var wb = XLSX.utils.book_new();
+
+        var spRows = [['Month', 'Purchase (Ltr)', 'Sales (Ltr)', 'Sales (Value)']];
+        anbuTnScopeLive.filter(function (r) { return r.bucket === bucketKey; }).forEach(function (r) {
+          spRows.push([r.monthLabel,
+            (r.purchaseLtr === null || r.purchaseLtr === undefined) ? '' : r.purchaseLtr,
+            r.salesLtr || 0, Math.round(r.salesValue || 0)]);
+        });
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(spRows), 'Sales+Purchase');
+
+        var stockVal = bucketStockLive_[bucketKey];
+        var stockRows = [['Stock (Ltr)'], [(stockVal === null || stockVal === undefined) ? '' : stockVal]];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(stockRows), 'Stock');
+
+        var dbState = folderDaybookState_[bucketKey];
+        var dbRows = [['Date', 'Voucher Number', 'Voucher Type', 'Party', 'Party Group',
+          'Item Name', 'Item Group', 'Qty', 'Alt Qty (Ltr)', 'Rate', 'Amount (incl GST)']];
+        if (dbState && dbState.rows) {
+          dbState.rows.forEach(function (r) {
+            dbRows.push([r.date || '', r.voucherNumber || '', r.voucherType || '', r.party || '', r.partyGroup || '',
+              r.itemName || '', r.itemGroup || '',
+              (r.qty === null || r.qty === undefined || r.qty === '') ? '' : r.qty,
+              (r.altQtyLtr === null || r.altQtyLtr === undefined || r.altQtyLtr === '') ? '' : Number(r.altQtyLtr),
+              (r.rate === null || r.rate === undefined || r.rate === '') ? '' : Number(r.rate),
+              (r.amount === null || r.amount === undefined || r.amount === '') ? '' : Number(r.amount)]);
+          });
+        }
+        var dbSheetName = 'DayBook' + (dbState && dbState.monthKey ? '_' + dbState.monthKey.replace('-', '_') : '');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dbRows), dbSheetName);
+
+        XLSX.writeFile(wb, (bucketKey === 'TATA' ? 'TATA' : 'Coimbatore_CBE') + '_folder_' + todayISO() + '.xlsx');
+      });
+    });
+  })();
+
   // "Today's Dealer Visit Check" - added 26 Oct 2026, see the long HTML
   // comment above #captureDealerVisitCheck for the full request/design
   // story. Populated by fetchLive() below from the ?type=live response's
@@ -14357,6 +14635,19 @@
       anbuTnScopeBlock.hidden = (name !== 'Alagu' && name !== 'Anbu');
       if (!anbuTnScopeBlock.hidden) renderAnbuTnScope_();
     }
+    // TATA / Coimbatore (CBE) folders, added 17 Nov 2026 - same Anbu+Alagu
+    // name gating as #captureAnbuTnScope just above, for the same reason
+    // (owner's explicit choice; Bala shares Anbu's role but wasn't asked).
+    var folderTATABlock = document.getElementById('captureFolderTATA');
+    if (folderTATABlock) {
+      folderTATABlock.hidden = (name !== 'Alagu' && name !== 'Anbu');
+      if (!folderTATABlock.hidden) renderFolder_('TATA');
+    }
+    var folderCoimbatoreCBEBlock = document.getElementById('captureFolderCoimbatoreCBE');
+    if (folderCoimbatoreCBEBlock) {
+      folderCoimbatoreCBEBlock.hidden = (name !== 'Alagu' && name !== 'Anbu');
+      if (!folderCoimbatoreCBEBlock.hidden) renderFolder_('Coimbatore CBE');
+    }
     // "Reorder Level & Sales Status", added 21 Oct 2026 - company-wide
     // stock-in-hand + purchasing figures, same sensitivity class as
     // Stocks/Day Book/Petronas Business Summary above, but 'reorder'
@@ -15001,6 +15292,18 @@
     if (res && res.ok && res.anbuTnScope) {
       anbuTnScopeLive = res.anbuTnScope;
       renderAnbuTnScope_();
+    }
+
+    // TATA / Coimbatore (CBE) folders, added 17 Nov 2026 - see
+    // renderFolder_()'s own comment above for the full story. bucketStock
+    // is a current-snapshot map ({bucket: ltr|null}), unlike anbuTnScope's
+    // month-by-month rows, so it's just assigned whole rather than merged.
+    // Same "re-render immediately, harmless while hidden" reasoning as
+    // anbuTnScope just above.
+    if (res && res.ok && res.bucketStock) {
+      bucketStockLive_ = res.bucketStock;
+      renderFolder_('TATA');
+      renderFolder_('Coimbatore CBE');
     }
 
     // "Today's Dealer Visit Check", added 26 Oct 2026 - see the long HTML
