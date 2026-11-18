@@ -1222,6 +1222,30 @@
   .sv-field.wide select { min-width:220px; }
   .sv-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .sv-extend-row { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; padding:8px 4px; }
+
+  /* Folder Day Book table (TATA/Coimbatore CBE) - "alligned date properly"
+     owner report, 18 Nov 2026. Root cause: this table reuses
+     .age-table/.petronas-summary-table (built for a short-figure, 9/10-col
+     report), but its own Party/Consignee/Item cells carry genuinely long
+     free text with no spaces for a long stretch (e.g. the item name, or
+     "...,KRISHNAGIRI (TATA) - 3008836"). table-layout:fixed can't shrink
+     those below their own longest unbreakable word, so once the table
+     is forced wider than its nominal min-width to fit them, the explicit
+     100-124px column widths above stop being honoured as real pixel
+     floors - the browser instead squeezes whatever space is left onto the
+     columns that ARE allowed to break anywhere (Date/Voucher #/Type carry
+     the earlier "long dealer/item name" word-break:break-word rule too),
+     collapsing a short value like "2026-11-16" into a vertical one-
+     character-per-line stack. Fix: these three columns are short,
+     fixed-format values that never need to wrap - same "give it nowrap,
+     let .age-table-scroll's horizontal scroll do the rest" fix already
+     used for #mfdbTable above for the identical bug. Party/Consignee/Item
+     keep wrapping (they're the ones that actually run long). */
+  .folder-daybook-table td:nth-child(1), .folder-daybook-table th:nth-child(1),
+  .folder-daybook-table td:nth-child(2), .folder-daybook-table th:nth-child(2),
+  .folder-daybook-table td:nth-child(3), .folder-daybook-table th:nth-child(3) {
+    white-space: nowrap;
+  }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a4a44">
@@ -9810,7 +9834,7 @@
     }
     var head = bucketKey === 'TATA' ? FOLDER_DAYBOOK_HEAD_TATA_ : FOLDER_DAYBOOK_HEAD_;
     var rowsHtml = state.rows.map(function (r) { return folderDaybookRowHtml_(r, bucketKey); }).join('');
-    el.innerHTML = heading + '<div class="age-table-scroll"><table class="age-table petronas-summary-table">' +
+    el.innerHTML = heading + '<div class="age-table-scroll"><table class="age-table petronas-summary-table folder-daybook-table">' +
       head + '<tbody>' + rowsHtml + '</tbody></table></div>';
   }
 
