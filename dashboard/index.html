@@ -2776,7 +2776,29 @@
      (#folderDaybookMonthPickerOverlay below), defaulting to the current
      month on first open. One combined Export as Excel per folder bundles
      all 3 (Sales+Purchase history, Stock, whichever Day Book month is
-     currently shown) into one multi-sheet workbook. -->
+     currently shown) into one multi-sheet workbook.
+
+     Item-by-item Stock added 18 Nov 2026 (owner: "NEED COMPLETE STOCK
+     LIST AS WE DID FOR MADURAI STOCKS") - the one-line Stock total above
+     stays as-is; #folderTATAStockDetailWrap/#folderCoimbatoreCBEStockDetailWrap
+     below it add a full per-item breakdown (Item/Stock/Stock in
+     Ltr/MRP/Nett Price), grouped by the same 3 confirmed Tally item
+     groups per bucket, same column layout and "+/-" collapsible-group
+     convention as the main "Current Stock, MRP & Nett Price" card
+     (renderStockCatalog_() above) - see renderFolderStockDetail_()/
+     fetchFolderStockDetail_() below. Backed by a real per-item Tally
+     fetch (tally_live_watcher.py's fetch_bucket_stock_detail(), the same
+     confirmed STANDARDPRICE/MRPDETAILS.LIST/native-Ltr fields used
+     elsewhere - not a guess), not the main card's static CATALOG_ITEMS,
+     since that catalog isn't guaranteed to list every real TATA/
+     Coimbatore CBE stock item.
+
+     Day Book's "Consignee" column (TATA only - see FOLDER_DAYBOOK_HEAD_
+     below) was added the same day for the owner's separate but related
+     request ("FOR TATA NEED TO ADD ONE MORE LINE IN DAYBOOK CONSIGNEE
+     NAME ... BEZ ALWAYS BILL TO TATA MOTORS AND SHIP TO WILL CHANGE") -
+     the real Ship-To, since Party is always TATA Motors on every TATA
+     voucher. -->
 <div id="captureFolderTATA">
   <details class="dsr-row" id="folderTATADetails">
     <summary class="dsr-row-summary">
@@ -2791,6 +2813,7 @@
     </summary>
     <div class="dsr-row-body">
       <div id="folderTATAStockLine" style="font-size:13px;margin:4px 4px 10px;"></div>
+      <div id="folderTATAStockDetailWrap" style="margin:4px 4px 10px;"></div>
       <div id="folderTATASalesPurchaseWrap"></div>
       <div style="margin-top:14px;">
         <div style="display:flex;align-items:center;gap:8px;margin:4px 4px 6px;">
@@ -2817,6 +2840,7 @@
     </summary>
     <div class="dsr-row-body">
       <div id="folderCoimbatoreCBEStockLine" style="font-size:13px;margin:4px 4px 10px;"></div>
+      <div id="folderCoimbatoreCBEStockDetailWrap" style="margin:4px 4px 10px;"></div>
       <div id="folderCoimbatoreCBESalesPurchaseWrap"></div>
       <div style="margin-top:14px;">
         <div style="display:flex;align-items:center;gap:8px;margin:4px 4px 6px;">
@@ -9643,6 +9667,7 @@
   // duplicating the same logic twice.
   var bucketStockLive_ = {}; // {bucketKey: ltr|null} - populated by fetchLive() below
   var folderDaybookState_ = {}; // {bucketKey: {monthKey, rows}} - populated on demand
+  var folderStockDetailState_ = {}; // {bucketKey: rows|null} - populated on demand, see below
 
   var FOLDER_DEF_ = {
     'TATA': { idPrefix: 'folderTATA', label: 'TATA (Brake Fluid + CBE + OE combined)' },
@@ -9658,6 +9683,80 @@
       ((v === null || v === undefined) ? 'Not yet synced from Tally.' : fmt(v) + ' Ltr');
   }
 
+  // Item-by-item stock list, added 18 Nov 2026 (owner: "NEED COMPLETE
+  // STOCK LIST AS WE DID FOR MADURAI STOCKS") - see the long HTML comment
+  // above #captureFolderTATA for the full story. Same column layout/
+  // "+/-" collapsible-group convention as the main "Current Stock, MRP &
+  // Nett Price" card (STOCK_TABLE_HEAD_/stockRowHtml_()/
+  // renderStockCatalog_() above), reused here rather than duplicated,
+  // just fed from this bucket's own ?type=bucketStockDetail rows instead
+  // of CATALOG_ITEMS - those rows already carry native stock/stockLtr
+  // (no client-side sizeLtr conversion needed here, unlike the main
+  // card - see tally_live_watcher.py's fetch_bucket_stock_detail()).
+  function folderStockDetailRowHtml_(it) {
+    var stockCell = (it.stock === null || it.stock === undefined) ? '—' : fmt(it.stock);
+    var ltrCell = (it.stockLtr === null || it.stockLtr === undefined) ? '—' : fmt(it.stockLtr);
+    var mrpCell = (it.mrp === null || it.mrp === undefined) ? '—' : fmtRs(Math.round(it.mrp));
+    var rateCell = (it.rate === null || it.rate === undefined) ? '—' : fmtRs(Math.round(it.rate * 1.18));
+    return '<tr><td style="text-align:left;">' + mfEscapeHtml_(it.name || '') + '</td>' +
+      '<td class="num">' + stockCell + '</td>' +
+      '<td class="num">' + ltrCell + '</td>' +
+      '<td class="num">' + mrpCell + '</td>' +
+      '<td class="num">' + rateCell + '</td></tr>';
+  }
+
+  function renderFolderStockDetail_(bucketKey) {
+    var def = FOLDER_DEF_[bucketKey];
+    var wrap = document.getElementById(def.idPrefix + 'StockDetailWrap');
+    if (!wrap) return;
+    var rows = folderStockDetailState_[bucketKey];
+    if (!rows) {
+      wrap.innerHTML = '<p style="font-size:12px;color:var(--ink-muted);margin:0 4px;">Loading item-by-item stock…</p>';
+      return;
+    }
+    if (!rows.length) {
+      wrap.innerHTML = '<p style="font-size:12px;color:var(--ink-muted);margin:0 4px;">No item-by-item stock synced for this bucket yet.</p>';
+      return;
+    }
+    var byGroup = {};
+    rows.forEach(function (it) { (byGroup[it.group || 'Other'] = byGroup[it.group || 'Other'] || []).push(it); });
+    var groupNames = Object.keys(byGroup).sort(function (a, b) { return a.localeCompare(b); });
+    var grandLtr = 0;
+    var groupsHtml = groupNames.map(function (g) {
+      var items = byGroup[g].slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
+      var groupLtr = items.reduce(function (s, it) { return s + (it.stockLtr || 0); }, 0);
+      grandLtr += groupLtr;
+      var rowsHtml = items.map(folderStockDetailRowHtml_).join('');
+      return '<details class="dsr-row">' +
+        '<summary class="dsr-row-summary"><span class="dsr-row-toggle" aria-hidden="true"></span>' +
+        '<span class="dsr-row-headtext"><span class="card-name">' + mfEscapeHtml_(g) + '</span>' +
+        '<span class="card-territory">' + fmt(groupLtr) + ' Ltr</span></span></summary>' +
+        '<div class="dsr-row-body">' + ageTableWrap_(STOCK_TABLE_HEAD_, rowsHtml, 'namecol') + '</div></details>';
+    }).join('');
+    wrap.innerHTML = '<p style="font-size:12px;color:var(--ink-muted);margin:0 4px 6px;">Item-by-item stock · Total ' +
+      fmt(grandLtr) + ' Ltr</p>' + groupsHtml;
+  }
+
+  // Fetches the item-by-item stock for one bucket (?type=bucketStockDetail)
+  // and stores it in folderStockDetailState_ - called once per bucket on
+  // first render, same "fetch on demand, cache after" idea as
+  // fetchFolderDaybook_() below, but this is a current snapshot (no month
+  // parameter) so there's nothing to re-fetch on a month change.
+  function fetchFolderStockDetail_(bucketKey) {
+    var url = ORDERS_API_URL + '?type=bucketStockDetail&bucket=' + encodeURIComponent(bucketKey) +
+      '&sessionId=' + encodeURIComponent(CURRENT_SESSION_ID || '') + '&_ts=' + Date.now();
+    return fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        folderStockDetailState_[bucketKey] = (res && res.ok) ? (res.rows || []) : [];
+        renderFolderStockDetail_(bucketKey);
+      })
+      .catch(function () {
+        folderStockDetailState_[bucketKey] = [];
+        renderFolderStockDetail_(bucketKey);
+      });
+  }
+
   function renderFolderSalesPurchase_(bucketKey) {
     var def = FOLDER_DEF_[bucketKey];
     var el = document.getElementById(def.idPrefix + 'SalesPurchaseWrap');
@@ -9669,11 +9768,25 @@
   var FOLDER_DAYBOOK_HEAD_ = '<thead><tr><th>Date</th><th>Voucher #</th><th>Type</th><th>Party</th>' +
     '<th>Item</th><th>Qty</th><th>Alt Qty (Ltr)</th><th>Amount</th></tr></thead>';
 
-  function folderDaybookRowHtml_(r) {
+  // TATA-only variant with the new "Consignee" column, added 18 Nov 2026
+  // (owner: "FOR TATA NEED TO ADD ONE MORE LINE IN DAYBOOK CONSIGNEE
+  // NAME ... BEZ ALWAYS BILL TO TATA MOTORS AND SHIP TO WILL CHANGE") -
+  // Party stays as-is (always TATA Motors on a TATA voucher), Consignee
+  // is the real Ship-To (see tally_live_watcher.py's _final_consignee()).
+  // Coimbatore CBE keeps the plain head above unchanged - its vouchers
+  // don't have this bill-to/ship-to split, so a Consignee column there
+  // would just repeat Party.
+  var FOLDER_DAYBOOK_HEAD_TATA_ = '<thead><tr><th>Date</th><th>Voucher #</th><th>Type</th><th>Party</th>' +
+    '<th>Consignee</th><th>Item</th><th>Qty</th><th>Alt Qty (Ltr)</th><th>Amount</th></tr></thead>';
+
+  function folderDaybookRowHtml_(r, bucketKey) {
+    var consigneeCell = bucketKey === 'TATA'
+      ? '<td style="text-align:left;">' + mfEscapeHtml_(r.consignee || '') + '</td>' : '';
     return '<tr><td style="text-align:left;">' + (r.date || '') + '</td>' +
       '<td style="text-align:left;">' + mfEscapeHtml_(r.voucherNumber || '') + '</td>' +
       '<td style="text-align:left;">' + mfEscapeHtml_(r.voucherType || '') + '</td>' +
       '<td style="text-align:left;">' + mfEscapeHtml_(r.party || '') + '</td>' +
+      consigneeCell +
       '<td style="text-align:left;">' + mfEscapeHtml_(r.itemName || '') + '</td>' +
       '<td class="num">' + (r.qty === null || r.qty === undefined || r.qty === '' ? '' : r.qty) + '</td>' +
       '<td class="num">' + (r.altQtyLtr === null || r.altQtyLtr === undefined || r.altQtyLtr === '' ? '' : fmt(Number(r.altQtyLtr))) + '</td>' +
@@ -9695,8 +9808,10 @@
       el.innerHTML = heading + '<p style="font-size:12px;color:var(--ink-muted);margin:0 4px;">No Day Book rows for this bucket this month.</p>';
       return;
     }
+    var head = bucketKey === 'TATA' ? FOLDER_DAYBOOK_HEAD_TATA_ : FOLDER_DAYBOOK_HEAD_;
+    var rowsHtml = state.rows.map(function (r) { return folderDaybookRowHtml_(r, bucketKey); }).join('');
     el.innerHTML = heading + '<div class="age-table-scroll"><table class="age-table petronas-summary-table">' +
-      FOLDER_DAYBOOK_HEAD_ + '<tbody>' + state.rows.map(folderDaybookRowHtml_).join('') + '</tbody></table></div>';
+      head + '<tbody>' + rowsHtml + '</tbody></table></div>';
   }
 
   // Fetches one month's Day Book for one bucket (?type=bucketDaybook) and
@@ -9725,6 +9840,11 @@
   function renderFolder_(bucketKey) {
     renderFolderStockLine_(bucketKey);
     renderFolderSalesPurchase_(bucketKey);
+    if (!folderStockDetailState_[bucketKey]) {
+      fetchFolderStockDetail_(bucketKey);
+    } else {
+      renderFolderStockDetail_(bucketKey);
+    }
     if (!folderDaybookState_[bucketKey]) {
       fetchFolderDaybook_(bucketKey, currentMonthKey_());
     } else {
@@ -9800,20 +9920,39 @@
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(spRows), 'Sales+Purchase');
 
         var stockVal = bucketStockLive_[bucketKey];
-        var stockRows = [['Stock (Ltr)'], [(stockVal === null || stockVal === undefined) ? '' : stockVal]];
+        // Item-by-item stock, added 18 Nov 2026 alongside the new
+        // #folderStockDetailWrap panel above - leads with the same Total
+        // (Ltr) line the old single-value "Stock" sheet used to be, so
+        // nothing already relied on that figure's position loses it.
+        var detailRows = folderStockDetailState_[bucketKey];
+        var stockRows = [['Total Stock (Ltr)', (stockVal === null || stockVal === undefined) ? '' : stockVal], []];
+        stockRows.push(['Item', 'Item Group', 'Stock', 'Stock (Ltr)', 'MRP', 'Nett Price (incl GST)']);
+        (detailRows || []).forEach(function (it) {
+          stockRows.push([it.name || '', it.group || '',
+            (it.stock === null || it.stock === undefined) ? '' : Number(it.stock),
+            (it.stockLtr === null || it.stockLtr === undefined) ? '' : Number(it.stockLtr),
+            (it.mrp === null || it.mrp === undefined) ? '' : Math.round(it.mrp),
+            (it.rate === null || it.rate === undefined) ? '' : Math.round(it.rate * 1.18)]);
+        });
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(stockRows), 'Stock');
 
         var dbState = folderDaybookState_[bucketKey];
-        var dbRows = [['Date', 'Voucher Number', 'Voucher Type', 'Party', 'Party Group',
-          'Item Name', 'Item Group', 'Qty', 'Alt Qty (Ltr)', 'Rate', 'Amount (incl GST)']];
+        var dbHead = bucketKey === 'TATA'
+          ? ['Date', 'Voucher Number', 'Voucher Type', 'Party', 'Consignee', 'Party Group',
+            'Item Name', 'Item Group', 'Qty', 'Alt Qty (Ltr)', 'Rate', 'Amount (incl GST)']
+          : ['Date', 'Voucher Number', 'Voucher Type', 'Party', 'Party Group',
+            'Item Name', 'Item Group', 'Qty', 'Alt Qty (Ltr)', 'Rate', 'Amount (incl GST)'];
+        var dbRows = [dbHead];
         if (dbState && dbState.rows) {
           dbState.rows.forEach(function (r) {
-            dbRows.push([r.date || '', r.voucherNumber || '', r.voucherType || '', r.party || '', r.partyGroup || '',
-              r.itemName || '', r.itemGroup || '',
+            var row = [r.date || '', r.voucherNumber || '', r.voucherType || '', r.party || ''];
+            if (bucketKey === 'TATA') row.push(r.consignee || '');
+            row.push(r.partyGroup || '', r.itemName || '', r.itemGroup || '',
               (r.qty === null || r.qty === undefined || r.qty === '') ? '' : r.qty,
               (r.altQtyLtr === null || r.altQtyLtr === undefined || r.altQtyLtr === '') ? '' : Number(r.altQtyLtr),
               (r.rate === null || r.rate === undefined || r.rate === '') ? '' : Number(r.rate),
-              (r.amount === null || r.amount === undefined || r.amount === '') ? '' : Number(r.amount)]);
+              (r.amount === null || r.amount === undefined || r.amount === '') ? '' : Number(r.amount));
+            dbRows.push(row);
           });
         }
         var dbSheetName = 'DayBook' + (dbState && dbState.monthKey ? '_' + dbState.monthKey.replace('-', '_') : '');
