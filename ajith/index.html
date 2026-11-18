@@ -7169,9 +7169,23 @@
   // due today or earlier (not just ones with a reminder time set).
   var loginTaskPopupChecked_ = false;
 
+  // Bug fix, 17 Nov 2026 ("task mananger is showing all dealers to all
+  // dsr"): this used to send &viewerName=<name>&viewerRole=DSR, a client-
+  // trusted identity the server stopped honoring on 30 Oct 2026 (see
+  // Code.gs's "Security fix, 30 Oct 2026" block) - every call here was
+  // silently resolving to an empty/invalid session server-side, which
+  // taskRowVisible_() should treat as "sees nothing" but a second bug (now
+  // also fixed, in taskRowVisible_() itself) let a blank Also-Visible-To
+  // column match a blank viewer name, leaking every such task - which is
+  // most of them - to every DSR app regardless of who it was really
+  // assigned to. Fixed by sending the real sessionId this app already
+  // uses for ?type=live (set in proceedAfterLogin()), same pattern. Same
+  // fix applied the same day to the other 7 live DSR apps - this one was
+  // missed in that first pass since this session had no local copy of
+  // ajith/index.html until the owner sent it back.
   function fetchMyTasks_() {
     if (!apiConfigured() || !myTasksListEl) return;
-    fetch(ORDERS_API_URL + "?type=tasks&viewerName=" + encodeURIComponent(DSR_SHORT_NAME) + "&viewerRole=DSR&_ts=" + Date.now(), { cache: "no-store" })
+    fetch(ORDERS_API_URL + "?type=tasks&sessionId=" + encodeURIComponent(loginSessionId || "") + "&_ts=" + Date.now(), { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || !data.ok) { myTasksListEl.innerHTML = '<div class="task-empty-note">Could not load tasks.</div>'; return; }
