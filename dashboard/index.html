@@ -1312,6 +1312,10 @@
           <select id="adminTargetRole">
             <option value="Manager">Manager</option>
             <option value="Area Manager">Area Manager</option>
+            <!-- TNhead, added 19 Nov 2026 for Anbu specifically - a
+                 Manager-equivalent role (see isManagerRole_() in the
+                 script below), just a distinct, easy-to-identify label. -->
+            <option value="TNhead">TNhead</option>
             <option value="DSR">DSR</option>
             <option value="Owner">Owner</option>
           </select>
@@ -1393,6 +1397,11 @@
             <option value="Owner">Owner</option>
             <option value="Manager">Manager</option>
             <option value="Area Manager" selected>Area Manager</option>
+            <!-- TNhead, added 19 Nov 2026 alongside SECTION_VIS_ROLES_ in
+                 Code.gs, so this one-off per-role toggle can also be set
+                 for Anbu's new role if ever needed - defaults to the
+                 same "" (nothing hidden) as Manager. -->
+            <option value="TNhead">TNhead</option>
           </select>
         </div>
         <div class="admin-field-row" style="flex-wrap:wrap;gap:8px 18px;">
@@ -14488,7 +14497,20 @@
   // report/person-filter hides any OTHER manager-tier person's rows
   // (their own rows still show - this is about not seeing peers'/other
   // managers' login activity, not hiding their own).
-  function isManagerRole_(role) { return role === 'Manager' || role === 'Area Manager'; }
+  // "TNhead" added 19 Nov 2026 - a new Role value the owner picked for
+  // Anbu specifically ("can we name anbu as TNhead in role that will be
+  // easy to identify him") so his account reads clearly as TNhead instead
+  // of a plain Manager, with NO change to his actual access - owner
+  // confirmed he should keep "those 3, plus his current Manager view",
+  // i.e. exactly what he could already see as a Manager (TNhead is a
+  // Manager-equivalent role for every permission check in this file,
+  // just a different display label). Included here so every panel this
+  // function already gates for Manager/Area Manager keeps behaving
+  // identically for Anbu once his stored Role changes - see momCards'
+  // own explicit role list just below, and taskRowVisible_()/
+  // TASK_STATUS_OWNER_MANAGER_ONLY_ in Code.gs, for the other 2 places
+  // that needed the same addition.
+  function isManagerRole_(role) { return role === 'Manager' || role === 'Area Manager' || role === 'TNhead'; }
   // 28 Sep 2026: layered with the per-viewer CURRENT_HIDDEN_USAGE_NAMES
   // exclusion list above (e.g. Bala hiding Anbu) - both checks run
   // independently and either one hides a row; a restricted Area Manager
@@ -14871,7 +14893,7 @@
     // (Owner / Manager / Area Manager), per the owner's 22 Oct 2026 "for
     // all managers". Area Manager rows are scoped inside the module itself.
     var momCards = document.getElementById('momCards');
-    if (momCards) momCards.hidden = !(role === 'Owner' || role === 'Manager' || role === 'Area Manager');
+    if (momCards) momCards.hidden = !(role === 'Owner' || role === 'Manager' || role === 'Area Manager' || role === 'TNhead');
     // Day Book / Collection Group Summary / Stocks / Petronas Business
     // Summary / Report period picker - 5 company-wide, all-dealer sections
     // with no per-area breakdown at all (unlike everything visibleDsrs_()
