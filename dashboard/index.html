@@ -1890,8 +1890,13 @@
   </div>
   </div>
 
-  <p class="section-label">Dealer lookup</p>
-  <div class="lookup-wrap">
+  <!-- id="dealerLookupLabel"/"dealerLookupWrap" added 19 Nov 2026 so
+       afterLogin_() can hide this section for Manager/Area Manager (owner:
+       "remove ... Dealer lookup ... from all managers, area managers keep
+       only for me") - this card had no wrapper id at all before, unlike
+       every capture* section elsewhere on this dashboard. -->
+  <p class="section-label" id="dealerLookupLabel">Dealer lookup</p>
+  <div class="lookup-wrap" id="dealerLookupWrap">
     <input type="text" class="lookup-input" id="lookupInput" placeholder="Search any dealer by name…" autocomplete="off">
     <div class="lookup-dropdown" id="lookupDropdown" hidden></div>
     <div id="lookupCardWrap"></div>
@@ -1905,8 +1910,13 @@
        set of question shapes (see runAskQuery_() further down) and
        always computes the answer from the exact same live data every
        other panel above already reads - never a guessed number. -->
-  <p class="section-label">Ask</p>
-  <div class="ask-wrap">
+  <!-- id="askSectionLabel"/"askSectionWrap" added 19 Nov 2026 so
+       afterLogin_() can hide this section for Manager/Area Manager (owner:
+       "remove ... Ask ... from all managers, area managers keep only for
+       me") - this card had no wrapper id at all before, unlike every
+       capture* section elsewhere on this dashboard. -->
+  <p class="section-label" id="askSectionLabel">Ask</p>
+  <div class="ask-wrap" id="askSectionWrap">
     <p class="ask-hint">Type a question about any dealer, or a company-wide total - e.g. "this month high paid dealer" or "last month purchase for Golden". Matches a fixed set of question types, not free AI text yet - tap an example to try one.</p>
     <div class="ask-row">
       <input type="text" class="lookup-input" style="flex:1;" id="askInput" placeholder="Ask about sales, collection, outstanding…" autocomplete="off">
@@ -3257,7 +3267,7 @@
            section-label removed, name moved back inside next to the "+"
            toggle, matching "Sales by Item Group (Alt Qty)"'s layout). -->
       <span class="dsr-row-headtext"><span class="card-name">Task Manager</span>
-        <span class="card-territory" id="taskManagerTerritory">Visible here, in the Area Manager login and in each DSR's own app</span></span>
+        <span class="card-territory" id="taskManagerTerritory">Visible here (Owner only, 19 Nov 2026) and in each DSR's own app</span></span>
       <span class="dsr-row-headright">
         <!-- Open-task count, added 6 Oct 2026 ("near the new button show
              the number of open task in heading") - filled in by
@@ -15004,6 +15014,32 @@
     // 6 Nov 2026, same owner request as the other 4 panels in this block.
     var closedVisitFollowupsBlock = document.getElementById('captureClosedVisitFollowups');
     if (closedVisitFollowupsBlock) closedVisitFollowupsBlock.hidden = isManagerRole_(role);
+    // Ranking / Dealer lookup / Ask / Sales by Item Group (Alt Qty) /
+    // Item-wise & Dealer-wise Summary (Plan + Day Book) / Task Manager -
+    // added 19 Nov 2026, owner: "remove the below things from all
+    // managers, area mangers keep only for me" (all 6 named explicitly).
+    // Same isManagerRole_(role) gate as the 5 panels just above - Owner
+    // only from here on. Sales by Item Group (Alt Qty) already had an
+    // Admin-configurable sectionHidden_('dayBook') gate (shared with
+    // dayBookRow/Day Book itself) - this ORs isManagerRole_() on top of
+    // that as a hard floor for Manager/Area Manager specifically,
+    // regardless of what the Owner has set in the Section Visibility
+    // admin panel, same as every other panel in this block.
+    var rankingBlock = document.getElementById('captureRanking');
+    if (rankingBlock) rankingBlock.hidden = isManagerRole_(role);
+    var dealerLookupLabel = document.getElementById('dealerLookupLabel');
+    if (dealerLookupLabel) dealerLookupLabel.hidden = isManagerRole_(role);
+    var dealerLookupWrap = document.getElementById('dealerLookupWrap');
+    if (dealerLookupWrap) dealerLookupWrap.hidden = isManagerRole_(role);
+    var askSectionLabel = document.getElementById('askSectionLabel');
+    if (askSectionLabel) askSectionLabel.hidden = isManagerRole_(role);
+    var askSectionWrap = document.getElementById('askSectionWrap');
+    if (askSectionWrap) askSectionWrap.hidden = isManagerRole_(role);
+    if (daybookItemGroupBlock) daybookItemGroupBlock.hidden = daybookItemGroupBlock.hidden || isManagerRole_(role);
+    var mfDaybookSummaryBlock = document.getElementById('captureMfDaybookSummary');
+    if (mfDaybookSummaryBlock) mfDaybookSummaryBlock.hidden = isManagerRole_(role);
+    var taskManagerBlock = document.getElementById('captureTaskManager');
+    if (taskManagerBlock) taskManagerBlock.hidden = isManagerRole_(role);
     // DSR / Dealer / Beat - Sales & Collection Plan (S.REP), added 4 Nov
     // 2026 - explicitly confirmed by the owner (6 Nov 2026) to STAY
     // enabled for managers. Left deliberately ungated (no hidden
