@@ -6750,6 +6750,36 @@
   function daybookMainGroup_(itemGroup) {
     return String(itemGroup || '').trim().replace(/\s*\(\d+\)\s*$/, '');
   }
+  // Added 20 Nov 2026 (owner: "Day Book (Petronas) - TO BE SHOW ONLY THE
+  // MADURAI SALES NOT TATA OR COIMBATORE AS IT WAS EARLIER WE ADDED ANBU AS
+  // TN HEAD" + "SO Sales by Item Group (Alt Qty) THIS ALSO WILL BE THAT
+  // SALES DAYBOOK SALES ONLY"). Mirrors Code.gs's own
+  // FOLDER_BUCKET_ITEM_GROUPS_ exactly (same 6 confirmed real Tally Item
+  // Group names - TATA's 3 + Coimbatore CBE's 3). Deliberately a FRONTEND-
+  // only filter, not a backend one: daybookItemGroupRows (the one shared
+  // ?type=daybookMonth result) also feeds Master File Dashboard/item-search
+  // elsewhere in this file, which were NOT asked to change and should keep
+  // seeing every group - so this is applied only inside
+  // renderDaybookItemGroupSummary_() and its Export/WhatsApp-share
+  // counterparts below (all three explicitly about the Day Book
+  // (Petronas)/Sales by Item Group panel), via isMainDaybookItemGroup_()
+  // instead of plain isPetronasItemGroup_(). The 6M AVG column (from the
+  // separate, unfiltered ?type=itemGroupSixMoAvg endpoint, reading older
+  // months' Day Book sheets raw) gets the exact same filter applied here
+  // too, so it doesn't still show TATA/Coimbatore once the current-month
+  // column next to it no longer does.
+  var MAIN_DAYBOOK_EXCLUDED_ITEM_GROUPS_ = (function () {
+    var names = [
+      'PETRONAS TATA BRAKE FLUID', 'PETRONAS TATA CBE GROUP', 'PETRONAS TATA OE GROUP',
+      'PETRONAS BARREL (CBE) (0)', 'PETRONAS PCMO (CBE) (0)', 'PETRONAS TVS (CBE) (2)'
+    ];
+    var set = {};
+    names.forEach(function (g) { set[g.trim().toLowerCase()] = true; });
+    return set;
+  })();
+  function isMainDaybookItemGroup_(itemGroup) {
+    return isPetronasItemGroup_(itemGroup) && !MAIN_DAYBOOK_EXCLUDED_ITEM_GROUPS_[String(itemGroup || '').trim().toLowerCase()];
+  }
   // Fetches the CURRENT month's Day Book rows fresh from the same
   // ?type=daybookMonth endpoint the Export button already uses - no new
   // Tally fetch or watcher change needed, this is a pure aggregation of
@@ -6828,7 +6858,15 @@
     var dealerDsr = knownDealerDsrMap_();
     var byMainGroup = {};
     daybookItemGroupRows.forEach(function (r) {
-      if (!isPetronasItemGroup_(r.itemGroup)) return;
+      // isMainDaybookItemGroup_ (not isPetronasItemGroup_ alone), added
+      // 20 Nov 2026 - see that function's own comment: Madurai-only scope,
+      // TATA/Coimbatore CBE now excluded from this panel specifically
+      // (they have their own dedicated folder views). Master File
+      // Dashboard/item-search functions elsewhere in this file still use
+      // plain isPetronasItemGroup_ and are deliberately NOT scoped down -
+      // only this panel (and its Export/WhatsApp-share counterparts below)
+      // were asked to change.
+      if (!isMainDaybookItemGroup_(r.itemGroup)) return;
       var ltr = Number(r.altQtyLtr) || 0;
       var mainGroup = daybookMainGroup_(r.itemGroup);
       var dsrName = dealerDsr[r.party] || 'Other Areas / Dealers';
@@ -6856,7 +6894,11 @@
     var avgByMainGroup = {};
     if (itemGroupSixMoAvgMap) {
       Object.keys(itemGroupSixMoAvgMap).forEach(function (rawGroup) {
-        if (!isPetronasItemGroup_(rawGroup)) return;
+        // isMainDaybookItemGroup_, added 20 Nov 2026 - same Madurai-only
+        // scope as the current-month loop above, so the 6M AVG column
+        // doesn't still include TATA/Coimbatore while the current-month
+        // column next to it no longer does.
+        if (!isMainDaybookItemGroup_(rawGroup)) return;
         var v = itemGroupSixMoAvgMap[rawGroup];
         if (v === null || v === undefined) return;
         var mainGroup = daybookMainGroup_(rawGroup);
@@ -10670,7 +10712,10 @@
       var dealerDsr = knownDealerDsrMap_();
       var byMainGroup = {};
       daybookItemGroupRows.forEach(function (r) {
-        if (!isPetronasItemGroup_(r.itemGroup)) return;
+        // isMainDaybookItemGroup_, added 20 Nov 2026 - keeps this export in
+        // sync with the on-screen panel's own Madurai-only scope (see that
+        // function's comment).
+        if (!isMainDaybookItemGroup_(r.itemGroup)) return;
         var ltr = Number(r.altQtyLtr) || 0;
         var mainGroup = daybookMainGroup_(r.itemGroup);
         var dsrName = dealerDsr[r.party] || 'Other Areas / Dealers';
@@ -12094,7 +12139,9 @@
     if (daybookItemGroupRows === null) { lines.push('(Waiting for the next Tally sync…)'); return lines.join('\n'); }
     var byMainGroup = {};
     daybookItemGroupRows.forEach(function (r) {
-      if (!isPetronasItemGroup_(r.itemGroup)) return;
+      // isMainDaybookItemGroup_, added 20 Nov 2026 - keeps this share text
+      // in sync with the on-screen panel's own Madurai-only scope.
+      if (!isMainDaybookItemGroup_(r.itemGroup)) return;
       var mainGroup = daybookMainGroup_(r.itemGroup);
       byMainGroup[mainGroup] = (byMainGroup[mainGroup] || 0) + (Number(r.altQtyLtr) || 0);
     });
