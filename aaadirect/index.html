@@ -1159,7 +1159,7 @@
        same card a DSR types by hand today. AAA Direct only for now, per
        the standing new-feature scope rule. -->
   <section style="padding-bottom:0;">
-    <details class="manage" id="todaysPlanDetails" open>
+    <details class="manage" id="todaysPlanDetails">
       <summary>🌅 Today's Plan <span id="todaysPlanDateLabel" class="num" style="font-weight:500;"></span></summary>
       <div class="manage-body">
         <p class="hint">Planned Dealers/Sales Plan/Collection Plan fill in automatically from today's Beat Plan route. Mechanics/New Dealer/Remarks are for you to type, same as your WhatsApp morning card.</p>
@@ -4252,10 +4252,24 @@
   }
   // Status options restricted - 8 Oct 2026 ("Only the complete in
   // prograss option should be set my me or manager not area manager or
-  // dsr"): this app is always viewed by a DSR, so only Open/On Hold are
-  // ever pickable here - handleTaskUpdateStatus_ enforces the same
+  // dsr"): this app is always viewed by a DSR, so only a DSR-safe subset
+  // is ever pickable here - handleTaskUpdateStatus_ enforces the same
   // restriction server-side regardless of what this file sends.
-  var MY_TASKS_STATUSES_ = ["Open", "On Hold"];
+  //
+  // "On Hold" removed, "Closed" added - 22 Nov 2026 ("in dsr app my task
+  // closed need review has option to come and open on hold should not").
+  // "Closed" became a real, DSR-settable status back on 30 Oct 2026 (see
+  // handleTaskUpdateStatus_()'s own comment in Code.gs - a DSR marks a
+  // finished task "Closed" and an Owner/Manager reviews it before moving
+  // it to "Completed", which is the only status this app ever hides a
+  // task for - see myTasksShowCompleted_ above), but this app's own
+  // dropdown was never updated to actually offer it, so a DSR here had no
+  // way to mark a task done-pending-review at all. Shown to the DSR as
+  // "Closed - Needs Review" (MY_TASKS_STATUS_LABELS_ below) for clarity -
+  // the value actually POSTed to Code.gs is still the plain "Closed"
+  // string it already expects, so no server or sheet change needed.
+  var MY_TASKS_STATUSES_ = ["Open", "Closed"];
+  var MY_TASKS_STATUS_LABELS_ = { "Closed": "Closed - Needs Review" };
   function renderMyTasks_() {
     var tasks = myTasksShowCompleted_ ? MY_TASKS_RAW_ : MY_TASKS_RAW_.filter(function (t) { return t.status !== "Completed"; });
     if (myTasksCountEl) myTasksCountEl.textContent = tasks.length ? String(tasks.length) : "";
@@ -4271,7 +4285,14 @@
       // renderTaskManager_(), so the select never silently shows the
       // wrong value.
       var statusOptionsForThis = MY_TASKS_STATUSES_.indexOf(t.status) === -1 ? MY_TASKS_STATUSES_.concat([t.status]) : MY_TASKS_STATUSES_;
-      var optionsHtml = statusOptionsForThis.map(function (s) { return '<option' + (s === t.status ? " selected" : "") + '>' + s + '</option>'; }).join("");
+      // Explicit value= added 22 Nov 2026 alongside MY_TASKS_STATUS_LABELS_
+      // above - the select's change handler below reads e.target.value, so
+      // without this the friendlier "Closed - Needs Review" display text
+      // would itself get POSTed as the status instead of the real "Closed".
+      var optionsHtml = statusOptionsForThis.map(function (s) {
+        var label = MY_TASKS_STATUS_LABELS_[s] || s;
+        return '<option value="' + s + '"' + (s === t.status ? " selected" : "") + '>' + label + '</option>';
+      }).join("");
       // Delete button - added 6 Oct 2026, only for the task's own
       // creator (checked again server-side in handleTaskDelete_ - this
       // is just so the button isn't even shown to someone it would

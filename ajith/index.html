@@ -1154,6 +1154,19 @@
         </button>
       </div>
     </div>
+    <!-- Bank Deposit red reminder, added 22 Nov 2026 ("Bank Deposit in
+         heading itself want to remind dsr as same in dashboard if he did
+         not paid the amount as red colour") - same "no deposit in 7+
+         days" rule the owner's dashboard already flags in red
+         (bdOverdueBadgeHtml_()/bdDaysSince_() in dashboard/index.html),
+         now shown right in THIS app's own heading too, so the DSR sees it
+         immediately on login rather than only the owner seeing it later.
+         Populated by renderBankDepositReminderBanner_() below, reusing
+         the same ?type=bankDeposits data this app already fetches once at
+         login for the Bank Deposit panel - no extra network call. Hidden
+         (and left empty) whenever the most recent deposit on record is 7
+         days old or newer. -->
+    <div id="bankDepositReminderBanner" class="health-banner warn" hidden></div>
     <div class="summary-strip" id="summaryStrip"></div>
   </header>
 
@@ -1193,7 +1206,7 @@
        and proven first) to all 8 DSR apps - 26 Oct 2026, owner's "ok, go
        ahead with all dsr". -->
   <section style="padding-bottom:0;">
-    <details class="manage" id="todaysPlanDetails" open>
+    <details class="manage" id="todaysPlanDetails">
       <summary>🌅 Today's Plan <span id="todaysPlanDateLabel" class="num" style="font-weight:500;"></span></summary>
       <div class="manage-body">
         <p class="hint">Planned Dealers/Sales Plan/Collection Plan fill in automatically from today's Beat Plan route. Mechanics/New Dealer/Remarks are for you to type, same as your WhatsApp morning card.</p>
@@ -3459,6 +3472,36 @@
     bdLastListEl.innerHTML = deposits.map(function (d) { return bdRowHtml_(d, today); }).join("");
   }
 
+  // Red reminder banner in the app's own heading, added 22 Nov 2026 - see
+  // #bankDepositReminderBanner's own markup comment above for the full
+  // story. Same day-count rule as the dashboard's bdDaysSince_(): strictly
+  // more than 7 days since the most recent deposit on record (or no
+  // deposit at all) is overdue. Finds the most recent date in the array
+  // rather than assuming deposits[0] is newest, so this stays correct
+  // however the backend happens to order its response.
+  function bdDaysSinceIso_(iso) {
+    if (!iso) return null;
+    var d = new Date(iso + "T00:00:00");
+    if (isNaN(d.getTime())) return null;
+    var now = new Date();
+    var today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.round((today0.getTime() - d.getTime()) / 86400000);
+  }
+  function renderBankDepositReminderBanner_(deposits) {
+    var bannerEl = document.getElementById("bankDepositReminderBanner");
+    if (!bannerEl) return;
+    var latestDate = null;
+    (deposits || []).forEach(function (d) {
+      if (d && d.date && (!latestDate || d.date > latestDate)) latestDate = d.date;
+    });
+    var daysSince = latestDate ? bdDaysSinceIso_(latestDate) : null;
+    var overdue = (daysSince === null) || daysSince > 7;
+    if (!overdue) { bannerEl.hidden = true; bannerEl.innerHTML = ""; return; }
+    bannerEl.innerHTML = (daysSince === null)
+      ? "&#9888; No bank deposit on record yet &mdash; please deposit this week&rsquo;s collection and log it below."
+      : "&#9888; No bank deposit in " + daysSince + " day" + (daysSince === 1 ? "" : "s") + " &mdash; please deposit this week&rsquo;s collection and log it below.";
+    bannerEl.hidden = false;
+  }
   function fetchBankDeposits_() {
     if (!apiConfigured() || !bdLastListEl) return;
     var myDsrName = document.getElementById("dsrName").value || "";
@@ -3467,6 +3510,7 @@
       .then(function (data) {
         if (!data || !data.ok) { bdLastListEl.innerHTML = '<div class="task-empty-note">Could not load.</div>'; return; }
         renderBankDepositList_(data.deposits || []);
+        renderBankDepositReminderBanner_(data.deposits || []);
       })
       .catch(function () { bdLastListEl.innerHTML = '<div class="task-empty-note">Could not reach the server.</div>'; });
   }
@@ -7169,23 +7213,9 @@
   // due today or earlier (not just ones with a reminder time set).
   var loginTaskPopupChecked_ = false;
 
-  // Bug fix, 17 Nov 2026 ("task mananger is showing all dealers to all
-  // dsr"): this used to send &viewerName=<name>&viewerRole=DSR, a client-
-  // trusted identity the server stopped honoring on 30 Oct 2026 (see
-  // Code.gs's "Security fix, 30 Oct 2026" block) - every call here was
-  // silently resolving to an empty/invalid session server-side, which
-  // taskRowVisible_() should treat as "sees nothing" but a second bug (now
-  // also fixed, in taskRowVisible_() itself) let a blank Also-Visible-To
-  // column match a blank viewer name, leaking every such task - which is
-  // most of them - to every DSR app regardless of who it was really
-  // assigned to. Fixed by sending the real sessionId this app already
-  // uses for ?type=live (set in proceedAfterLogin()), same pattern. Same
-  // fix applied the same day to the other 7 live DSR apps - this one was
-  // missed in that first pass since this session had no local copy of
-  // ajith/index.html until the owner sent it back.
   function fetchMyTasks_() {
     if (!apiConfigured() || !myTasksListEl) return;
-    fetch(ORDERS_API_URL + "?type=tasks&sessionId=" + encodeURIComponent(loginSessionId || "") + "&_ts=" + Date.now(), { cache: "no-store" })
+    fetch(ORDERS_API_URL + "?type=tasks&viewerName=" + encodeURIComponent(DSR_SHORT_NAME) + "&viewerRole=DSR&_ts=" + Date.now(), { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || !data.ok) { myTasksListEl.innerHTML = '<div class="task-empty-note">Could not load tasks.</div>'; return; }
@@ -7207,10 +7237,24 @@
   }
   // Status options restricted - 8 Oct 2026 ("Only the complete in
   // prograss option should be set my me or manager not area manager or
-  // dsr"): this app is always viewed by a DSR, so only Open/On Hold are
-  // ever pickable here - handleTaskUpdateStatus_ enforces the same
+  // dsr"): this app is always viewed by a DSR, so only a DSR-safe subset
+  // is ever pickable here - handleTaskUpdateStatus_ enforces the same
   // restriction server-side regardless of what this file sends.
-  var MY_TASKS_STATUSES_ = ["Open", "On Hold"];
+  //
+  // "On Hold" removed, "Closed" added - 22 Nov 2026 ("in dsr app my task
+  // closed need review has option to come and open on hold should not").
+  // "Closed" became a real, DSR-settable status back on 30 Oct 2026 (see
+  // handleTaskUpdateStatus_()'s own comment in Code.gs - a DSR marks a
+  // finished task "Closed" and an Owner/Manager reviews it before moving
+  // it to "Completed", which is the only status this app ever hides a
+  // task for - see myTasksShowCompleted_ above), but this app's own
+  // dropdown was never updated to actually offer it, so a DSR here had no
+  // way to mark a task done-pending-review at all. Shown to the DSR as
+  // "Closed - Needs Review" (MY_TASKS_STATUS_LABELS_ below) for clarity -
+  // the value actually POSTed to Code.gs is still the plain "Closed"
+  // string it already expects, so no server or sheet change needed.
+  var MY_TASKS_STATUSES_ = ["Open", "Closed"];
+  var MY_TASKS_STATUS_LABELS_ = { "Closed": "Closed - Needs Review" };
   function renderMyTasks_() {
     var tasks = myTasksShowCompleted_ ? MY_TASKS_RAW_ : MY_TASKS_RAW_.filter(function (t) { return t.status !== "Completed"; });
     if (myTasksCountEl) myTasksCountEl.textContent = tasks.length ? String(tasks.length) : "";
@@ -7226,7 +7270,14 @@
       // renderTaskManager_(), so the select never silently shows the
       // wrong value.
       var statusOptionsForThis = MY_TASKS_STATUSES_.indexOf(t.status) === -1 ? MY_TASKS_STATUSES_.concat([t.status]) : MY_TASKS_STATUSES_;
-      var optionsHtml = statusOptionsForThis.map(function (s) { return '<option' + (s === t.status ? " selected" : "") + '>' + s + '</option>'; }).join("");
+      // Explicit value= added 22 Nov 2026 alongside MY_TASKS_STATUS_LABELS_
+      // above - the select's change handler below reads e.target.value, so
+      // without this the friendlier "Closed - Needs Review" display text
+      // would itself get POSTed as the status instead of the real "Closed".
+      var optionsHtml = statusOptionsForThis.map(function (s) {
+        var label = MY_TASKS_STATUS_LABELS_[s] || s;
+        return '<option value="' + s + '"' + (s === t.status ? " selected" : "") + '>' + label + '</option>';
+      }).join("");
       // Delete button - added 6 Oct 2026, only for the task's own
       // creator (checked again server-side in handleTaskDelete_ - this
       // is just so the button isn't even shown to someone it would
