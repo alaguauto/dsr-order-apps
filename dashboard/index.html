@@ -391,6 +391,10 @@
   .dvc-decision-btn { font-size: 11px; padding: 2px 9px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); cursor: pointer; }
   .dvc-decision-btn.yes { border-color: var(--good); color: var(--good); }
   .dvc-decision-btn.no { border-color: var(--warn); color: var(--warn); }
+  /* "Undo" on a recent decision row, added 22 Nov 2026 - neutral styling
+     (not .good/.warn like Yes/No) since this button's own action is
+     reversal, not itself a Yes or a No. */
+  .dvc-decision-btn.undo { border-color: var(--accent); color: var(--accent); }
   .dvc-decision-btn:disabled { opacity: 0.5; cursor: default; }
   .dvc-decision-done { font-size: 11px; color: var(--ink-muted); font-style: italic; }
 
@@ -2970,6 +2974,22 @@
         <span id="dvcDateStatus" style="font-size:11.5px;color:var(--ink-muted);"></span>
       </div>
       <div id="dealerVisitCheckWrap"></div>
+      <!-- Recent Yes/No decisions + Undo, added 22 Nov 2026 ("yes add redo
+           button for who match asked by u and i clicked yes or no" - after
+           the owner accidentally clicked No on PETHANATCHI AUTO STORE,
+           USILAMPATTI (OIL) and had no way to fix it). A decided pair never
+           comes back as a "Possible match" row (see dealerVisitCheckLive_()
+           in Code.gs), so this is the ONLY place a wrong Yes/No click can be
+           corrected from - independent of the date picker above (always the
+           most recently decided pairs overall, whatever date is on screen),
+           populated from the same ?type=live / ?type=dealerVisitCheck
+           response's new recentDecisions field. Collapsed by default -
+           closed unless something needs fixing, same convention as the
+           Missed <details> above. -->
+      <details class="dvc-sub" id="dvcRecentDecisionsDetails" style="margin-top:10px;">
+        <summary>Recent Yes/No decisions &ndash; Undo a wrong one here</summary>
+        <div id="dvcRecentDecisionsWrap"></div>
+      </details>
       <p style="font-size:11px;color:var(--ink-muted);margin:0;">Matching is automatic (name-similarity) and approximate - "Possible matches" are shown for a human glance, never silently resolved either way. "No visit log today" is a neutral state (nothing has synced yet, or that DSR isn't logging for a known reason) - not a missed-visit count. The date picker always uses each dealer's CURRENT Beat Day - beat day isn't tracked historically, so a past date from before a recent beat-day change may not reflect what applied back then.</p>
     </div>
   </details>
@@ -10056,6 +10076,15 @@
   // "today" to check.
   var dealerVisitCheckData_ = [];
 
+  // Recent Yes/No decisions (confirmed or rejected), newest first - added
+  // 22 Nov 2026 for the "Undo" feature, see the long HTML comment above
+  // #dvcRecentDecisionsWrap. Populated from the SAME ?type=live /
+  // ?type=dealerVisitCheck response as dealerVisitCheckData_ above
+  // (res.dealerVisitCheck.recentDecisions), so it is always refreshed
+  // alongside it - independent of the date picker, this always reflects
+  // the most recently decided pairs regardless of which date is on screen.
+  var dealerVisitRecentDecisions_ = [];
+
   // Selected date for the date picker added 26 Oct 2026 ("date changing
   // option inside") - null until either fetchLive()'s first ?type=live
   // response seeds it to today (see applyLivePayloadToState_ below, which
@@ -10192,9 +10221,39 @@
     }
     if (!dealerVisitCheckData_.length) {
       wrap.innerHTML = '<p style="font-size:12.5px;color:var(--ink-muted);">No beat-day dealers found for this date across the 7 DSRs &mdash; check back after the beat plan is set, or the response hasn&rsquo;t arrived yet.</p>';
+      renderDvcRecentDecisions_();
       return;
     }
     wrap.innerHTML = dealerVisitCheckData_.map(dealerVisitCheckDsrRowHtml_).join('');
+    renderDvcRecentDecisions_();
+  }
+
+  // Recent Yes/No decisions + "Undo", added 22 Nov 2026 - see the long HTML
+  // comment above #dvcRecentDecisionsWrap. Always called right alongside
+  // renderDealerVisitCheck_() above so the two lists never drift out of
+  // sync (same dealerVisitRecentDecisions_ array dealerVisitCheckData_'s
+  // own fetch sites both already populate). "Undo" re-POSTs the exact
+  // opposite decision for the same (dealer, raw shop text) pair - see the
+  // dvcUndoClick_ listener below - which upserts over the old row exactly
+  // like deciding a fresh Possible match always has (no new backend
+  // action; this rides on the existing dealerVisitMatchDecision POST).
+  function renderDvcRecentDecisions_() {
+    var wrap = document.getElementById('dvcRecentDecisionsWrap');
+    if (!wrap) return;
+    if (!dealerVisitRecentDecisions_.length) {
+      wrap.innerHTML = '<p style="font-size:12px;color:var(--ink-muted);">No Yes/No decisions recorded yet.</p>';
+      return;
+    }
+    wrap.innerHTML = '<ul class="dvc-list">' + dealerVisitRecentDecisions_.map(function (r, idx) {
+      var decisionLabel = r.decision === 'confirmed'
+        ? '<span class="pill done">Yes</span>'
+        : '<span class="pill err">No</span>';
+      return '<li class="dvc-decision-row" data-idx="' + idx + '" data-dealer="' + dvcEsc_(r.dealer) + '" data-shop="' + dvcEsc_(r.shopName) + '" data-current-decision="' + dvcEsc_(r.decision) + '">' +
+        '<span class="dvc-decision-text">' + dvcEsc_(r.dealer) + ' &mdash; ' + dvcEsc_(r.shopName) + ' ' + decisionLabel + '</span>' +
+        '<span class="dvc-decision-btns">' +
+        '<button type="button" class="dvc-decision-btn undo" data-undo="1" title="Flip this decision back">Undo</button>' +
+        '</span></li>';
+    }).join('') + '</ul>';
   }
 
   // Re-fetches the dealer-visit check for an arbitrary date, added 26 Oct
@@ -10214,6 +10273,7 @@
       }
       dvcSelectedDateIso_ = res.dealerVisitCheck.dateIso || iso;
       dealerVisitCheckData_ = res.dealerVisitCheck.byDsr || [];
+      dealerVisitRecentDecisions_ = res.dealerVisitCheck.recentDecisions || [];
       if (statusEl) statusEl.textContent = '';
       renderDealerVisitCheck_();
     }).catch(function () {
@@ -10267,6 +10327,50 @@
         fetchDealerVisitCheckForDate_(dvcSelectedDateIso_ || todayISO());
       }).catch(function () {
         btns.forEach(function (b) { b.disabled = false; });
+        if (textEl) textEl.textContent = originalText + ' — could not reach the server, try again.';
+      });
+    });
+  })();
+
+  // "Undo" on a recent decision, added 22 Nov 2026 - see the long HTML
+  // comment above #dvcRecentDecisionsWrap. Deliberately its own small
+  // delegated listener (not folded into the Yes/No one above, which is
+  // scoped to #dealerVisitCheckWrap only) - this one is scoped to
+  // #dvcRecentDecisionsWrap instead, which is rebuilt on every render the
+  // same way. Posts the SAME dealerVisitMatchDecision action the Yes/No
+  // buttons use, just with the decision flipped (rejected -> "yes",
+  // confirmed -> "no") - this upserts over the old row exactly like
+  // changing one's mind on a fresh Possible match always has (see
+  // handleDealerVisitMatchDecision_()'s own comment in Code.gs). Re-fetches
+  // the currently-displayed date afterward, same as the Yes/No handler,
+  // so both lists (and whichever bucket the dealer now falls into) stay
+  // in sync with the one server-side source of truth.
+  (function () {
+    var wrap = document.getElementById('dvcRecentDecisionsWrap');
+    if (!wrap) return;
+    wrap.addEventListener('click', function (e) {
+      var btn = e.target.closest('.dvc-decision-btn.undo');
+      if (!btn) return;
+      var row = btn.closest('.dvc-decision-row');
+      if (!row) return;
+      var dealer = row.getAttribute('data-dealer') || '';
+      var shop = row.getAttribute('data-shop') || '';
+      var currentDecision = row.getAttribute('data-current-decision') || '';
+      if (!dealer || !shop || !currentDecision || typeof ORDERS_API_URL !== 'string') return;
+      var flippedDecision = currentDecision === 'confirmed' ? 'no' : 'yes';
+      btn.disabled = true;
+      var textEl = row.querySelector('.dvc-decision-text');
+      var originalText = textEl ? textEl.textContent : '';
+      if (textEl) textEl.textContent = originalText + ' — undoing…';
+      dashboardApiPost_('dealerVisitMatchDecision', { dealer: dealer, matchedShop: shop, decision: flippedDecision, requestedBy: CURRENT_USER_NAME || '' }).then(function (res) {
+        if (!res || !res.ok) {
+          btn.disabled = false;
+          if (textEl) textEl.textContent = originalText + ' — could not undo, try again.';
+          return;
+        }
+        fetchDealerVisitCheckForDate_(dvcSelectedDateIso_ || todayISO());
+      }).catch(function () {
+        btn.disabled = false;
         if (textEl) textEl.textContent = originalText + ' — could not reach the server, try again.';
       });
     });
@@ -10509,6 +10613,28 @@
   // ?type=daybookMonth already accepted an arbitrary month (the historical
   // per-DSR diagnostic already relies on data being there) - no backend
   // change needed for this, only the client no longer hardcodes "now".
+  // Added 21 Nov 2026 (owner, as a follow-up to the same-day "filter it to
+  // show only petronas" request: "no need of TATA MOTORS PASSENGER
+  // VEHICLES LIMITED,PUNE sales also in that daybook which shows for all
+  // managers and me"). Mirrors tally_live_watcher.py's own
+  // DAYBOOK_EXCLUDED_PARTY constant exactly (same lowercased/trimmed
+  // string) - that backend constant only keeps a TATA-Motors-billed line
+  // in the DayBook_yyyy_MM sheet at all when its Item Group is one of the
+  // 3 confirmed TATA groups (_TATA_MOTORS_ALLOWED_ITEM_GROUPS_, the 18 Nov
+  // 2026 fix for "DAYBOOK DATA NOT COMING FOR TATA") - so every TATA Motors
+  // Pune row that reaches this raw export is, by construction, a genuine
+  // Petronas TATA-group sale and would otherwise survive the broad
+  // isPetronasItemGroup_() check just above. The on-screen Day Book
+  // (Petronas)/Sales by Item Group panel, its own Excel export and its
+  // WhatsApp share already drop these same 3 TATA item groups wholesale
+  // (isMainDaybookItemGroup_(), 20 Nov 2026), which already excludes every
+  // TATA Motors Pune row there too - this raw export was the one place
+  // still showing them, since it deliberately keeps TATA/Coimbatore CBE
+  // sales in general (just not this one specific party).
+  var DAYBOOK_EXPORT_EXCLUDED_PARTY_ = 'tata motors passenger vehicles limited,pune';
+  function isExcludedDaybookExportParty_(party) {
+    return String(party || '').trim().toLowerCase() === DAYBOOK_EXPORT_EXCLUDED_PARTY_;
+  }
   function runDaybookExport_(monthKey, btn) {
     if (typeof XLSX === 'undefined') {
       alert('Excel export isn\'t available right now — the export library didn\'t load. Check your connection and try again.');
@@ -10524,7 +10650,28 @@
         if (!res || !res.ok) throw new Error((res && res.error) || 'Server error');
         var rows = [['Date', 'Voucher Number', 'Voucher Type', 'Party', 'Party Group',
           'Item Name', 'Item Group', 'Qty', 'Alt Qty (Ltr)', 'Rate', 'Amount (incl GST)']];
+        // Added 21 Nov 2026 (owner: "in dashboard daybook cash is showing
+        // for all spares also , so filter it to show only petronas").
+        // handleDaybookMonthGet_() on the backend deliberately returns every
+        // raw row for the month - "Sales - CASH"/"POS BILLING" vouchers
+        // aren't scoped to lubricants at all in Tally, so they carry
+        // whatever non-Petronas auto-spares/tractor-parts item a cash sale
+        // happened to be for, same as "Sales - PETRONAS"/"Sales - CBE" can
+        // in principle - its own comment says item-group filtering is left
+        // to the dashboard (isPetronasItemGroup_()) on purpose, to keep that
+        // one rule in one place. This raw Day Book export was the one place
+        // that filter was never applied (the Day Book (Petronas)/Sales by
+        // Item Group panel, its own Excel export and its WhatsApp share all
+        // already use it, or the narrower isMainDaybookItemGroup_() since 20
+        // Nov 2026 - see those functions' own comments above). Uses the
+        // broad isPetronasItemGroup_() here, not the Madurai-only
+        // isMainDaybookItemGroup_() - the owner asked for "only petronas",
+        // not "only Madurai", and TATA/Coimbatore CBE sales are still
+        // genuine Petronas business that belongs in the full raw Day Book
+        // export, just not in the Madurai-DSR-scoped summary panel.
         (res.rows || []).forEach(function (r) {
+          if (!isPetronasItemGroup_(r.itemGroup)) return;
+          if (isExcludedDaybookExportParty_(r.party)) return;
           rows.push([
             r.date || '', r.voucherNumber || '', r.voucherType || '', r.party || '', r.partyGroup || '',
             r.itemName || '', r.itemGroup || '',
@@ -15702,6 +15849,7 @@
       if (!dvcSelectedDateIso_ || dvcSelectedDateIso_ === todayISO()) {
         dvcSelectedDateIso_ = res.dealerVisitCheck.dateIso || todayISO();
         dealerVisitCheckData_ = res.dealerVisitCheck.byDsr || [];
+        dealerVisitRecentDecisions_ = res.dealerVisitCheck.recentDecisions || [];
         var dvcInput = document.getElementById('dvcDateSelect');
         if (dvcInput && !dvcInput.value) dvcInput.value = dvcSelectedDateIso_;
         renderDealerVisitCheck_();
